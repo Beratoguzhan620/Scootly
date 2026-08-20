@@ -1,7 +1,13 @@
-bin/
-obj/
+[Bb]in/
+[Oo]bj/
 .vs/
 .idea/
 .vscode/
 *.user
 *.suo
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.nupkg
+.env
