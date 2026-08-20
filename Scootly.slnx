@@ -1,8 +1,3 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/Scootly.Api/Scootly.Api.csproj" />
-    <Project Path="src/Scootly.Application/Scootly.Application.csproj" />
-    <Project Path="src/Scootly.Domain/Scootly.Domain.csproj" />
-    <Project Path="src/Scootly.Infrastructure/Scootly.Infrastructure.csproj" />
-  </Folder>
+  <Project Path="src/Scootly.Api/Scootly.Api.csproj" />
 </Solution>
