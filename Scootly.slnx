@@ -5,4 +5,7 @@
     <Project Path="src/Scootly.Domain/Scootly.Domain.csproj" />
     <Project Path="src/Scootly.Infrastructure/Scootly.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Scootly.Domain.UnitTests/Scootly.Domain.UnitTests.csproj" />
+  </Folder>
 </Solution>
