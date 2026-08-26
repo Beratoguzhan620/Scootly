@@ -46,4 +46,17 @@ public class EntityTests
 
         Assert.Equal(entity1.GetHashCode(), entity2.GetHashCode());
     }
+
+    public class BaskaTestEntity : Entity
+    {
+        public BaskaTestEntity(Guid id) : base(id) { }
+    }
+
+    [Fact]
+    public void Ayni_Id_Farkli_Tip_Esit_Olmamali()
+    {
+        var id = Guid.NewGuid();
+
+        Assert.False(new TestEntity(id).Equals(new BaskaTestEntity(id)));
+    }
 }

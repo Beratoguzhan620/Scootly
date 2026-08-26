@@ -52,4 +52,16 @@ public class GeofenceEvaluatorTests
 
         Assert.Equal(0, distance, precision: 5);
     }
+
+    [Fact]
+    public void Yasak_Bolgedeki_Nokta_Tespit_Edilmeli()
+    {
+        var zone = new NoParkingZone("Meydan", new List<GeoPoint>
+    {
+        new(0, 0), new(0, 10), new(10, 10), new(10, 0)
+    });
+        var evaluator = new GeofenceEvaluator();
+
+        Assert.True(evaluator.IsInNoParkingZone(new GeoPoint(5, 5), zone));
+    }
 }
