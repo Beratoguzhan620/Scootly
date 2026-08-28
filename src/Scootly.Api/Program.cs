@@ -1,3 +1,4 @@
+using Serilog;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
@@ -5,6 +6,13 @@ using Scootly.Application.Riding.Commands;
 using Scootly.Infrastructure.Time;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .WriteTo.Console();
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
