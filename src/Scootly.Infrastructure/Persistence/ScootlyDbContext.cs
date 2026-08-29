@@ -5,7 +5,7 @@ using Scootly.Domain.Riding;
 
 namespace Scootly.Infrastructure.Persistence;
 
-public sealed class ScootlyDbContext : DbContext, IApplicationDbContext
+public sealed class ScootlyDbContext : DbContext, IApplicationDbContext, IUnitOfWork
 {
     public ScootlyDbContext(DbContextOptions<ScootlyDbContext> options) : base(options) { }
 

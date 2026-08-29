@@ -1,8 +1,10 @@
 using Serilog;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
+using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +19,15 @@ builder.Host.UseSerilog((context, configuration) =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<ScootlyDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<IApplicationDbContext>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
+
+builder.Services.AddScoped<IUnitOfWork>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
 
 builder.Services.AddScoped<IClock, SystemClock>();
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
