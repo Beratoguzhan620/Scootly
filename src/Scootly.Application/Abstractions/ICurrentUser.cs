@@ -2,12 +2,10 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Scootly.Application.Abstractions
-{
-    internal class ICurrentUser
-    {
-        Guid UserId { get; }
-        string Role { get; }
+namespace Scootly.Application.Abstractions;
 
-    }
+public interface ICurrentUser
+{
+    Guid UserId { get; }
+    string Role { get; }
 }
