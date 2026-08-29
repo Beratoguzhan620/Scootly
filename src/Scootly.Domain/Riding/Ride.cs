@@ -15,6 +15,11 @@ public sealed class Ride : AggregateRoot
     public RideStatus Status { get; private set; }
     public decimal? Fare { get; private set; }
 
+    private Ride()
+    {
+        StartLocation = null!;
+    }
+
     public Ride(RideId id, Guid driverId, Guid vehicleId, GeoPoint startLocation, DateTime startedAt)
         : base(id.Value)
     {
