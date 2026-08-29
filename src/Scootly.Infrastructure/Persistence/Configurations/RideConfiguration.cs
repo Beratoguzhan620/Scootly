@@ -36,8 +36,24 @@ public sealed class RideConfiguration : IEntityTypeConfiguration<Ride>
         builder.Property(r => r.Fare)
             .HasPrecision(10, 2);
 
-        // StartLocation / EndLocation (GeoPoint) eşlemesi Gün 12'de eklenecek
+        builder.OwnsOne(r => r.StartLocation, location =>
+        {
+            location.Property(p => p.Latitude)
+                .HasColumnName("StartLatitude")
+                .IsRequired();
 
-        builder.Ignore(r => r.DomainEvents);
+            location.Property(p => p.Longitude)
+                .HasColumnName("StartLongitude")
+                .IsRequired();
+        });
+
+        builder.OwnsOne(r => r.EndLocation, location =>
+        {
+            location.Property(p => p.Latitude)
+                .HasColumnName("EndLatitude");
+
+            location.Property(p => p.Longitude)
+                .HasColumnName("EndLongitude");
+        });
     }
 }

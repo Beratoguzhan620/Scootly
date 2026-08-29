@@ -36,8 +36,15 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
                 .IsRequired();
         });
 
-        // Location (GeoPoint) eşlemesi Gün 12'de eklenecek
+        builder.OwnsOne(v => v.Location, location =>
+        {
+            location.Property(p => p.Latitude)
+                .HasColumnName("Latitude")
+                .IsRequired();
 
-        builder.Ignore(v => v.DomainEvents);
+            location.Property(p => p.Longitude)
+                .HasColumnName("Longitude")
+                .IsRequired();
+        });
     }
 }
