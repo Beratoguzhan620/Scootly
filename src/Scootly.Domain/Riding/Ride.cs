@@ -23,6 +23,9 @@ public sealed class Ride : AggregateRoot
     public RideStatus Status { get; private set; }
     public decimal? Fare { get; private set; }
 
+    // EF Core için — uygulama kodunda kullanılmaz
+    private Ride() { }
+
     public Ride(RideId id, Guid driverId, VehicleId vehicleId, GeoPoint startLocation, DateTime startedAt)
         : base(id.Value)
     {

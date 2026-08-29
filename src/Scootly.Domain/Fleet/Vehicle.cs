@@ -11,6 +11,9 @@ public sealed class Vehicle : AggregateRoot
     public VehicleStatus Status { get; private set; }
     public BatteryLevel Battery { get; private set; }
     public GeoPoint Location { get; private set; }
+    
+    // EF Core için — uygulama kodunda kullanılmaz
+    private Vehicle() { }
 
     public Vehicle(VehicleId id, VehicleModel model, GeoPoint location, BatteryLevel battery)
         : base(id.Value)
