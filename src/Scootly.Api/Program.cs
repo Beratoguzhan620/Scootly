@@ -1,23 +1,51 @@
+using Serilog;
+using Microsoft.EntityFrameworkCore;
+using Scootly.Api.Middleware;
+using Scootly.Api.Validators;
+using Scootly.Application.Abstractions;
+using Scootly.Application.Riding.Commands;
+using Scootly.Infrastructure.Persistence;
+using Scootly.Infrastructure.Time;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Host.UseSerilog((context, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .WriteTo.Console();
+});
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<ScootlyDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<IApplicationDbContext>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
+
+builder.Services.AddScoped<IUnitOfWork>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
+
+builder.Services.AddScoped<IClock, SystemClock>();
+builder.Services.AddScoped<ReserveVehicleCommandHandler>();
+builder.Services.AddScoped<StartRideCommandHandler>();
+builder.Services.AddScoped<CompleteRideCommandHandler>();
+builder.Services.AddScoped<StartRideRequestValidator>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
