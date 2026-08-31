@@ -6,23 +6,31 @@ namespace Scootly.Application.Riding.Commands;
 
 public sealed class CompleteRideCommandHandler
 {
-    private readonly IApplicationDbContext _dbContext;
+    private readonly IRideRepository _rideRepository;
+    private readonly IVehicleRepository _vehicleRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
 
-    public CompleteRideCommandHandler(IApplicationDbContext dbContext, IClock clock)
+    public CompleteRideCommandHandler(
+        IRideRepository rideRepository,
+        IVehicleRepository vehicleRepository,
+        IUnitOfWork unitOfWork,
+        IClock clock)
     {
-        _dbContext = dbContext;
+        _rideRepository = rideRepository;
+        _vehicleRepository = vehicleRepository;
+        _unitOfWork = unitOfWork;
         _clock = clock;
     }
 
     public async Task<Result> Handle(CompleteRideCommand command, CancellationToken cancellationToken = default)
     {
-        var ride = _dbContext.Rides.FirstOrDefault(r => r.Id == command.RideId);
+        var ride = await _rideRepository.GetByIdAsync(command.RideId, cancellationToken);
 
         if (ride is null)
             return Result.Failure("Sürüş bulunamadı.");
 
-        var vehicle = _dbContext.Vehicles.FirstOrDefault(v => v.Id == ride.VehicleId);
+        var vehicle = await _vehicleRepository.GetByIdAsync(ride.VehicleId, cancellationToken);
 
         if (vehicle is null)
             return Result.Failure("Araç bulunamadı.");
@@ -32,7 +40,7 @@ public sealed class CompleteRideCommandHandler
         ride.Complete(endLocation, _clock.UtcNow);
         vehicle.CompleteRide();
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }

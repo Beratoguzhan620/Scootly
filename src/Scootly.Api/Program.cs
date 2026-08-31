@@ -6,6 +6,7 @@ using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
+using Scootly.Infrastructure.Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,9 @@ builder.Services.AddDbContext<ScootlyDbContext>(options =>
 
 builder.Services.AddScoped<IApplicationDbContext>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
+
+builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
+builder.Services.AddScoped<IRideRepository, RideRepository>();
 
 builder.Services.AddScoped<IUnitOfWork>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
