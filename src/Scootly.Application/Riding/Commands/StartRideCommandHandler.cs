@@ -1,5 +1,6 @@
 ﻿using Scootly.Application.Abstractions;
 using Scootly.Domain.Common;
+using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
 
 namespace Scootly.Application.Riding.Commands;
@@ -32,11 +33,13 @@ public sealed class StartRideCommandHandler
 
         vehicle.StartRide();
 
+        var startLocation = new GeoPoint(vehicle.Location.Latitude, vehicle.Location.Longitude);
+
         var ride = new Ride(
             RideId.New(),
             command.DriverId,
             command.VehicleId,
-            vehicle.Location,
+            startLocation,
             _clock.UtcNow);
 
         await _rideRepository.AddAsync(ride, cancellationToken);
