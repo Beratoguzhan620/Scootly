@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Scootly.Api.IntegrationTests/Scootly.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Scootly.Application.UnitTests/Scootly.Application.UnitTests.csproj" />
     <Project Path="tests/Scootly.Domain.UnitTests/Scootly.Domain.UnitTests.csproj" />
   </Folder>
 </Solution>
