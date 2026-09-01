@@ -27,13 +27,14 @@ builder.Services.AddDbContext<ScootlyDbContext>(options =>
 builder.Services.AddScoped<IApplicationDbContext>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
 
-builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
-builder.Services.AddScoped<IRideRepository, RideRepository>();
-
 builder.Services.AddScoped<IUnitOfWork>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
 
+builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
+builder.Services.AddScoped<IRideRepository, RideRepository>();
+
 builder.Services.AddScoped<IClock, SystemClock>();
+
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
 builder.Services.AddScoped<CompleteRideCommandHandler>();
@@ -53,4 +54,5 @@ app.UseHttpsRedirection();
 app.MapControllers();
 
 app.Run();
+
 public partial class Program { }
