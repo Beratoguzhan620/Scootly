@@ -1,6 +1,7 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Scootly.Api.Contracts.Responses;
 using Xunit;
 
 namespace Scootly.Api.IntegrationTests;
@@ -34,7 +35,7 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, startResponse.StatusCode);
 
-        var vehiclesResponse = await client.GetFromJsonAsync<List<VehicleDto>>("/api/vehicles");
+        var vehiclesResponse = await client.GetFromJsonAsync<List<VehicleResponse>>("/api/vehicles");
         var activeVehicle = vehiclesResponse!.First(v => v.Id == vehicleId);
         Assert.Equal("InRide", activeVehicle.Status);
     }
@@ -56,6 +57,4 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
 
         return vehicle.Id;
     }
-
-    private sealed record VehicleDto(Guid Id, double Latitude, double Longitude, int BatteryPercentage, string Status);
 }
