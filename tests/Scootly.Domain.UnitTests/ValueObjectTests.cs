@@ -38,4 +38,13 @@ public class ValueObjectTests
 
         Assert.False(para1.Equals(para2));
     }
+
+    [Fact]
+    public void Farkli_Amount_Degerine_Sahip_TestMoney_Esit_Olmamali()
+    {
+        var money1 = new TestMoney(50);
+        var money2 = new TestMoney(75);
+
+        Assert.NotEqual(money1, money2);
+    }
 }
