@@ -1,27 +1,33 @@
 ﻿using Scootly.Application.Abstractions;
 using Scootly.Domain.Common;
+using Scootly.Domain.Fleet;
 
 namespace Scootly.Application.Riding.Commands;
 
 public sealed class ReserveVehicleCommandHandler
 {
-    private readonly IApplicationDbContext _dbContext;
+    private readonly IVehicleRepository _vehicles;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ReserveVehicleCommandHandler(IApplicationDbContext dbContext)
+    public ReserveVehicleCommandHandler(IVehicleRepository vehicles, IUnitOfWork unitOfWork)
     {
-        _dbContext = dbContext;
+        _vehicles = vehicles;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Result> Handle(ReserveVehicleCommand command, CancellationToken cancellationToken = default)
     {
-        var vehicle = _dbContext.Vehicles.FirstOrDefault(v => v.Id == command.VehicleId);
+        if (command.DriverId == Guid.Empty)
+            return Result.Failure("Geçersiz istek.");
+
+        var vehicle = await _vehicles.GetByIdAsync(new VehicleId(command.VehicleId), cancellationToken);
 
         if (vehicle is null)
             return Result.Failure("Araç bulunamadı.");
 
         vehicle.Reserve();
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();
     }
