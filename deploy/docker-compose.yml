@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: scootly-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: sifre123
+      POSTGRES_DB: scootly
+    ports:
+      - "5432:5432"
+    volumes:
+      - scootly-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  scootly-postgres-data:

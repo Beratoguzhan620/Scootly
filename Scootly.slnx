@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Scootly.Api/Scootly.Api.csproj" />
     <Project Path="src/Scootly.Application/Scootly.Application.csproj" />
@@ -6,6 +10,8 @@
     <Project Path="src/Scootly.Infrastructure/Scootly.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Scootly.Api.IntegrationTests/Scootly.Api.IntegrationTests.csproj" />
+    <Project Path="tests/Scootly.Application.UnitTests/Scootly.Application.UnitTests.csproj" />
     <Project Path="tests/Scootly.Domain.UnitTests/Scootly.Domain.UnitTests.csproj" />
   </Folder>
 </Solution>

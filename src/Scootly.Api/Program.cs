@@ -6,6 +6,7 @@ using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
+using Scootly.Infrastructure.Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +30,11 @@ builder.Services.AddScoped<IApplicationDbContext>(provider =>
 builder.Services.AddScoped<IUnitOfWork>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
 
+builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
+builder.Services.AddScoped<IRideRepository, RideRepository>();
+
 builder.Services.AddScoped<IClock, SystemClock>();
+
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
 builder.Services.AddScoped<CompleteRideCommandHandler>();
@@ -49,3 +54,5 @@ app.UseHttpsRedirection();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }
