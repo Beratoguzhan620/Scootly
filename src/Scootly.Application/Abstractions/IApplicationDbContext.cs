@@ -8,6 +8,7 @@ public interface IApplicationDbContext
     IQueryable<Vehicle> Vehicles { get; }
     IQueryable<Ride> Rides { get; }
 
+    void AddVehicle(Vehicle vehicle);
     void AddRide(Ride ride);
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

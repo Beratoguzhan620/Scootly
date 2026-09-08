@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Scootly.Api.Authorization;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
@@ -46,25 +47,29 @@ builder.Services.AddAuthentication(options =>
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-    .AddJwtBearer(options =>
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-        };
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+});
 
-builder.Services.AddScoped<IApplicationDbContext>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(PolicyNames.FleetManagerOnly, policy => policy.RequireRole("FleetManager"));
+    options.AddPolicy(PolicyNames.OperatorOnly, policy => policy.RequireRole("FieldOperator"));
+    options.AddPolicy(PolicyNames.DriverOnly, policy => policy.RequireRole("Driver"));
+});
 
-builder.Services.AddScoped<IUnitOfWork>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
+builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ScootlyDbContext>());
+builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ScootlyDbContext>());
 
 builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
 builder.Services.AddScoped<IRideRepository, RideRepository>();

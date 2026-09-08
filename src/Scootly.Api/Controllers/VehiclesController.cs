@@ -1,8 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Scootly.Api.Authorization;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
+using Scootly.Domain.Fleet;
+using Scootly.Domain.Geo;
 
 namespace Scootly.Api.Controllers;
 
@@ -22,6 +26,7 @@ public sealed class VehiclesController : ControllerBase
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public IActionResult GetNearby()
     {
         var vehicles = _dbContext.Vehicles
@@ -36,7 +41,23 @@ public sealed class VehiclesController : ControllerBase
         return Ok(vehicles);
     }
 
+    [HttpPost]
+    [Authorize(Policy = PolicyNames.FleetManagerOnly)]
+    public IActionResult Register([FromBody] RegisterVehicleRequest request)
+    {
+        var vehicle = new Vehicle(
+            VehicleId.New(),
+            new VehicleModel(request.Brand, request.RangeKm),
+            new GeoPoint(request.Latitude, request.Longitude),
+            new BatteryLevel(request.BatteryPercentage));
+
+        _dbContext.AddVehicle(vehicle);
+
+        return Ok(vehicle.Id);
+    }
+
     [HttpPost("{id}/reserve")]
+    [Authorize]
     public async Task<IActionResult> Reserve(Guid id, [FromBody] ReserveVehicleRequest request)
     {
         var command = new ReserveVehicleCommand(id, request.DriverId);

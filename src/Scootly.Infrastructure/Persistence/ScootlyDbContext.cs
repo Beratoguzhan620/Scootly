@@ -18,6 +18,11 @@ public sealed class ScootlyDbContext
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;
 
+    public void AddVehicle(Vehicle vehicle)
+    {
+        Vehicles.Add(vehicle);
+    }
+
     public void AddRide(Ride ride)
     {
         Rides.Add(ride);
