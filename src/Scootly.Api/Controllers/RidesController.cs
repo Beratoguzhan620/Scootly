@@ -1,6 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Scootly.Api.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Validators;
+using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 
 namespace Scootly.Api.Controllers;
@@ -9,18 +12,47 @@ namespace Scootly.Api.Controllers;
 [Route("api/rides")]
 public sealed class RidesController : ControllerBase
 {
+    private readonly IApplicationDbContext _dbContext;
     private readonly StartRideCommandHandler _startHandler;
     private readonly CompleteRideCommandHandler _completeHandler;
     private readonly StartRideRequestValidator _validator;
+    private readonly IAuthorizationService _authorizationService;
 
     public RidesController(
+        IApplicationDbContext dbContext,
         StartRideCommandHandler startHandler,
         CompleteRideCommandHandler completeHandler,
-        StartRideRequestValidator validator)
+        StartRideRequestValidator validator,
+        IAuthorizationService authorizationService)
     {
+        _dbContext = dbContext;
         _startHandler = startHandler;
         _completeHandler = completeHandler;
         _validator = validator;
+        _authorizationService = authorizationService;
+    }
+
+    [HttpGet("{id}")]
+    [Authorize]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, id, PolicyNames.RideOwner);
+
+        if (!authResult.Succeeded)
+            return Forbid();
+
+        var ride = _dbContext.Rides.FirstOrDefault(r => r.Id == id);
+
+        if (ride is null)
+            return NotFound();
+
+        return Ok(new
+        {
+            ride.Id,
+            ride.DriverId,
+            ride.VehicleId,
+            Status = ride.Status.ToString()
+        });
     }
 
     [HttpPost("start")]

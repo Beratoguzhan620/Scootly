@@ -1,6 +1,7 @@
 using Serilog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Scootly.Api.Authorization;
@@ -47,29 +48,42 @@ builder.Services.AddAuthentication(options =>
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
+    .AddJwtBearer(options =>
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-    };
-});
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(PolicyNames.FleetManagerOnly, policy => policy.RequireRole("FleetManager"));
-    options.AddPolicy(PolicyNames.OperatorOnly, policy => policy.RequireRole("FieldOperator"));
-    options.AddPolicy(PolicyNames.DriverOnly, policy => policy.RequireRole("Driver"));
+    options.AddPolicy(PolicyNames.FleetManagerOnly, policy =>
+        policy.RequireRole("FleetManager"));
+
+    options.AddPolicy(PolicyNames.OperatorOnly, policy =>
+        policy.RequireRole("FieldOperator"));
+
+    options.AddPolicy(PolicyNames.DriverOnly, policy =>
+        policy.RequireRole("Driver"));
+
+    options.AddPolicy(PolicyNames.RideOwner, policy =>
+        policy.Requirements.Add(new RideOwnerRequirement()));
 });
 
-builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ScootlyDbContext>());
-builder.Services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ScootlyDbContext>());
+builder.Services.AddScoped<IAuthorizationHandler, RideOwnerHandler>();
+
+builder.Services.AddScoped<IApplicationDbContext>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
+
+builder.Services.AddScoped<IUnitOfWork>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
 
 builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
 builder.Services.AddScoped<IRideRepository, RideRepository>();
