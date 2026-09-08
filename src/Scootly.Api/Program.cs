@@ -91,6 +91,7 @@ builder.Services.AddScoped<IRideRepository, RideRepository>();
 builder.Services.AddScoped<IClock, SystemClock>();
 builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
 builder.Services.AddScoped<JwtTokenGenerator>();
+builder.Services.AddScoped<DeviceTokenService>();
 
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
@@ -110,6 +111,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
+app.UseMiddleware<DeviceAuthenticationMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
