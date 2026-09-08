@@ -1,3 +1,3 @@
 ﻿namespace Scootly.Api.Contracts.Requests;
 
-public sealed record ReserveVehicleRequest(Guid DriverId);
+public sealed record ReserveVehicleRequest();

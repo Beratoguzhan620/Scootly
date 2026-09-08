@@ -1,0 +1,1 @@
+﻿UPDATE "Vehicles" SET "Status" = 'Available' WHERE "Id" = '11111111-1111-1111-1111-111111111111';

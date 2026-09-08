@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Scootly.Api.Contracts.Responses;
@@ -21,23 +22,35 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
         var client = _factory.CreateClient();
 
         var vehicleId = await SeedVehicleAsync();
-        var driverId = Guid.NewGuid();
+        var token = await RegisterAndLoginAsync(client);
 
-        var reserveResponse = await client.PostAsJsonAsync(
-            $"/api/vehicles/{vehicleId}/reserve",
-            new { DriverId = driverId });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+        var reserveResponse = await client.PostAsync($"/api/vehicles/{vehicleId}/reserve", null);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
 
         var startResponse = await client.PostAsJsonAsync(
             "/api/rides/start",
-            new { VehicleId = vehicleId, DriverId = driverId });
+            new { VehicleId = vehicleId });
 
         Assert.Equal(HttpStatusCode.OK, startResponse.StatusCode);
 
         var vehiclesResponse = await client.GetFromJsonAsync<List<VehicleResponse>>("/api/vehicles");
         var activeVehicle = vehiclesResponse!.First(v => v.Id == vehicleId);
         Assert.Equal("InRide", activeVehicle.Status);
+    }
+
+    private async Task<string> RegisterAndLoginAsync(HttpClient client)
+    {
+        var email = $"test-{Guid.NewGuid()}@scootly.com";
+        var password = "test123";
+
+        await client.PostAsJsonAsync("/api/auth/register", new { Email = email, Password = password });
+
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
+        var result = await loginResponse.Content.ReadFromJsonAsync<TokenResponse>();
+
+        return result!.Token;
     }
 
     private async Task<Guid> SeedVehicleAsync()
@@ -57,4 +70,6 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
 
         return vehicle.Id;
     }
+
+    private sealed record TokenResponse(string Token);
 }

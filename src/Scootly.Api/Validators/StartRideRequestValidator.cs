@@ -9,9 +9,6 @@ public sealed class StartRideRequestValidator
         if (request.VehicleId == Guid.Empty)
             return (false, "VehicleId boş olamaz.");
 
-        if (request.DriverId == Guid.Empty)
-            return (false, "DriverId boş olamaz.");
-
         return (true, null);
     }
 }

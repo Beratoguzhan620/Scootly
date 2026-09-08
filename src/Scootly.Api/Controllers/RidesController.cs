@@ -17,19 +17,22 @@ public sealed class RidesController : ControllerBase
     private readonly CompleteRideCommandHandler _completeHandler;
     private readonly StartRideRequestValidator _validator;
     private readonly IAuthorizationService _authorizationService;
+    private readonly ICurrentUser _currentUser;
 
     public RidesController(
         IApplicationDbContext dbContext,
         StartRideCommandHandler startHandler,
         CompleteRideCommandHandler completeHandler,
         StartRideRequestValidator validator,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _startHandler = startHandler;
         _completeHandler = completeHandler;
         _validator = validator;
         _authorizationService = authorizationService;
+        _currentUser = currentUser;
     }
 
     [HttpGet("{id}")]
@@ -56,6 +59,7 @@ public sealed class RidesController : ControllerBase
     }
 
     [HttpPost("start")]
+    [Authorize]
     public async Task<IActionResult> Start([FromBody] StartRideRequest request)
     {
         var (isValid, error) = _validator.Validate(request);
@@ -63,7 +67,7 @@ public sealed class RidesController : ControllerBase
         if (!isValid)
             return BadRequest(error);
 
-        var command = new StartRideCommand(request.VehicleId, request.DriverId);
+        var command = new StartRideCommand(request.VehicleId, _currentUser.UserId);
         var result = await _startHandler.Handle(command);
 
         if (!result.IsSuccess)
@@ -73,6 +77,7 @@ public sealed class RidesController : ControllerBase
     }
 
     [HttpPost("{id}/complete")]
+    [Authorize]
     public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteRideRequest request)
     {
         var command = new CompleteRideCommand(id, request.EndLatitude, request.EndLongitude);

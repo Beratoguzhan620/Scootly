@@ -16,13 +16,16 @@ public sealed class VehiclesController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly ReserveVehicleCommandHandler _reserveHandler;
+    private readonly ICurrentUser _currentUser;
 
     public VehiclesController(
         IApplicationDbContext dbContext,
-        ReserveVehicleCommandHandler reserveHandler)
+        ReserveVehicleCommandHandler reserveHandler,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _reserveHandler = reserveHandler;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
@@ -58,9 +61,9 @@ public sealed class VehiclesController : ControllerBase
 
     [HttpPost("{id}/reserve")]
     [Authorize]
-    public async Task<IActionResult> Reserve(Guid id, [FromBody] ReserveVehicleRequest request)
+    public async Task<IActionResult> Reserve(Guid id)
     {
-        var command = new ReserveVehicleCommand(id, request.DriverId);
+        var command = new ReserveVehicleCommand(id, _currentUser.UserId);
         var result = await _reserveHandler.Handle(command);
 
         if (!result.IsSuccess)
