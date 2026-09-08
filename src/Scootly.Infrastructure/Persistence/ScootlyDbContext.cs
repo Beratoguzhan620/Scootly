@@ -1,11 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
+using Scootly.Infrastructure.Identity;
 
 namespace Scootly.Infrastructure.Persistence;
 
-public sealed class ScootlyDbContext : DbContext, IApplicationDbContext, IUnitOfWork
+public sealed class ScootlyDbContext
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>, IApplicationDbContext, IUnitOfWork
 {
     public ScootlyDbContext(DbContextOptions<ScootlyDbContext> options) : base(options) { }
 
@@ -22,6 +25,7 @@ public sealed class ScootlyDbContext : DbContext, IApplicationDbContext, IUnitOf
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ScootlyDbContext).Assembly);
     }
 }

@@ -7,6 +7,7 @@ using Scootly.Application.Riding.Commands;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
+using Scootly.Infrastructure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,14 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
+{
+    options.Password.RequiredLength = 6;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = false;
+})
+    .AddEntityFrameworkStores<ScootlyDbContext>();
 
 builder.Services.AddScoped<IApplicationDbContext>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
@@ -51,6 +60,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
