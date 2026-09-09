@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Scootly.Api.Authorization;
+using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
@@ -20,6 +21,7 @@ builder.Host.UseSerilog((context, configuration) =>
 {
     configuration
         .ReadFrom.Configuration(context.Configuration)
+        .Destructure.With<SensitiveDataDestructuringPolicy>()
         .WriteTo.Console();
 });
 
