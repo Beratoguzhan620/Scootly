@@ -26,7 +26,7 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var reserveResponse = await client.PostAsync($"/api/vehicles/{vehicleId}/reserve", null);
+        var reserveResponse = await client.PostAsync($"/api/v1/vehicles/{vehicleId}/reserve", null);
         Assert.Equal(HttpStatusCode.OK, reserveResponse.StatusCode);
 
         var startResponse = await client.PostAsJsonAsync(
@@ -35,8 +35,8 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, startResponse.StatusCode);
 
-        var vehiclesResponse = await client.GetFromJsonAsync<List<VehicleResponse>>("/api/vehicles");
-        var activeVehicle = vehiclesResponse!.First(v => v.Id == vehicleId);
+        var vehiclesResponse = await client.GetFromJsonAsync<PagedResult<VehicleResponse>>("/api/v1/vehicles");
+        var activeVehicle = vehiclesResponse!.Items.First(v => v.Id == vehicleId);
         Assert.Equal("InRide", activeVehicle.Status);
     }
 

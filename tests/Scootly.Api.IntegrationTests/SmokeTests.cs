@@ -16,7 +16,7 @@ public sealed class SmokeTests : IClassFixture<ScootlyApiFactory>
     {
         var client = _factory.CreateClient();
 
-        var response = await client.GetAsync("/api/vehicles");
+        var response = await client.GetAsync("/api/v1/vehicles");
 
         response.EnsureSuccessStatusCode();
     }

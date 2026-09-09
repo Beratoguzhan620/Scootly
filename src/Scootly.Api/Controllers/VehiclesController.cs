@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scootly.Api.Authorization;
 using Scootly.Application.Abstractions;
@@ -11,7 +12,9 @@ using Scootly.Domain.Geo;
 namespace Scootly.Api.Controllers;
 
 [ApiController]
-[Route("api/vehicles")]
+[ApiVersion("1.0")]
+[ApiVersion("2.0")]
+[Route("api/v{version:apiVersion}/vehicles")]
 public sealed class VehiclesController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
@@ -29,8 +32,9 @@ public sealed class VehiclesController : ControllerBase
     }
 
     [HttpGet]
+    [MapToApiVersion("1.0")]
     [AllowAnonymous]
-    public IActionResult GetNearby([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    public IActionResult GetNearbyV1([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize is < 1 or > 100) pageSize = 20;
@@ -44,18 +48,38 @@ public sealed class VehiclesController : ControllerBase
                 v.Status.ToString()));
 
         var totalCount = query.Count();
+        var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
-        var items = query
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
+        return Ok(new PagedResult<VehicleResponse>(items, pageNumber, pageSize, totalCount));
+    }
 
-        var result = new PagedResult<VehicleResponse>(items, pageNumber, pageSize, totalCount);
+    [HttpGet]
+    [MapToApiVersion("2.0")]
+    [AllowAnonymous]
+    public IActionResult GetNearbyV2([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize is < 1 or > 100) pageSize = 20;
 
-        return Ok(result);
+        var query = _dbContext.Vehicles
+            .Select(v => new VehicleResponseV2(
+                v.Id,
+                v.Location.Latitude,
+                v.Location.Longitude,
+                v.Battery.Percentage,
+                v.Status.ToString(),
+                v.Model.Brand,
+                v.Model.RangeKm));
+
+        var totalCount = query.Count();
+        var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+
+        return Ok(new PagedResult<VehicleResponseV2>(items, pageNumber, pageSize, totalCount));
     }
 
     [HttpPost]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
     [Authorize(Policy = PolicyNames.FleetManagerOnly)]
     public IActionResult Register([FromBody] RegisterVehicleRequest request)
     {
@@ -71,6 +95,8 @@ public sealed class VehiclesController : ControllerBase
     }
 
     [HttpPost("{id}/reserve")]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
     [Authorize]
     public async Task<IActionResult> Reserve(Guid id)
     {
