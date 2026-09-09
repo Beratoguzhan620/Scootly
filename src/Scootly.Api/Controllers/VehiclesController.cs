@@ -30,18 +30,29 @@ public sealed class VehiclesController : ControllerBase
 
     [HttpGet]
     [AllowAnonymous]
-    public IActionResult GetNearby()
+    public IActionResult GetNearby([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
-        var vehicles = _dbContext.Vehicles
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize is < 1 or > 100) pageSize = 20;
+
+        var query = _dbContext.Vehicles
             .Select(v => new VehicleResponse(
                 v.Id,
                 v.Location.Latitude,
                 v.Location.Longitude,
                 v.Battery.Percentage,
-                v.Status.ToString()))
+                v.Status.ToString()));
+
+        var totalCount = query.Count();
+
+        var items = query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .ToList();
 
-        return Ok(vehicles);
+        var result = new PagedResult<VehicleResponse>(items, pageNumber, pageSize, totalCount);
+
+        return Ok(result);
     }
 
     [HttpPost]
