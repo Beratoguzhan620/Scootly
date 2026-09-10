@@ -65,3 +65,32 @@ tutarlı bir sırayla (örnek: her zaman Id'ye göre küçükten büyüğe) eri�
 Bu proje şu an çoklu kaynak kilitleyen bir üretim kodu içermiyor (DeadlockTests
 yalnızca bu deneyi kanıtlamak için yazıldı), ama 14. haftada (Saga desenleri)
 bu kural devreye girecek.
+
+## Çözüm Uygulandı (38. gün)
+
+İlk denemede `byte[] RowVersion` + `IsRowVersion()` deseni kullanıldı — bu SQL
+Server'a özgü bir yaklaşımdır ve PostgreSQL'de hiçbir otomatik değer üretmediği
+için koruma gerçekte çalışmadı (Başarılı: 40/100, baseline'dan bile kötü).
+
+Doğru çözüm: PostgreSQL'in her satırda doğal olarak bulunan `xmin` sistem sütunu,
+EF Core'a bir gölge alan (`builder.Property<uint>("xmin").IsRowVersion()`) olarak
+tanıtıldı. Bu, veritabanı şemasında (mantıksal olarak) yeni bir sütun gerektirmez
+— PostgreSQL'in kendi iç mekanizmasını kullanır. Domain sınıfı (Vehicle) hiçbir
+eşzamanlılık detayı bilmez, tamamen Infrastructure katmanında kalır.
+
+**Doğrulama sonucu (baseline ile karşılaştırma):**
+
+| İstek Sayısı | Öncesi (36. gün) | Sonrası (38. gün) |
+|---|---|---|
+| 10 | 4 başarılı | **1 başarılı**, 9 Conflict |
+| 50 | 9 başarılı | **1 başarılı**, 49 Conflict |
+| 100 | 30 başarılı | **1 başarılı**, 99 Conflict |
+
+`ReserveVehicleCommandHandler`, `DbUpdateConcurrencyException`'ı yakalayıp
+kullanıcıya "başka biri tarafından rezerve edildi, tekrar deneyin" mesajıyla
+409 Conflict döndürüyor — çırılçıplak bir 500 hatası değil.
+
+## Ders (Platform Farkı)
+SQL Server'a özgü desenler (`rowversion`/`timestamp` tipi, `[Timestamp]` attribute'ü)
+PostgreSQL'de doğrudan çalışmaz. Veritabanı motoruna özgü eşzamanlılık mekanizmalarını
+(PostgreSQL için `xmin`) araştırıp kullanmak gerekir.

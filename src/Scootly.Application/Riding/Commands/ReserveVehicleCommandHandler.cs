@@ -1,4 +1,5 @@
-﻿using Scootly.Application.Abstractions;
+﻿using Microsoft.EntityFrameworkCore;
+using Scootly.Application.Abstractions;
 using Scootly.Domain.Common;
 
 namespace Scootly.Application.Riding.Commands;
@@ -21,9 +22,15 @@ public sealed class ReserveVehicleCommandHandler
         if (vehicle is null)
             return Result.Failure("Araç bulunamadı.");
 
-        vehicle.Reserve();
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            vehicle.Reserve();
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Result.Failure("Araç, siz kontrol ettikten sonra başka biri tarafından rezerve edildi. Lütfen tekrar deneyin.");
+        }
 
         return Result.Success();
     }

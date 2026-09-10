@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Scootly.Domain.Fleet;
 
 namespace Scootly.Infrastructure.Persistence.Configurations;
@@ -18,6 +19,8 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
 
         builder.HasIndex(v => v.Status)
             .HasDatabaseName("IX_Vehicles_Status");
+
+        builder.Property<uint>("xmin").IsRowVersion();
 
         builder.OwnsOne(v => v.Model, model =>
         {
