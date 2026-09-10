@@ -35,3 +35,18 @@ Tüm uygulamanın transaction seviyesini Serializable'a çekmek.
 Bu, yalnızca Vehicle.Reserve() gibi çakışmaya açık birkaç işlem için gereken korumayı,
 tüm veritabanı işlemlerine (çoğu çakışmaya hiç açık olmayan basit okuma/yazmalar dahil)
 dayatmış olurdu — gereksiz performans kaybı.
+
+## Baseline Ölçümü (36. gün)
+
+Koruma eklenmeden önce, farklı yük seviyelerinde ölçüm:
+
+| İstek Sayısı | Başarılı (olması gereken: 1) | Conflict (409) |
+|---|---|---|
+| 10 | 4 | 6 |
+| 50 | 9 | 41 |
+| 100 | 30 | 70 |
+
+Gözlem: Yük arttıkça hatalı başarı sayısı da artıyor (%40 → %18 → %30, tutarsız
+ama her zaman >1). Bu tablo, 38. günde sürüm damgası eklendikten sonra "Başarılı"
+sütununun her seviyede tam olarak 1'e düşmesini doğrulamak için referans olarak
+kullanılacak.
