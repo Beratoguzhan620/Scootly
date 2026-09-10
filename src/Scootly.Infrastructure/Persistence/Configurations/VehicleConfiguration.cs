@@ -16,6 +16,9 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        builder.HasIndex(v => v.Status)
+            .HasDatabaseName("IX_Vehicles_Status");
+
         builder.OwnsOne(v => v.Model, model =>
         {
             model.Property(m => m.Brand).HasColumnName("Brand").HasMaxLength(100);
@@ -31,6 +34,9 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         {
             location.Property(l => l.Latitude).HasColumnName("Latitude");
             location.Property(l => l.Longitude).HasColumnName("Longitude");
+
+            location.HasIndex(l => new { l.Latitude, l.Longitude })
+                .HasDatabaseName("IX_Vehicles_Location");
         });
 
         builder.Navigation(v => v.Model).IsRequired();
