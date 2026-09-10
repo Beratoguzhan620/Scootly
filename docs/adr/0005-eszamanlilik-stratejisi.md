@@ -50,3 +50,18 @@ Gözlem: Yük arttıkça hatalı başarı sayısı da artıyor (%40 → %18 → 
 ama her zaman >1). Bu tablo, 38. günde sürüm damgası eklendikten sonra "Başarılı"
 sütununun her seviyede tam olarak 1'e düşmesini doğrulamak için referans olarak
 kullanılacak.
+
+## Deadlock Gözlemi (37. gün)
+
+İki araç satırını ters sırayla kilitleyen iki eşzamanlı transaction, PostgreSQL
+tarafından deadlock olarak tespit edildi ve taraflardan biri otomatik iptal edildi
+(hata kodu 40P01). Aynı iki transaction'ı **aynı sırayla** kilitleyecek şekilde
+değiştirince deadlock hiç oluşmadı — ikinci transaction sadece ilkinin bitmesini
+sırayla bekledi.
+
+**Kural:** Projede birden fazla kaynağa (birden fazla Vehicle satırı, ileride
+Vehicle+Wallet gibi farklı tablolar) aynı işlemde erişen her kod yolu, bu kaynaklara
+tutarlı bir sırayla (örnek: her zaman Id'ye göre küçükten büyüğe) erişmelidir.
+Bu proje şu an çoklu kaynak kilitleyen bir üretim kodu içermiyor (DeadlockTests
+yalnızca bu deneyi kanıtlamak için yazıldı), ama 14. haftada (Saga desenleri)
+bu kural devreye girecek.
