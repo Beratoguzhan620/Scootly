@@ -120,6 +120,7 @@ builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
 builder.Services.AddScoped<CompleteRideCommandHandler>();
 builder.Services.AddScoped<StartRideRequestValidator>();
+builder.Services.AddScoped<CompleteRideRequestValidator>();
 
 var app = builder.Build();
 

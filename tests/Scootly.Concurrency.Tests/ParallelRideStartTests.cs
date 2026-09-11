@@ -22,7 +22,7 @@ public sealed class ParallelRideStartTests : IClassFixture<ConcurrencyTestFactor
     [InlineData(10)]
     [InlineData(50)]
     [InlineData(100)]
-    public async Task Ayni_Araca_N_Paralel_Rezervasyon_Istegi_Sonucu(int concurrentRequestCount)
+    public async Task Ayni_Araca_N_Paralel_Rezervasyon_Istegi_Yalnizca_Birini_Basarili_Kilmali(int concurrentRequestCount)
     {
         var vehicleId = await SeedAvailableVehicleAsync();
 
@@ -41,8 +41,8 @@ public sealed class ParallelRideStartTests : IClassFixture<ConcurrencyTestFactor
         var successCount = results.Count(status => status == HttpStatusCode.OK);
         var conflictCount = results.Count(status => status == HttpStatusCode.Conflict);
 
-        throw new Xunit.Sdk.XunitException(
-            $"İstek sayısı: {concurrentRequestCount} | Başarılı: {successCount} | Conflict (409): {conflictCount} | Diğer: {concurrentRequestCount - successCount - conflictCount}");
+        Assert.Equal(1, successCount);
+        Assert.Equal(concurrentRequestCount - 1, conflictCount);
     }
 
     private async Task<string> RegisterAndLoginAsync(HttpClient client)

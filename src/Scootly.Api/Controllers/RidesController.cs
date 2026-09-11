@@ -15,7 +15,8 @@ public sealed class RidesController : ControllerBase
     private readonly IApplicationDbContext _dbContext;
     private readonly StartRideCommandHandler _startHandler;
     private readonly CompleteRideCommandHandler _completeHandler;
-    private readonly StartRideRequestValidator _validator;
+    private readonly StartRideRequestValidator _startValidator;
+    private readonly CompleteRideRequestValidator _completeValidator;
     private readonly IAuthorizationService _authorizationService;
     private readonly ICurrentUser _currentUser;
 
@@ -23,14 +24,16 @@ public sealed class RidesController : ControllerBase
         IApplicationDbContext dbContext,
         StartRideCommandHandler startHandler,
         CompleteRideCommandHandler completeHandler,
-        StartRideRequestValidator validator,
+        StartRideRequestValidator startValidator,
+        CompleteRideRequestValidator completeValidator,
         IAuthorizationService authorizationService,
         ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _startHandler = startHandler;
         _completeHandler = completeHandler;
-        _validator = validator;
+        _startValidator = startValidator;
+        _completeValidator = completeValidator;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
     }
@@ -62,7 +65,7 @@ public sealed class RidesController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Start([FromBody] StartRideRequest request)
     {
-        var (isValid, error) = _validator.Validate(request);
+        var (isValid, error) = _startValidator.Validate(request);
 
         if (!isValid)
             return BadRequest(error);
@@ -80,6 +83,11 @@ public sealed class RidesController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteRideRequest request)
     {
+        var (isValid, error) = _completeValidator.Validate(request);
+
+        if (!isValid)
+            return BadRequest(error);
+
         var command = new CompleteRideCommand(id, request.EndLatitude, request.EndLongitude);
         var result = await _completeHandler.Handle(command);
 

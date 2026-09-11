@@ -16,11 +16,8 @@ public sealed class IsolationLevelTests : IClassFixture<ConcurrencyTestFactory>
         _factory = factory;
     }
 
-    [Theory]
-    [InlineData(IsolationLevel.ReadCommitted)]
-    [InlineData(IsolationLevel.RepeatableRead)]
-    [InlineData(IsolationLevel.Serializable)]
-    public async Task Farkli_Izolasyon_Seviyelerinde_Paralel_Rezervasyon_Sonucu(IsolationLevel isolationLevel)
+    [Fact]
+    public async Task Xmin_Korumasi_ReadCommitted_Seviyesinde_Bile_Calismali()
     {
         var vehicleId = await SeedAvailableVehicleAsync();
 
@@ -29,15 +26,14 @@ public sealed class IsolationLevelTests : IClassFixture<ConcurrencyTestFactory>
             using var scope = _factory.Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
 
-            return await IsolationLevelTestHelper.TryReserveWithIsolationLevel(dbContext, vehicleId, isolationLevel);
+            return await IsolationLevelTestHelper.TryReserveWithIsolationLevel(
+                dbContext, vehicleId, IsolationLevel.ReadCommitted);
         });
 
         var results = await Task.WhenAll(tasks);
         var successCount = results.Count(success => success);
 
-        // Sonucu gözlemlemek için — assert yok, sadece raporluyoruz
-        throw new Xunit.Sdk.XunitException(
-            $"İzolasyon seviyesi: {isolationLevel} | Başarılı rezervasyon sayısı: {successCount} / 20");
+        Assert.Equal(1, successCount);
     }
 
     private async Task<Guid> SeedAvailableVehicleAsync()
