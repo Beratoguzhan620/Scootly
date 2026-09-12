@@ -10,7 +10,7 @@ using Scootly.Infrastructure.Identity;
 namespace Scootly.Infrastructure.Persistence;
 
 public sealed class ScootlyDbContext
-    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>, IApplicationDbContext, IUnitOfWork
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>, IApplicationDbContext, IUnitOfWork, ITransactionManager
 {
     /// <summary>
     /// Identity tablolarının toplandığı şema. Alan tablolarından ayrı tutulmasının
@@ -33,6 +33,13 @@ public sealed class ScootlyDbContext
     public void AddRide(Ride ride)
     {
         Rides.Add(ride);
+    }
+
+    /// <summary>35. gün — açık işlem sınırı.</summary>
+    public async Task<ITransactionScope> BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        var transaction = await Database.BeginTransactionAsync(cancellationToken);
+        return new EfTransactionScope(transaction);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

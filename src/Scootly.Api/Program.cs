@@ -10,6 +10,7 @@ using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
+using Scootly.Application.Behaviors;
 using Scootly.Application.Fleet.Commands;
 using Scootly.Application.Riding.Commands;
 using Scootly.Infrastructure.Devices;
@@ -43,6 +44,13 @@ builder.Services.AddScoped<IApplicationDbContext>(provider =>
 
 builder.Services.AddScoped<IUnitOfWork>(provider =>
     provider.GetRequiredService<ScootlyDbContext>());
+
+// 35. gun: acik islem siniri. IUnitOfWork'ten ayri bir arayuz olmasinin
+// gerekcesi ITransactionManager'in belgesinde.
+builder.Services.AddScoped<ITransactionManager>(provider =>
+    provider.GetRequiredService<ScootlyDbContext>());
+
+builder.Services.AddScoped<TransactionBehavior>();
 
 builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
 builder.Services.AddScoped<IRideRepository, RideRepository>();
