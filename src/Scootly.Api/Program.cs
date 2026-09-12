@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Scootly.Api.Authorization;
 using Scootly.Api.Identity;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
+using Scootly.Application.Fleet.Commands;
 using Scootly.Application.Riding.Commands;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Persistence;
@@ -41,6 +43,7 @@ builder.Services.AddScoped<IRideRepository, RideRepository>();
 
 builder.Services.AddScoped<IClock, SystemClock>();
 
+builder.Services.AddScoped<RegisterVehicleCommandHandler>();
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
 builder.Services.AddScoped<CompleteRideCommandHandler>();
@@ -121,7 +124,11 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+// --- Gün 23: rol ve iddia tabanlı yetkilendirme -------------------------------
+// Politikalar ayrı bir dosyada (Api/Authorization). Oradaki varsayılan politika
+// kimlik doğrulamasını ZORUNLU kılıyor: yeni bir uç eklendiğinde varsayılan
+// olarak kapalı olur, açmak isteyen [AllowAnonymous] yazmak zorunda kalır.
+builder.Services.AddScootlyAuthorization();
 // -----------------------------------------------------------------------------
 
 var app = builder.Build();

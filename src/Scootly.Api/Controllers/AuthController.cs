@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
@@ -8,6 +9,11 @@ namespace Scootly.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+// 23. günde varsayılan politika "kimlik doğrulaması zorunlu" oldu.
+// Giriş ve kayıt uçları doğal olarak bunun dışında kalmalı — henüz token'ı
+// olmayan biri token almak için buraya geliyor. Muafiyet controller
+// seviyesinde ve açıkça yazılı.
+[AllowAnonymous]
 public sealed class AuthController : ControllerBase
 {
     /// <summary>

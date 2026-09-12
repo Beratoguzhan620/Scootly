@@ -8,3 +8,10 @@ TestResults/
 **/TestResults/
 .env
 deploy/docker-compose.override.yml
+
+# Depo kökündeki yardımcı kabuk betikleri. Bunlar geliştirme sırasında tek
+# seferlik çalıştırılan araçlardır; projenin çalışması için gerekli değiller ve
+# depoya girmemeleri gerekir. Alt klasörlerdeki betikler (örneğin ileride
+# eklenecek scripts/ veya .github/ altındakiler) bu kuraldan etkilenmez.
+/*.sh
+/*.ps1
