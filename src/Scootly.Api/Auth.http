@@ -1,0 +1,49 @@
+### Scootly — kimlik doğrulama uçları
+### Visual Studio veya VS Code REST Client ile "Send Request" diyerek çalıştırılır.
+### Önce API'yi başlat:  dotnet run --project src/Scootly.Api
+
+@host = https://localhost:7001
+
+### 1) Kayıt — her yeni hesap Driver rolüyle açılır.
+### Rol istemciden alınmaz; gövdeye "role" eklemek hiçbir şeyi değiştirmez.
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "surucu@scootly.local",
+  "password": "Scootly-Test-2026!"
+}
+
+### 2) Giriş — başarılıysa token döner.
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "surucu@scootly.local",
+  "password": "Scootly-Test-2026!"
+}
+
+### 3) Yanlış parola — 401, mesaj "E-posta veya parola hatalı."
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "surucu@scootly.local",
+  "password": "Yanlis-Parola-2026!"
+}
+
+### 4) Hiç kayıtlı olmayan e-posta — 3 numaralı istekle
+### BİREBİR AYNI yanıtı ve benzer yanıt süresini vermeli.
+### Fark olsaydı, saldırgan hangi e-postaların kayıtlı olduğunu öğrenirdi.
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "hicboyle-biri-yok@scootly.local",
+  "password": "Yanlis-Parola-2026!"
+}
+
+### 5) Token ile korumalı bir uca istek (23. günden sonra anlamlı olacak)
+GET {{host}}/api/vehicles
+Authorization: Bearer {{login.response.body.accessToken}}

@@ -1,6 +1,10 @@
-﻿using Serilog;
+﻿using System.Text;
+using Serilog;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Scootly.Api.Identity;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
@@ -45,32 +49,79 @@ builder.Services.AddScoped<StartRideRequestValidator>();
 // --- Gün 21: ASP.NET Core Identity -------------------------------------------
 // AddIdentityCore, AddIdentity değil. AddIdentity çerez (cookie) tabanlı oturum
 // şemasını da kurar ve varsayılan kimlik doğrulama şemasını çereze bağlar;
-// bu API token ile çalışacağı için (22. gün) o şema yalnızca çakışma üretirdi.
-// Core sürümü UserManager, PasswordHasher ve doğrulayıcıları kurar, oturum kurmaz.
+// bu API token ile çalıştığı için o şema yalnızca çakışma üretirdi.
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
-        // Aynı e-posta ile ikinci hesap açılmasın: giriş e-posta üzerinden
-        // yapılacağı için tekillik bir işlevsellik şartı, tercih değil.
         options.User.RequireUniqueEmail = true;
 
-        // Parola politikası. Uzunluk, karakter çeşitliliğinden daha belirleyicidir;
-        // bu yüzden varsayılan 6 yerine 12 karakter.
         options.Password.RequiredLength = 12;
         options.Password.RequireDigit = true;
         options.Password.RequireLowercase = true;
         options.Password.RequireUppercase = true;
         options.Password.RequireNonAlphanumeric = true;
 
-        // Kaba kuvvet (brute force) denemesini yavaşlatır. AllowedForNewUsers
-        // varsayılanda true'dur; açıkça yazıldı ki ileride biri kapatırsa
-        // bunun bir karar olduğu görülsün.
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<ScootlyDbContext>();
+
+// --- Gün 22: JWT --------------------------------------------------------------
+// Yapılandırma açılışta doğrulanır. Anahtar eksik veya kısaysa uygulama HİÇ
+// BAŞLAMAZ. Alternatif — sessizce varsayılan bir anahtara düşmek — herkesin
+// kendine yönetici token'ı üretebilmesi demek olurdu.
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+                 ?? new JwtOptions();
+jwtOptions.Validate();
+
+builder.Services.AddSingleton(jwtOptions);
+builder.Services.AddScoped<JwtTokenGenerator>();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // Kısa iddia adları (sub, role) uzun URI'lere çevrilmesin.
+        options.MapInboundClaims = false;
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+
+            ValidateAudience = true,
+            ValidAudience = jwtOptions.Audience,
+
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+
+            // Kabul edilen algoritma tek başına sabitlenir. Bu liste verilmezse
+            // doğrulayıcı, token'ın kendi başlığında yazan algoritmaya bakar;
+            // saldırganın algoritmayı değiştirerek imza kontrolünü atlatmaya
+            // çalıştığı sınıfa "algoritma karışıklığı" saldırısı denir.
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+
+            // Varsayılan 5 dakikadır: süresi dolmuş bir token 5 dakika daha
+            // kabul edilir. Tek makinede çalışan bir sistemde buna gerek yok.
+            ClockSkew = TimeSpan.Zero,
+
+            // Kısa adlar kullandığımız için bunlar şart. Ayarlanmazsa
+            // [Authorize(Roles = ...)] hiçbir rolü bulamaz ve her istek
+            // sessizce 403 döner — teşhisi zor bir hata.
+            NameClaimType = ScootlyClaimTypes.Subject,
+            RoleClaimType = ScootlyClaimTypes.Role
+        };
+    });
+
+builder.Services.AddAuthorization();
 // -----------------------------------------------------------------------------
 
 var app = builder.Build();
@@ -82,8 +133,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    // Rolleri ve (parola yapılandırılmışsa) tek bir test kullanıcısını oluşturur.
-    // Yalnızca geliştirme ortamında çalışır.
     await using var scope = app.Services.CreateAsyncScope();
     await IdentitySeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
@@ -93,6 +142,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Sıra önemli: önce "sen kimsin" (authentication), sonra "buna yetkin var mı"
+// (authorization). Ters çevrilirse yetki kontrolü henüz doldurulmamış bir
+// kimliğe bakar ve herkesi anonim sanar.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

@@ -12,6 +12,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      JwtBearer paketi burada da referanslanıyor. Bu projenin ara katmana
+      ihtiyacı yok; ihtiyacı olan, token ÜRETEN tarafın (JwtTokenGenerator) ve
+      token DOĞRULAYAN tarafın (Api) aynı Microsoft.IdentityModel sürümünü
+      kullanmasıdır. İki ayrı sürüm, imzalama ile doğrulama arasında teşhisi zor
+      uyumsuzluklar üretir.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
