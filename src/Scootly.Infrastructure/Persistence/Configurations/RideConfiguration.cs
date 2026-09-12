@@ -12,6 +12,10 @@ public sealed class RideConfiguration : IEntityTypeConfiguration<Ride>
 
         builder.HasKey(r => r.Id);
 
+        builder.Property(r => r.DriverId).IsRequired();
+        builder.Property(r => r.VehicleId).IsRequired();
+        builder.Property(r => r.StartedAt).IsRequired();
+
         builder.Property(r => r.Status)
             .HasConversion<string>()
             .HasMaxLength(20);

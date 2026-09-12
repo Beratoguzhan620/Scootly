@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Scootly.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Scootly.Infrastructure.Persistence;
 namespace Scootly.Infrastructure.Migrations
 {
     [DbContext(typeof(ScootlyDbContext))]
-    partial class ScootlyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260908135333_AddIdentity")]
+    partial class AddIdentity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -136,16 +139,7 @@ namespace Scootly.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<uint>("xmin")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("IX_Vehicles_Status");
 
                     b.ToTable("Vehicles", (string)null);
                 });
@@ -172,25 +166,16 @@ namespace Scootly.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("DriverId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal?>("Fare")
                         .HasColumnType("numeric");
 
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("VehicleId")
-                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -376,9 +361,6 @@ namespace Scootly.Infrastructure.Migrations
                                 .HasColumnName("Longitude");
 
                             b1.HasKey("VehicleId");
-
-                            b1.HasIndex("Latitude", "Longitude")
-                                .HasDatabaseName("IX_Vehicles_Location");
 
                             b1.ToTable("Vehicles");
 

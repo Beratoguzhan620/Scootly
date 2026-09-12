@@ -1,45 +1,106 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Scootly.Api.Authorization;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
+using Scootly.Domain.Fleet;
+using Scootly.Domain.Geo;
 
 namespace Scootly.Api.Controllers;
 
 [ApiController]
-[Route("api/vehicles")]
+[ApiVersion("1.0")]
+[ApiVersion("2.0")]
+[Route("api/v{version:apiVersion}/vehicles")]
 public sealed class VehiclesController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly ReserveVehicleCommandHandler _reserveHandler;
+    private readonly ICurrentUser _currentUser;
 
     public VehiclesController(
         IApplicationDbContext dbContext,
-        ReserveVehicleCommandHandler reserveHandler)
+        ReserveVehicleCommandHandler reserveHandler,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _reserveHandler = reserveHandler;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
-    public IActionResult GetNearby()
+    [MapToApiVersion("1.0")]
+    [AllowAnonymous]
+    public IActionResult GetNearbyV1([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
     {
-        var vehicles = _dbContext.Vehicles
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize is < 1 or > 100) pageSize = 20;
+
+        var query = _dbContext.Vehicles
             .Select(v => new VehicleResponse(
                 v.Id,
                 v.Location.Latitude,
                 v.Location.Longitude,
                 v.Battery.Percentage,
-                v.Status.ToString()))
-            .ToList();
+                v.Status.ToString()));
 
-        return Ok(vehicles);
+        var totalCount = query.Count();
+        var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+
+        return Ok(new PagedResult<VehicleResponse>(items, pageNumber, pageSize, totalCount));
+    }
+
+    [HttpGet]
+    [MapToApiVersion("2.0")]
+    [AllowAnonymous]
+    public IActionResult GetNearbyV2([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize is < 1 or > 100) pageSize = 20;
+
+        var query = _dbContext.Vehicles
+            .Select(v => new VehicleResponseV2(
+                v.Id,
+                v.Location.Latitude,
+                v.Location.Longitude,
+                v.Battery.Percentage,
+                v.Status.ToString(),
+                v.Model.Brand,
+                v.Model.RangeKm));
+
+        var totalCount = query.Count();
+        var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+
+        return Ok(new PagedResult<VehicleResponseV2>(items, pageNumber, pageSize, totalCount));
+    }
+
+    [HttpPost]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [Authorize(Policy = PolicyNames.FleetManagerOnly)]
+    public IActionResult Register([FromBody] RegisterVehicleRequest request)
+    {
+        var vehicle = new Vehicle(
+            VehicleId.New(),
+            new VehicleModel(request.Brand, request.RangeKm),
+            new GeoPoint(request.Latitude, request.Longitude),
+            new BatteryLevel(request.BatteryPercentage));
+
+        _dbContext.AddVehicle(vehicle);
+
+        return Ok(vehicle.Id);
     }
 
     [HttpPost("{id}/reserve")]
-    public async Task<IActionResult> Reserve(Guid id, [FromBody] ReserveVehicleRequest request)
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [Authorize]
+    public async Task<IActionResult> Reserve(Guid id)
     {
-        var command = new ReserveVehicleCommand(id, request.DriverId);
+        var command = new ReserveVehicleCommand(id, _currentUser.UserId);
         var result = await _reserveHandler.Handle(command);
 
         if (!result.IsSuccess)
