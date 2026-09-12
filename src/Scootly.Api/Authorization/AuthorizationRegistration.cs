@@ -6,9 +6,10 @@ namespace Scootly.Api.Authorization;
 public static class AuthorizationRegistration
 {
     /// <summary>
-    /// Politikaları kaydeder. Program.cs içine gömmek yerine ayrı bir metot
-    /// olmasının nedeni test edilebilirlik: politikaların gerçekten doğru kararı
-    /// verdiği, web sunucusu ayağa kaldırılmadan sınanabiliyor.
+    /// Politikaları ve kaynak tabanlı kural işleyicilerini kaydeder.
+    /// Program.cs içine gömmek yerine ayrı bir metot olmasının nedeni test
+    /// edilebilirlik: kararların doğruluğu, web sunucusu ayağa kaldırılmadan
+    /// sınanabiliyor.
     /// </summary>
     public static IServiceCollection AddScootlyAuthorization(this IServiceCollection services)
     {
@@ -40,9 +41,28 @@ public static class AuthorizationRegistration
                 policy.RequireRole(RoleNames.Auditor))
 
             // --- İddia tabanlı politika ---
-            // Rolden bağımsız: kullanıcının bir bölgeye bağlı olmasını şart koşar.
             .AddPolicy(PolicyNames.BolgeliPersonel, policy =>
-                policy.RequireClaim(ScootlyClaimTypes.HomeRegion));
+                policy.RequireClaim(ScootlyClaimTypes.HomeRegion))
+
+            // --- Kaynak tabanlı politikalar (24. gün) ---
+            // Bu politikalar bir kaynak olmadan karar veremez. Öznitelikle
+            // uygulanamazlar; controller içinde AuthorizeAsync(User, kaynak, ...)
+            // ile çağrılırlar.
+            .AddPolicy(PolicyNames.SurusSahibi, policy =>
+                policy.RequireAuthenticatedUser()
+                      .AddRequirements(new RideOwnerRequirement()))
+
+            .AddPolicy(PolicyNames.OperatorBolgesi, policy =>
+                policy.RequireRole(RoleNames.FieldOperator)
+                      .AddRequirements(new OperatorRegionRequirement()));
+
+        // Kuralların mantığı burada devreye giriyor. Kayıt unutulursa politika
+        // var olur ama hiçbir handler onu karşılamaz; sonuç her istekte 403
+        // olur — sessiz değil, gürültülü bir başarısızlık. Ters yönde bir hata
+        // (politikanın herkesi geçirmesi) mümkün değil, çünkü karşılanmamış bir
+        // gereksinim daima olumsuz sonuç verir.
+        services.AddScoped<IAuthorizationHandler, RideOwnerHandler>();
+        services.AddScoped<IAuthorizationHandler, OperatorRegionHandler>();
 
         return services;
     }

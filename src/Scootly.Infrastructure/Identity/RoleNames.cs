@@ -21,9 +21,21 @@ public static class RoleNames
     public const string Auditor = "Auditor";
 
     /// <summary>
+    /// Araç cihazı (25. gün).
+    /// </summary>
+    /// <remarks>
+    /// Bu bir Identity rolü DEĞİL ve bilerek <see cref="All"/> listesinde yok.
+    /// Cihazlar kullanıcı değildir: parolaları, e-postaları, hesap kilitleri
+    /// yoktur. Rol yalnızca cihaz token'ının içinde bir iddia olarak taşınır.
+    /// Identity tablolarına bir "cihaz rolü" satırı eklemek, bir kullanıcıya
+    /// yanlışlıkla o rolün atanabilmesi demek olurdu.
+    /// </remarks>
+    public const string VehicleDevice = "VehicleDevice";
+
+    /// <summary>
     /// Tohumlama (seed) ve testlerin üzerinden geçtiği tam liste.
-    /// Ziyaretçi ve araç cihazı bu listede yok: ziyaretçi kimliksiz kullanıcıdır,
-    /// araç cihazı ise 25. günde ayrı bir token akışıyla gelecek.
+    /// Ziyaretçi kimliksiz kullanıcıdır; araç cihazı ayrı bir token akışıyla
+    /// gelir — ikisi de burada yok.
     /// </summary>
     public static readonly IReadOnlyList<string> All =
     [

@@ -6,15 +6,19 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scootly.Api.Authorization;
 using Scootly.Api.Identity;
+using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Fleet.Commands;
 using Scootly.Application.Riding.Commands;
+using Scootly.Infrastructure.Devices;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
+
+const string CorsPolitikasi = "ScootlyVarsayilan";
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +26,8 @@ builder.Host.UseSerilog((context, configuration) =>
 {
     configuration
         .ReadFrom.Configuration(context.Configuration)
+        // Gün 27: loga yazılan nesnelerde hassas alanları maskeler.
+        .Destructure.With<SensitiveDataDestructuringPolicy>()
         .WriteTo.Console();
 });
 
@@ -50,9 +56,9 @@ builder.Services.AddScoped<CompleteRideCommandHandler>();
 builder.Services.AddScoped<StartRideRequestValidator>();
 
 // --- Gün 21: ASP.NET Core Identity -------------------------------------------
-// AddIdentityCore, AddIdentity değil. AddIdentity çerez (cookie) tabanlı oturum
-// şemasını da kurar ve varsayılan kimlik doğrulama şemasını çereze bağlar;
-// bu API token ile çalıştığı için o şema yalnızca çakışma üretirdi.
+// AddIdentityCore, AddIdentity değil. AddIdentity çerez tabanlı oturum şemasını
+// da kurar ve varsayılan kimlik doğrulama şemasını çereze bağlar; bu API token
+// ile çalıştığı için o şema yalnızca çakışma üretirdi.
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
@@ -73,8 +79,8 @@ builder.Services
 
 // --- Gün 22: JWT --------------------------------------------------------------
 // Yapılandırma açılışta doğrulanır. Anahtar eksik veya kısaysa uygulama HİÇ
-// BAŞLAMAZ. Alternatif — sessizce varsayılan bir anahtara düşmek — herkesin
-// kendine yönetici token'ı üretebilmesi demek olurdu.
+// BAŞLAMAZ; sessizce bir varsayılana düşmek, herkesin kendine yönetici token'ı
+// üretebilmesi demek olurdu.
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
                  ?? new JwtOptions();
 jwtOptions.Validate();
@@ -85,11 +91,14 @@ builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
 
+// --- Gün 25: cihaz kimliği ----------------------------------------------------
+builder.Services.AddScoped<IPasswordHasher<DeviceCredential>, PasswordHasher<DeviceCredential>>();
+builder.Services.AddScoped<DeviceTokenService>();
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // Kısa iddia adları (sub, role) uzun URI'lere çevrilmesin.
         options.MapInboundClaims = false;
 
         options.TokenValidationParameters = new TokenValidationParameters
@@ -97,8 +106,12 @@ builder.Services
             ValidateIssuer = true,
             ValidIssuer = jwtOptions.Issuer,
 
+            // İki hedef kitle: kullanıcılar ve cihazlar. Ayrı olmaları,
+            // bir cihaz token'ının kullanıcı uçlarında geçerli SAYILMAMASINI
+            // sağlıyor — ayrımı asıl uygulayan yer DeviceTokenScopeMiddleware,
+            // burası ise token'ın bizim ürettiğimizi doğruluyor.
             ValidateAudience = true,
-            ValidAudience = jwtOptions.Audience,
+            ValidAudiences = [jwtOptions.Audience, DeviceTokenService.DeviceAudience],
 
             ValidateLifetime = true,
             RequireExpirationTime = true,
@@ -106,34 +119,41 @@ builder.Services
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
 
-            // Kabul edilen algoritma tek başına sabitlenir. Bu liste verilmezse
-            // doğrulayıcı, token'ın kendi başlığında yazan algoritmaya bakar;
-            // saldırganın algoritmayı değiştirerek imza kontrolünü atlatmaya
-            // çalıştığı sınıfa "algoritma karışıklığı" saldırısı denir.
+            // Kabul edilen algoritma sabitlenir: aksi halde doğrulayıcı token'ın
+            // kendi başlığında yazan algoritmaya bakar ("algoritma karışıklığı").
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
 
-            // Varsayılan 5 dakikadır: süresi dolmuş bir token 5 dakika daha
-            // kabul edilir. Tek makinede çalışan bir sistemde buna gerek yok.
+            // Varsayılan 5 dakika: süresi dolmuş token 5 dakika daha kabul edilir.
             ClockSkew = TimeSpan.Zero,
 
-            // Kısa adlar kullandığımız için bunlar şart. Ayarlanmazsa
-            // [Authorize(Roles = ...)] hiçbir rolü bulamaz ve her istek
-            // sessizce 403 döner — teşhisi zor bir hata.
             NameClaimType = ScootlyClaimTypes.Subject,
             RoleClaimType = ScootlyClaimTypes.Role
         };
     });
 
-// --- Gün 23: rol ve iddia tabanlı yetkilendirme -------------------------------
-// Politikalar ayrı bir dosyada (Api/Authorization). Oradaki varsayılan politika
-// kimlik doğrulamasını ZORUNLU kılıyor: yeni bir uç eklendiğinde varsayılan
-// olarak kapalı olur, açmak isteyen [AllowAnonymous] yazmak zorunda kalır.
 builder.Services.AddScootlyAuthorization();
-// -----------------------------------------------------------------------------
+
+// --- Gün 30: CORS -------------------------------------------------------------
+// İzinli kaynaklar yapılandırmadan geliyor; kodda sabit bir liste yok.
+// AllowAnyOrigin KULLANILMIYOR: bu API'ye token ile erişiliyor ve ileride
+// (18. haftada) bir tarayıcı arayüzü bağlanacak. Her kaynağa açık bir politika,
+// o arayüzün domain'ini taklit eden bir sayfanın da aynı isteği yapabilmesi
+// demektir. Liste boşsa hiçbir çapraz kaynak isteği geçmez — kapalı taraf.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsPolitikasi, policy => policy
+        .WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+        .WithMethods("GET", "POST")
+        .WithHeaders("Authorization", "Content-Type"));
+});
 
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Gün 27: her isteğin yöntemi, yolu, durum kodu ve süresi tek satırda.
+// Başlıklar loglanmıyor — Authorization başlığı tam da bu yüzden.
+app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {
@@ -150,10 +170,19 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Sıra önemli: önce "sen kimsin" (authentication), sonra "buna yetkin var mı"
-// (authorization). Ters çevrilirse yetki kontrolü henüz doldurulmamış bir
-// kimliğe bakar ve herkesi anonim sanar.
+app.UseCors(CorsPolitikasi);
+
+// SIRA ÖNEMLİ — üç satır, üç ayrı soru, bu sırayla:
+//   1. UseAuthentication          : "sen kimsin"
+//   2. DeviceTokenScopeMiddleware : "cihaz token'ı gitmemesi gereken yere mi gidiyor"
+//   3. UseAuthorization           : "buna yetkin var mı"
+//
+// Ara katman 1'den önce olsaydı context.User henüz boş olurdu ve her isteği
+// "cihaz değil" sayardı — hiçbir şeyi engellemez, ama bunu fark etmezdik çünkü
+// başarısızlığı sessiz olurdu. 3'ten sonra olsaydı yetki kararı zaten verilmiş
+// olurdu.
 app.UseAuthentication();
+app.UseMiddleware<DeviceTokenScopeMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

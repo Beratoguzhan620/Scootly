@@ -11,6 +11,8 @@
 /// </remarks>
 public static class PolicyNames
 {
+    // --- Rol tabanlı: "sen kimsin" ---
+
     /// <summary>Filo yöneticisi: araç ekleme, çıkarma, bakıma gönderme.</summary>
     public const string SadeceYonetici = "SadeceYonetici";
 
@@ -23,15 +25,27 @@ public static class PolicyNames
     /// <summary>Denetçi: yalnızca okuma.</summary>
     public const string SadeceDenetci = "SadeceDenetci";
 
+    // --- İddia tabanlı: "hangi niteliğe sahipsin" ---
+
     /// <summary>
-    /// Bölgeye bağlı personel — ROL DEĞİL, İDDİA (claim) tabanlı.
     /// Kullanıcının token'ında bir <c>home_region</c> iddiası bulunmasını şart koşar.
+    /// Bölgenin DEĞERİNE bakmaz, yalnızca var olduğuna bakar.
     /// </summary>
-    /// <remarks>
-    /// Rol politikası "sen kimsin" sorusuna cevap verir; iddia politikası
-    /// "hangi niteliğe sahipsin" sorusuna. Bu politika bölgenin DEĞERİNE bakmaz,
-    /// yalnızca var olduğuna bakar. Değeri erişilen kaynakla karşılaştırmak
-    /// üçüncü bir adımdır (kaynak tabanlı yetki) ve 24. günde gelecek.
-    /// </remarks>
     public const string BolgeliPersonel = "BolgeliPersonel";
+
+    // --- Kaynak tabanlı: "bu kaynağa sen erişebilir misin" ---
+
+    /// <summary>
+    /// Sürüş, isteği yapan kullanıcının kendi sürüşü olmalı.
+    /// Karar kaynağın kendisine bakmadan verilemez; bu yüzden
+    /// <c>[Authorize]</c> özniteliğiyle değil, controller içinde
+    /// <c>IAuthorizationService.AuthorizeAsync(User, ride, ...)</c> ile uygulanır.
+    /// </summary>
+    public const string SurusSahibi = "SurusSahibi";
+
+    /// <summary>
+    /// Operatör yalnızca kendi bölgesindeki kaynağa erişebilir.
+    /// Rol kontrolü (operatör mü) ile kaynak kontrolü (aynı bölge mi) birlikte.
+    /// </summary>
+    public const string OperatorBolgesi = "OperatorBolgesi";
 }
