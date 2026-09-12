@@ -1,15 +1,54 @@
+# Scootly — yerel geliştirme veritabanı
+#
+# Çalıştırma:
+#   cd deploy
+#   docker compose up -d
+#
+# Parolalar bu dosyada YOK. Yan taraftaki .env dosyasından okunur ve .env
+# .gitignore'dadır. Şablon için .env.example dosyasına bak.
+
 services:
   postgres:
-    image: postgres:16
+    # Sürüm sabitlendi. "postgres:latest" kullanmak, bir sabah makinenin
+    # başka bir ana sürümle açılması ve migration'ların sessizce farklı
+    # davranması demektir. 16 seçildi çünkü entegrasyon testleri de
+    # (Testcontainers) 16 kullanıyor; geliştirme ve test aynı sürümde olmalı.
+    image: postgres:16-alpine
     container_name: scootly-postgres
+    restart: unless-stopped
+
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: sifre123
-      POSTGRES_DB: scootly
+      POSTGRES_DB: ${POSTGRES_DB:?deploy/.env icinde POSTGRES_DB tanimli degil}
+      POSTGRES_USER: ${POSTGRES_USER:?deploy/.env icinde POSTGRES_USER tanimli degil}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?deploy/.env icinde POSTGRES_PASSWORD tanimli degil}
+      # Parola doğrulamasını SCRAM-SHA-256'ya sabitler. PostgreSQL 14'ten beri
+      # varsayılan bu; açıkça yazılmasının nedeni, eski bir istemci md5'e
+      # düşürmeye çalıştığında sunucunun kabul etmemesi.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+
     ports:
-      - "5432:5432"
+      # 127.0.0.1'e bağlı. Yalnızca "5432:5432" yazılsaydı Docker portu
+      # 0.0.0.0'a açardı: aynı kafedeki/ofisteki herkes veritabanına
+      # bağlanmayı deneyebilirdi. Windows güvenlik duvarı da burada işe
+      # yaramaz, çünkü Docker kuralları onu atlayarak ekler.
+      - "127.0.0.1:5432:5432"
+
     volumes:
-      - scootly-postgres-data:/var/lib/postgresql/data
+      # Adlandırılmış hacim: konteyner silinse de veri kalır.
+      - scootly-pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      # "Konteyner ayakta" ile "veritabanı bağlantı kabul ediyor" aynı şey
+      # değil. API'yi bu servise bağlayacaksan fark önemli.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    security_opt:
+      # Konteyner içindeki bir sürecin setuid ile yetki yükseltmesini engeller.
+      - no-new-privileges:true
 
 volumes:
-  scootly-postgres-data:
+  scootly-pgdata:
