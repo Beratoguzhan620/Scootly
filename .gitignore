@@ -6,3 +6,5 @@ obj/
 CoverageReport/
 TestResults/
 **/TestResults/
+.env
+deploy/docker-compose.override.yml
