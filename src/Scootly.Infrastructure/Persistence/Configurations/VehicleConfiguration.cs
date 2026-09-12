@@ -6,6 +6,9 @@ namespace Scootly.Infrastructure.Persistence.Configurations;
 
 public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
 {
+    /// <summary>Sürüm damgası sütununun adı (38. gün).</summary>
+    public const string SurumSutunu = "Version";
+
     public void Configure(EntityTypeBuilder<Vehicle> builder)
     {
         builder.ToTable("Vehicles");
@@ -16,12 +19,30 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        // --- 38. gün: iyimser eşzamanlılık ---
+        //
+        // Sürüm damgası GÖLGE (shadow) özellik olarak tanımlı: alan modelinde
+        // karşılığı olan bir alan yok. Gerekçe, Vehicle'ın bir iş kavramı
+        // olması — "bu satır kaç kez güncellendi" ise bir kalıcılık detayı.
+        // Alan modeline bir Version alanı eklemek, aracın iş kurallarıyla
+        // hiç ilgisi olmayan bir sayıyı domain'e sokmak olurdu.
+        //
+        // Değerini ScootlyDbContext.SaveChangesAsync artırıyor.
+        //
+        // NEDEN IsRowVersion() DEĞİL: IsRowVersion(), SQL Server'ın rowversion
+        // tipine karşılık gelir ve PostgreSQL'de karşılığı yoktur. Npgsql ile
+        // kullanıldığında ya hiç çalışmaz ya da sessizce korumasız bırakır —
+        // yani test yeşil görünürken iki kişi aynı aracı kiralayabilir.
+        // PostgreSQL'e özgü alternatif, sistem sütunu xmin'i damga olarak
+        // kullanmaktır; onu seçmedik çünkü sağlayıcıya özgü ve migration
+        // üretimiyle sürtüşüyor (bkz. ADR 0012).
+        builder.Property<int>(SurumSutunu)
+               .IsConcurrencyToken()
+               .HasDefaultValue(0);
+
         builder.OwnsOne(v => v.Model, model =>
         {
-            // 32. gün: 100 karakterden 64'e indirildi. En uzun gerçek marka adı
-            // ("Segway Ninebot Max G2") 21 karakter; 64 rahat bir tavan.
-            // Sınırın kendisi bir doğrulama noktası: veritabanı, uygulama
-            // katmanı atlasa bile 500 karakterlik bir markayı kabul etmez.
+            // 32. gün: 100 karakterden 64'e indirildi.
             model.Property(m => m.Brand).HasColumnName("Brand").HasMaxLength(64);
             model.Property(m => m.RangeKm).HasColumnName("RangeKm");
         });
@@ -36,19 +57,9 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
             location.Property(l => l.Latitude).HasColumnName("Latitude");
             location.Property(l => l.Longitude).HasColumnName("Longitude");
 
-            // --- 33. gün: konum indeksi ---
-            //
-            // İndeks BU BLOĞUN İÇİNDE tanımlanmak zorunda. Latitude ve Longitude
-            // Vehicle'ın değil, sahip olunan (owned) GeoPoint tipinin özellikleri;
-            // aynı tabloya yazılıyor olmaları onları Vehicle'ın özelliği yapmıyor.
-            // Dışarıda builder.HasIndex("Latitude", "Longitude") yazıldığında EF
-            // bu adları Vehicle üzerinde arar, bulamaz ve tipi belirtilmemiş bir
-            // gölge (shadow) özellik oluşturmaya çalışıp hata verir.
-            //
-            // Bileşik indekste SÜTUN SIRASI önemli: indeks ilk sütuna göre sıralı
-            // tutulur. Bu sorguda ikisi de BETWEEN ile süzüldüğü için sıra kritik
-            // değil; Latitude önce yazıldı çünkü Adana'da enlem aralığı boylamdan
-            // dar, yani daha seçici.
+            // İndeks BU BLOĞUN İÇİNDE tanımlanmak zorunda: Latitude ve Longitude
+            // Vehicle'ın değil, sahip olunan GeoPoint tipinin özellikleri. Aynı
+            // tabloya yazılıyor olmaları onları Vehicle'ın özelliği yapmıyor.
             location.HasIndex(l => new { l.Latitude, l.Longitude })
                     .HasDatabaseName("ix_vehicles_konum");
         });
@@ -57,13 +68,9 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         builder.Navigation(v => v.Battery).IsRequired();
         builder.Navigation(v => v.Location).IsRequired();
 
-        // Kısmi (partial) indeks. Status yalnızca dört değer alıyor — seçiciliği
-        // düşük, tek başına indekslemek pek işe yaramaz: planlayıcı satırların
-        // dörtte birine gitmek için indeks okumaktansa tabloyu taramayı tercih
-        // eder. Ama sorguların çoğu yalnızca müsait araçlarla ilgileniyor;
-        // WHERE koşullu indeks yalnızca o satırları tutuyor, yani hem küçük hem
-        // isabetli. Status gerçekten Vehicle üzerinde bir özellik olduğu için
-        // bu tanım dışarıda durabiliyor.
+        // Kısmi (partial) indeks: Status yalnızca dört değer alıyor, seçiciliği
+        // düşük. Tam indeks planlayıcı tarafından görmezden gelinirdi; koşullu
+        // indeks yalnızca ilgilenilen satırları tutuyor.
         builder.HasIndex(v => v.Status)
                .HasDatabaseName("ix_vehicles_durum")
                .HasFilter("\"Status\" = 'Available'");

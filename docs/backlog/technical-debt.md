@@ -128,3 +128,34 @@ Doğrulanması gereken asgari liste:
 4. Beş yanlış denemeden sonra hesap kilitleniyor mu.
 5. Sürücü A'nın token'ıyla sürücü B'nin sürüşünü bitirmeye çalışmak — 403.
 6. Cihaz token'ıyla `/api/v1/vehicles` çağırmak — 403 (ara katman çalışıyor mu).
+
+### 31.–40. gün — Faz 2 kapanışı
+
+- **`system-design.md` içindeki ölçüm tablosu ve iki execution plan bloğu
+  doldurulmalı.** `dotnet test tests/Scootly.DbLab --filter Gun33` çıktısındaki
+  süreler ve planlar oraya yapıştırılacak. Kod tarafı tamam, belgeleme eksik.
+- **`Scootly.DbLab` hermetik değil.** Çalışan PostgreSQL sunucusunu paylaşıyor
+  ve kendi `scootly_lab` veritabanını oluşturuyor. CI'a geçildiğinde (Faz 5)
+  Testcontainers'a dönülmeli; orada Docker zaten yerel olacak.
+- **`GetByIdForUpdateAsync` üretim yolunda kullanılmıyor.** 39. günün deneyi
+  için yazıldı. İlk gerçek kullanıcısı, çakışmanın sık olduğu bir işlem olacak
+  (muhtemelen Faz 4'teki ödeme mutabakatı).
+- **Sürüm damgası yalnızca `Vehicles` tablosunda.** `Rides` üzerinde eşzamanlı
+  güncelleme senaryosu henüz yok; çıktığında aynı desen uygulanacak.
+- **`Wallet` ve `Tariff` hâlâ yazılmadı.** 39. gündeki deadlock deneyi planın
+  önerdiği `Vehicle`+`Wallet` yerine `Vehicles`+`Rides` ile yapıldı.
+- **Saha Operatörü ve Denetçi rolleri hiçbir uçta kullanılmıyor.**
+  `OperatorRegionHandler` yazıldı ve test edildi ama uygulanacağı kaynak
+  (`FieldTask`) yok. Faz 2'nin "altı aktör doğrulanmış" hedefi bu yüzden
+  kısmen karşılandı.
+- **Mimari kural testi yok.** Katman ihlallerini yakalayacak test planın
+  77. gününe ait, erken beklenmiyor.
+
+### Kapanan borçlar
+
+- ~~21.–30. gün arasındaki kod hiç çalıştırılmadı~~ — veritabanı kuruldu,
+  migration'lar uygulandı, API ayağa kalktı, roller ve test kullanıcısı oluştu.
+- ~~`ExceptionHandlingMiddleware` 500 yanıtında `ex.Message` sızdırıyor~~ —
+  26. günde kapatıldı.
+- ~~`Reserve` ve `Start` uçlarında `DriverId` gövdeden okunuyor~~ — 26. günde
+  kapatıldı, `ContractShapeTests` geri gelmesini engelliyor.

@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Text.Json;
 using Scootly.Api.Contracts.Responses;
+using Scootly.Application.Common;
 using Scootly.Domain.Common;
 
 namespace Scootly.Api.Middleware;
@@ -23,6 +24,18 @@ public sealed class ExceptionHandlingMiddleware
         try
         {
             await _next(context);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            // 38. gun. Handler'lar bunu zaten yakalayip Result.Failure donuyor;
+            // buradaki yakalama, ileride eklenecek ve yakalamayi unutan bir
+            // handler'in istemciye 500 dondurmesini engelleyen ag.
+            // Mesaj sabit: istisnanin kendi metni ic detay tasiyabilir.
+            await YanitYaz(
+                context,
+                HttpStatusCode.Conflict,
+                "Eszamanlilik Cakismasi",
+                "Biri sizden önce davrandı. Lütfen tekrar deneyin.");
         }
         catch (DomainException ex)
         {

@@ -1,4 +1,5 @@
 ﻿using Scootly.Application.Abstractions;
+using Scootly.Application.Common;
 using Scootly.Domain.Common;
 using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
@@ -7,6 +8,8 @@ namespace Scootly.Application.Riding.Commands;
 
 public sealed class StartRideCommandHandler
 {
+    public const string CakismaMesaji = "Biri sizden önce davrandı; araç artık müsait değil.";
+
     private readonly IVehicleRepository _vehicleRepository;
     private readonly IRideRepository _rideRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -26,10 +29,14 @@ public sealed class StartRideCommandHandler
 
     public async Task<Result> Handle(StartRideCommand command, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
+
         var vehicle = await _vehicleRepository.GetByIdAsync(command.VehicleId, cancellationToken);
 
         if (vehicle is null)
+        {
             return Result.Failure("Araç bulunamadı.");
+        }
 
         vehicle.StartRide();
 
@@ -44,7 +51,18 @@ public sealed class StartRideCommandHandler
 
         await _rideRepository.AddAsync(ride, cancellationToken);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            // Araç güncellemesi ve sürüş eklemesi TEK SaveChanges çağrısında,
+            // yani tek bir işlem içinde. Ayrı ayrı kaydedilseydi araç "sürüşte"
+            // olup ortada sürüş bulunmayan bir an doğardı — ve o an bir hata
+            // olursa kalıcı hale gelirdi.
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            return Result.Failure(CakismaMesaji);
+        }
 
         return Result.Success();
     }

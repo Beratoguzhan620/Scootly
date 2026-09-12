@@ -2,10 +2,12 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
+using Scootly.Application.Common;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
 using Scootly.Infrastructure.Devices;
 using Scootly.Infrastructure.Identity;
+using Scootly.Infrastructure.Persistence.Configurations;
 
 namespace Scootly.Infrastructure.Persistence;
 
@@ -33,6 +35,59 @@ public sealed class ScootlyDbContext
     public void AddRide(Ride ride)
     {
         Rides.Add(ride);
+    }
+
+    /// <summary>
+    /// 38. gün — sürüm damgalarını artırır ve EF'in eşzamanlılık istisnasını
+    /// Application katmanının tanıdığı tipe çevirir.
+    /// </summary>
+    /// <remarks>
+    /// Çeviri burada yapılıyor ki <c>DbUpdateConcurrencyException</c> —yani bir
+    /// EF Core tipi— Application katmanına hiç sızmasın. Handler'lar o istisnayı
+    /// doğrudan yakalasaydı Application projesinin EF paketine bağımlı olması
+    /// gerekirdi.
+    /// </remarks>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SurumDamgalariniArtir();
+
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ConcurrencyConflictException(
+                "Kayit, okundugundan beri baska bir islem tarafindan degistirildi.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Degismis her varligin surum damgasini bir artirir.
+    /// </summary>
+    /// <remarks>
+    /// EF, damgayi kendiliginden artirmaz; yalnizca OKUDUGU degeri UPDATE'in
+    /// WHERE kosuluna koyar. Artirma bu metotta yapiliyor, boylece her aggregate
+    /// icin ayri ayri yazilmasi gerekmiyor ve biri unutuldugunda sessizce
+    /// korumasiz kalmiyor.
+    /// </remarks>
+    private void SurumDamgalariniArtir()
+    {
+        foreach (var giris in ChangeTracker.Entries())
+        {
+            if (giris.State != EntityState.Modified)
+            {
+                continue;
+            }
+
+            if (giris.Metadata.FindProperty(VehicleConfiguration.SurumSutunu) is null)
+            {
+                continue;
+            }
+
+            var ozellik = giris.Property(VehicleConfiguration.SurumSutunu);
+            ozellik.CurrentValue = Convert.ToInt32(ozellik.CurrentValue ?? 0) + 1;
+        }
     }
 
     /// <summary>35. gün — açık işlem sınırı.</summary>
