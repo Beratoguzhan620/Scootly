@@ -2,9 +2,12 @@ using Serilog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Asp.Versioning;
 using System.Text;
+using System.Threading.RateLimiting;
+using StackExchange.Redis;
 using Scootly.Api.Authorization;
 using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
@@ -15,6 +18,7 @@ using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
 using Scootly.Infrastructure.Identity;
+using Scootly.Infrastructure.Caching;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,9 +51,34 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+
+    options.AddFixedWindowLimiter("AnonymousPolicy", opt =>
+    {
+        opt.PermitLimit = 60;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("DevicePolicy", opt =>
+    {
+        opt.PermitLimit = 600;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect("localhost:6379,abortConnect=false"));
+
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
+builder.Services.AddScoped<NearbyVehicleCache>();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -119,6 +148,7 @@ builder.Services.AddScoped<DeviceTokenService>();
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
 builder.Services.AddScoped<CompleteRideCommandHandler>();
+builder.Services.AddScoped<CancelReservationCommandHandler>();
 builder.Services.AddScoped<StartRideRequestValidator>();
 builder.Services.AddScoped<CompleteRideRequestValidator>();
 
@@ -135,6 +165,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("ScootlyWebPolicy");
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseMiddleware<DeviceAuthenticationMiddleware>();

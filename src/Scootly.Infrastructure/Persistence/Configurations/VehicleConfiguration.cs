@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Scootly.Domain.Fleet;
 
 namespace Scootly.Infrastructure.Persistence.Configurations;

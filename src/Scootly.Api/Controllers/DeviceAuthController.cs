@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Infrastructure.Identity;
 
@@ -16,6 +17,7 @@ public sealed class DeviceAuthController : ControllerBase
     }
 
     [HttpPost("token")]
+    [EnableRateLimiting("DevicePolicy")]
     public IActionResult IssueToken([FromBody] DeviceTokenRequest request)
     {
         var token = _deviceTokenService.IssueToken(request.ClientId, request.ClientSecret);

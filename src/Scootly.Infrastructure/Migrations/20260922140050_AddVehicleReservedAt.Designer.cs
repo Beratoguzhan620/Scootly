@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Scootly.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Scootly.Infrastructure.Persistence;
 namespace Scootly.Infrastructure.Migrations
 {
     [DbContext(typeof(ScootlyDbContext))]
-    partial class ScootlyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922140050_AddVehicleReservedAt")]
+    partial class AddVehicleReservedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
