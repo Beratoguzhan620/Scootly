@@ -28,7 +28,7 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
 
         await SeedRidesWithVehiclesAsync(dbContext, count: 10);
 
-        var queryCountBefore = QueryCounter.Count;
+        QueryCounter.Reset();
 
         var rides = await dbContext.Rides.ToListAsync();
 
@@ -38,10 +38,8 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
             _output.WriteLine($"Ride {ride.Id} -> Vehicle {vehicle?.Model.Brand}");
         }
 
-        var queryCountAfter = QueryCounter.Count;
-
         throw new Xunit.Sdk.XunitException(
-            $"KÖTÜ desen — 10 Ride için toplam sorgu sayısı: {queryCountAfter - queryCountBefore} (beklenen: 11)");
+            $"KÖTÜ desen — 10 Ride için toplam sorgu sayısı: {QueryCounter.Count} (beklenen: 11)");
     }
 
     [Fact]
@@ -52,9 +50,8 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
 
         await SeedRidesWithVehiclesAsync(dbContext, count: 10);
 
-        var queryCountBefore = QueryCounter.Count;
+        QueryCounter.Reset();
 
-        // Tek sorguda: her Ride'ın VehicleId'sine karşılık gelen aracı da JOIN ile getir
         var results = await dbContext.Rides
             .Select(ride => new
             {
@@ -71,10 +68,8 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
             _output.WriteLine($"Ride {result.RideId} -> Vehicle {result.Brand}");
         }
 
-        var queryCountAfter = QueryCounter.Count;
-
         throw new Xunit.Sdk.XunitException(
-            $"İYİ desen — 10 Ride için toplam sorgu sayısı: {queryCountAfter - queryCountBefore} (beklenen: 1)");
+            $"İYİ desen — 10 Ride için toplam sorgu sayısı: {QueryCounter.Count} (beklenen: 1)");
     }
 
     private async Task SeedRidesWithVehiclesAsync(ScootlyDbContext dbContext, int count)

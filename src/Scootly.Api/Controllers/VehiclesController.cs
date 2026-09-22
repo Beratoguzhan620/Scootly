@@ -35,19 +35,41 @@ public sealed class VehiclesController : ControllerBase
     [HttpGet]
     [MapToApiVersion("1.0")]
     [AllowAnonymous]
-    public IActionResult GetNearbyV1([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    public IActionResult GetNearbyV1(
+        [FromQuery] double? minLatitude = null,
+        [FromQuery] double? maxLatitude = null,
+        [FromQuery] double? minLongitude = null,
+        [FromQuery] double? maxLongitude = null,
+        [FromQuery] bool onlyAvailable = false,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20)
     {
         if (pageNumber < 1) pageNumber = 1;
         if (pageSize is < 1 or > 100) pageSize = 20;
 
-        var query = _dbContext.Vehicles
-            .AsNoTracking()
-            .Select(v => new VehicleResponse(
-                v.Id,
-                v.Location.Latitude,
-                v.Location.Longitude,
-                v.Battery.Percentage,
-                v.Status.ToString()));
+        var baseQuery = _dbContext.Vehicles.AsNoTracking();
+
+        if (minLatitude.HasValue)
+            baseQuery = baseQuery.Where(v => v.Location.Latitude >= minLatitude.Value);
+
+        if (maxLatitude.HasValue)
+            baseQuery = baseQuery.Where(v => v.Location.Latitude <= maxLatitude.Value);
+
+        if (minLongitude.HasValue)
+            baseQuery = baseQuery.Where(v => v.Location.Longitude >= minLongitude.Value);
+
+        if (maxLongitude.HasValue)
+            baseQuery = baseQuery.Where(v => v.Location.Longitude <= maxLongitude.Value);
+
+        if (onlyAvailable)
+            baseQuery = baseQuery.Where(v => v.Status == VehicleStatus.Available);
+
+        var query = baseQuery.Select(v => new VehicleResponse(
+            v.Id,
+            v.Location.Latitude,
+            v.Location.Longitude,
+            v.Battery.Percentage,
+            v.Status.ToString()));
 
         var totalCount = query.Count();
         var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
