@@ -1,6 +1,7 @@
 ﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Authorization;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
@@ -40,6 +41,7 @@ public sealed class VehiclesController : ControllerBase
         if (pageSize is < 1 or > 100) pageSize = 20;
 
         var query = _dbContext.Vehicles
+            .AsNoTracking()
             .Select(v => new VehicleResponse(
                 v.Id,
                 v.Location.Latitude,
@@ -62,6 +64,7 @@ public sealed class VehiclesController : ControllerBase
         if (pageSize is < 1 or > 100) pageSize = 20;
 
         var query = _dbContext.Vehicles
+            .AsNoTracking()
             .Select(v => new VehicleResponseV2(
                 v.Id,
                 v.Location.Latitude,
