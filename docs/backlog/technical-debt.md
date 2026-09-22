@@ -219,7 +219,16 @@ Doğrulanması gereken asgari liste:
   çağıran bir yol yok — `Ride.Fare` hâlâ doldurulmuyor.
 - **Sürümsüz yollar (`/api/vehicles`) hâlâ duruyor.** Kaldırma tarihi
   belirlenmedi.
-- **Faz 3'ün ölçüm tabloları boş.** `docs/architecture/system-design.md`
-  içindeki Faz 3 bölümünde 17 adet `(doldur)` var. Kod yazıldı, ölçüm
-  yapılmadı — bu fazın asıl teslim ettiği şey sayılar olduğu için, bu borcun
-  en önemlisi bu.
+- ~~**Faz 3'ün ölçüm tabloları boş**~~ — 22.09.2026'da tamamı ölçüldü ve
+  `system-design.md`'ye yazıldı. Faz 2'den devreden 33.–34. gün ölçümü de
+  (execution plan'lar dahil) aynı koşuda kapandı.
+- **Önbellek ölçümü (48. gün) hâlâ yok — ve sebebi iki katmanlı.**
+  `system-design.md` bir `Gun48` testine atıf yapıyordu; öyle bir test hiç
+  yazılmamıştı. Yani boş bir tablo değil, var olmayan bir ölçüme yapılan atıf
+  vardı. Ölçüm için önce testin yazılması, sonra Redis'in ayağa kaldırılması
+  gerekiyor.
+- **Kapsam raporundaki sayılar yanlış ölçülüyor.** `dotnet test --collect`
+  her koşumda referans zincirindeki bütün assembly'leri ölçüyor, dolayısıyla
+  "Api testleri %3" aslında "Api testleri koşarken tüm kod tabanının %3'ü
+  çalıştı" demek. Doğru sayı dört koşumun birleşimi; `reportgenerator` ile
+  birleştirilmeli. Birleştirilmeden `kapsam-raporu.md`'ye yazılmamalı.
