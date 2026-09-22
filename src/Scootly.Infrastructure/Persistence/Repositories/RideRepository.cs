@@ -13,9 +13,12 @@ public sealed class RideRepository : IRideRepository
         _dbContext = dbContext;
     }
 
+    /// <summary>Sürüşü DEĞİŞTİRİLMEK ÜZERE okur — bkz. 41. gün notu.</summary>
     public async Task<Ride?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Rides.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        return await _dbContext.Rides
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
     }
 
     public async Task AddAsync(Ride ride, CancellationToken cancellationToken = default)

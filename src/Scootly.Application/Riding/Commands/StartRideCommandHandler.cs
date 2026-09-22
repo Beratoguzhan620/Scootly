@@ -14,17 +14,20 @@ public sealed class StartRideCommandHandler
     private readonly IRideRepository _rideRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
+    private readonly INearbyVehicleCache _nearbyCache;
 
     public StartRideCommandHandler(
         IVehicleRepository vehicleRepository,
         IRideRepository rideRepository,
         IUnitOfWork unitOfWork,
-        IClock clock)
+        IClock clock,
+        INearbyVehicleCache nearbyCache)
     {
         _vehicleRepository = vehicleRepository;
         _rideRepository = rideRepository;
         _unitOfWork = unitOfWork;
         _clock = clock;
+        _nearbyCache = nearbyCache;
     }
 
     public async Task<Result> Handle(StartRideCommand command, CancellationToken cancellationToken = default)
@@ -63,6 +66,9 @@ public sealed class StartRideCommandHandler
         {
             return Result.Failure(CakismaMesaji);
         }
+
+        // 49. gün — araç sürüşe geçti, haritada görünmemeli.
+        await _nearbyCache.InvalidateAsync(cancellationToken);
 
         return Result.Success();
     }

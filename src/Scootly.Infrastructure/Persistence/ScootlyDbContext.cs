@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Common;
 using Scootly.Domain.Fleet;
+using Scootly.Domain.Pricing;
 using Scootly.Domain.Riding;
+using Scootly.Domain.Telemetry;
 using Scootly.Infrastructure.Devices;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Persistence.Configurations;
@@ -26,11 +28,19 @@ public sealed class ScootlyDbContext
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<Ride> Rides => Set<Ride>();
 
+    /// <summary>Tarifeler (46. gün).</summary>
+    public DbSet<Tariff> Tariffs => Set<Tariff>();
+
+    /// <summary>Telemetri kayıtları (51. gün). Yazma yolu için bkz. TelemetryBulkWriter.</summary>
+    public DbSet<TelemetryReading> TelemetryReadings => Set<TelemetryReading>();
+
     /// <summary>Araç cihazlarının kimlik bilgileri (25. gün).</summary>
     public DbSet<DeviceCredential> DeviceCredentials => Set<DeviceCredential>();
 
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;
+    IQueryable<Tariff> IApplicationDbContext.Tariffs => Tariffs;
+    IQueryable<TelemetryReading> IApplicationDbContext.TelemetryReadings => TelemetryReadings;
 
     public void AddRide(Ride ride)
     {
@@ -95,6 +105,37 @@ public sealed class ScootlyDbContext
     {
         var transaction = await Database.BeginTransactionAsync(cancellationToken);
         return new EfTransactionScope(transaction);
+    }
+
+    /// <summary>41. gün — takip mekanizması varsayılan olarak KAPALI.</summary>
+    /// <remarks>
+    /// <para>
+    /// Change tracker, okunan her varlığın bir kopyasını bellekte tutar ve
+    /// <c>SaveChanges</c> anında hangi alanların değiştiğini bu kopyayla
+    /// karşılaştırarak bulur. Yazma senaryosunda bu mekanizmanın tamamı
+    /// gereklidir. Okuma senaryosunda ise hepsi israf: iki kat bellek ve
+    /// satır başına bir karşılaştırma girdisi, hiç kullanılmayacak.
+    /// </para>
+    /// <para>
+    /// Yaygın çözüm her okuma sorgusuna <c>AsNoTracking()</c> eklemektir.
+    /// Onu seçmedik çünkü o yaklaşımda <b>unutmanın cezası sessizdir</b>:
+    /// unutulan sorgu çalışmaya devam eder, yalnızca yavaşlar, ve bunu ancak
+    /// yük testinde fark edersin. Varsayılanı tersine çevirince unutmanın
+    /// cezası gürültülü hale geliyor — takip isteyen bir yol
+    /// <c>AsTracking()</c> demeyi unutursa <c>SaveChanges</c> hiçbir şey
+    /// yazmaz ve bu, testte hemen görülür.
+    /// </para>
+    /// <para>
+    /// Takipsiz sorgunun YANLIŞ tercih olduğu yer: okuduğun varlığı
+    /// değiştirip kaydedecekesen. Bu projede o yol repository'lerden geçiyor
+    /// ve ikisi de açıkça <c>AsTracking()</c> diyor.
+    /// </para>
+    /// </remarks>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+
+        optionsBuilder.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

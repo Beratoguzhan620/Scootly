@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      Api ile AYNI user-secrets kimliği. Worker aynı veritabanına bağlanıyor;
+      ikinci bir sır deposu, iki yerde tutulan ve bir gün ayrışan iki bağlantı
+      dizesi demek olurdu.
+    -->
+    <UserSecretsId>64f9cb83-f331-453c-8f0e-66e9d91d8630</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scootly.Application\Scootly.Application.csproj" />
+    <ProjectReference Include="..\Scootly.Infrastructure\Scootly.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -131,6 +131,9 @@ namespace Scootly.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ReservedUntil")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -167,6 +170,30 @@ namespace Scootly.Infrastructure.Migrations
                     b.ToTable("ServiceAreas", (string)null);
                 });
 
+            modelBuilder.Entity("Scootly.Domain.Pricing.Tariff", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive")
+                        .IsUnique()
+                        .HasDatabaseName("ux_tarife_aktif")
+                        .HasFilter("\"IsActive\" = true");
+
+                    b.ToTable("Tariffs", (string)null);
+                });
+
             modelBuilder.Entity("Scootly.Domain.Riding.Ride", b =>
                 {
                     b.Property<Guid>("Id")
@@ -181,6 +208,9 @@ namespace Scootly.Infrastructure.Migrations
 
                     b.Property<decimal?>("Fare")
                         .HasColumnType("numeric(10,2)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -198,10 +228,43 @@ namespace Scootly.Infrastructure.Migrations
                     b.HasIndex("VehicleId")
                         .HasDatabaseName("ix_rides_arac");
 
+                    b.HasIndex("DriverId", "StartedAt")
+                        .HasDatabaseName("ix_rides_surucu_baslangic");
+
                     b.HasIndex("Status", "EndedAt")
                         .HasDatabaseName("ix_rides_durum_bitis");
 
                     b.ToTable("Rides", (string)null);
+                });
+
+            modelBuilder.Entity("Scootly.Domain.Telemetry.TelemetryReading", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BatteryPercentage")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("DeviceId");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt")
+                        .HasDatabaseName("ix_telemetri_zaman");
+
+                    b.HasIndex("DeviceId", "RecordedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("ix_telemetri_cihaz_zaman");
+
+                    b.ToTable("telemetry_readings", (string)null);
                 });
 
             modelBuilder.Entity("Scootly.Infrastructure.Devices.DeviceCredential", b =>
@@ -483,6 +546,61 @@ namespace Scootly.Infrastructure.Migrations
                     b.Navigation("Boundary");
                 });
 
+            modelBuilder.Entity("Scootly.Domain.Pricing.Tariff", b =>
+                {
+                    b.OwnsOne("Scootly.Domain.Pricing.Money", "PerMinuteFee", b1 =>
+                        {
+                            b1.Property<Guid>("TariffId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<decimal>("Amount")
+                                .HasColumnType("numeric(10,2)")
+                                .HasColumnName("PerMinuteAmount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("PerMinuteCurrency");
+
+                            b1.HasKey("TariffId");
+
+                            b1.ToTable("Tariffs");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TariffId");
+                        });
+
+                    b.OwnsOne("Scootly.Domain.Pricing.Money", "UnlockFee", b1 =>
+                        {
+                            b1.Property<Guid>("TariffId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<decimal>("Amount")
+                                .HasColumnType("numeric(10,2)")
+                                .HasColumnName("UnlockAmount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character varying(3)")
+                                .HasColumnName("UnlockCurrency");
+
+                            b1.HasKey("TariffId");
+
+                            b1.ToTable("Tariffs");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TariffId");
+                        });
+
+                    b.Navigation("PerMinuteFee")
+                        .IsRequired();
+
+                    b.Navigation("UnlockFee")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Scootly.Domain.Riding.Ride", b =>
                 {
                     b.OwnsOne("Scootly.Domain.Geo.GeoPoint", "EndLocation", b1 =>
@@ -530,6 +648,33 @@ namespace Scootly.Infrastructure.Migrations
                     b.Navigation("EndLocation");
 
                     b.Navigation("StartLocation")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Scootly.Domain.Telemetry.TelemetryReading", b =>
+                {
+                    b.OwnsOne("Scootly.Domain.Geo.GeoPoint", "Location", b1 =>
+                        {
+                            b1.Property<Guid>("TelemetryReadingId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<double>("Latitude")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Latitude");
+
+                            b1.Property<double>("Longitude")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Longitude");
+
+                            b1.HasKey("TelemetryReadingId");
+
+                            b1.ToTable("telemetry_readings");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TelemetryReadingId");
+                        });
+
+                    b.Navigation("Location")
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

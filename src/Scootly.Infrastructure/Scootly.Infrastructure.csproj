@@ -22,7 +22,16 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="StackExchange.Redis" Version="3.3.1" />
+
+    <!--
+      46-50. günler için gereken paketler (Redis ve Extensions) kurulum
+      betiğinde `dotnet add package` ile ekleniyor, buraya elle sürüm
+      yazılmıyor: uydurulan bir sürüm numarası restore'u kırar ve hata
+      mesajı gerçek sorunu göstermez.
+    -->
   </ItemGroup>
 
 </Project>

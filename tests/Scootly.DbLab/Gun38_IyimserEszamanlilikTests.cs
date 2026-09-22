@@ -70,7 +70,8 @@ public sealed class Gun38_IyimserEszamanlilikTests
     {
         await using var db = Lab.Context();
 
-        var handler = new ReserveVehicleCommandHandler(new VehicleRepository(db), db);
+        var handler = new ReserveVehicleCommandHandler(
+            new VehicleRepository(db), db, new OnbelleksizHaritaOnbellegi());
 
         try
         {

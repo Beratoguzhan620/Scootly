@@ -2,22 +2,27 @@
 using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scootly.Api.Authorization;
+using Scootly.Api.BackgroundServices;
+using Scootly.Api.Controllers;
 using Scootly.Api.Identity;
 using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
+using Scootly.Api.RateLimiting;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Behaviors;
 using Scootly.Application.Fleet.Commands;
+using Scootly.Application.Fleet.Queries;
+using Scootly.Application.Pricing.Queries;
 using Scootly.Application.Riding.Commands;
+using Scootly.Application.Telemetry;
+using Scootly.Application.Telemetry.Commands;
+using Scootly.Infrastructure;
 using Scootly.Infrastructure.Devices;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Persistence;
-using Scootly.Infrastructure.Time;
-using Scootly.Infrastructure.Persistence.Repositories;
 
 const string CorsPolitikasi = "ScootlyVarsayilan";
 
@@ -36,32 +41,32 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<ScootlyDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-builder.Services.AddScoped<IApplicationDbContext>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
-
-builder.Services.AddScoped<IUnitOfWork>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
-
-// 35. gun: acik islem siniri. IUnitOfWork'ten ayri bir arayuz olmasinin
-// gerekcesi ITransactionManager'in belgesinde.
-builder.Services.AddScoped<ITransactionManager>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
+// --- Gün 60: altyapı kayıtları tek yerde ---------------------------------
+// 54. günde Scootly.Worker eklendiğinde aynı kayıtların ikinci bir kopyası
+// gerekti. İki Program.cs'de yan yana duran listeler kaçınılmaz olarak
+// ayrışır; ortak uzantı bunu engelliyor (bkz. Infrastructure/DependencyInjection).
+builder.Services.AddScootlyInfrastructure(builder.Configuration);
 
 builder.Services.AddScoped<TransactionBehavior>();
 
-builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
-builder.Services.AddScoped<IRideRepository, RideRepository>();
-
-builder.Services.AddScoped<IClock, SystemClock>();
-
+// --- Komut ve sorgu handler'ları ------------------------------------------
 builder.Services.AddScoped<RegisterVehicleCommandHandler>();
 builder.Services.AddScoped<ReserveVehicleCommandHandler>();
 builder.Services.AddScoped<StartRideCommandHandler>();
 builder.Services.AddScoped<CompleteRideCommandHandler>();
+builder.Services.AddScoped<FindNearbyVehiclesQueryHandler>();
+builder.Services.AddScoped<GetActiveTariffQueryHandler>();
+
 builder.Services.AddScoped<StartRideRequestValidator>();
+builder.Services.AddScoped<CompleteRideRequestValidator>();
+
+// --- Gün 51-52: telemetri hattı -------------------------------------------
+// Kanal TEKİL: isteklerin yazdığı ve arka plan servisinin okuduğu tek bir
+// kuyruk olması gerekiyor. Kapsamlı (scoped) olsaydı her istek kendi boş
+// kuyruğunu oluşturur ve hiçbir şey işlenmezdi — üstelik sessizce.
+builder.Services.AddSingleton<TelemetryChannel>();
+builder.Services.AddScoped<IngestTelemetryBatchCommandHandler>();
+builder.Services.AddHostedService<TelemetryDrainService>();
 
 // --- Gün 21: ASP.NET Core Identity -------------------------------------------
 // AddIdentityCore, AddIdentity değil. AddIdentity çerez tabanlı oturum şemasını
@@ -141,6 +146,23 @@ builder.Services
 
 builder.Services.AddScootlyAuthorization();
 
+// --- Gün 55: oran sınırlama ---------------------------------------------------
+builder.Services.AddScootlyRateLimiting();
+
+// --- Gün 50: çıktı önbelleği --------------------------------------------------
+// Yalnızca kimlik doğrulaması OLMAYAN uçlar için. Kimliğe göre değişen bir
+// yanıtı burada önbelleklemek, bir kullanıcının yanıtını başka bir kullanıcıya
+// servis etmek olurdu.
+builder.Services.AddOutputCache(options =>
+{
+    // Yalnızca bu uç için adlandırılmış politika. Varsayılan politikayı
+    // değiştirmek, ileride eklenen her ucu sessizce önbelleğe alırdı — ve o
+    // uçlardan biri kimliğe göre değişen bir yanıt döndürdüğünde hata, bir
+    // kullanıcının yanıtının başkasına servis edilmesi olurdu.
+    options.AddPolicy(TariffsController.CiktiOnbellegi, policy =>
+        policy.Expire(TimeSpan.FromMinutes(1)));
+});
+
 // --- Gün 30: CORS -------------------------------------------------------------
 // İzinli kaynaklar yapılandırmadan geliyor; kodda sabit bir liste yok.
 // AllowAnyOrigin KULLANILMIYOR: bu API'ye token ile erişiliyor ve ileride
@@ -169,27 +191,46 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 
     await using var scope = app.Services.CreateAsyncScope();
+
     await IdentitySeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
         scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>(),
         app.Configuration["Seed:TestUser:Email"],
         app.Configuration["Seed:TestUser:Password"]);
+
+    // Gün 53: simülatör cihazları. Sır yapılandırmadan geliyor; verilmezse
+    // hiçbir şey oluşturulmuyor.
+    await DeviceCredentialSeeder.SeedSimulatorDevicesAsync(
+        scope.ServiceProvider.GetRequiredService<ScootlyDbContext>(),
+        scope.ServiceProvider.GetRequiredService<IPasswordHasher<DeviceCredential>>(),
+        app.Configuration["Seed:SimulatorDevices:Secret"],
+        app.Configuration.GetValue("Seed:SimulatorDevices:Count", 0));
 }
 
 app.UseHttpsRedirection();
 
 app.UseCors(CorsPolitikasi);
 
-// SIRA ÖNEMLİ — üç satır, üç ayrı soru, bu sırayla:
+app.UseOutputCache();
+
+// SIRA ÖNEMLİ — beş satır, beş ayrı soru, bu sırayla:
 //   1. UseAuthentication          : "sen kimsin"
-//   2. DeviceTokenScopeMiddleware : "cihaz token'ı gitmemesi gereken yere mi gidiyor"
-//   3. UseAuthorization           : "buna yetkin var mı"
+//   2. UseRateLimiter             : "bu kimlik çok mu istek gönderiyor"
+//   3. DeviceTokenScopeMiddleware : "cihaz token'ı gitmemesi gereken yere mi gidiyor"
+//   4. UseAuthorization           : "buna yetkin var mı"
 //
 // Ara katman 1'den önce olsaydı context.User henüz boş olurdu ve her isteği
 // "cihaz değil" sayardı — hiçbir şeyi engellemez, ama bunu fark etmezdik çünkü
-// başarısızlığı sessiz olurdu. 3'ten sonra olsaydı yetki kararı zaten verilmiş
+// başarısızlığı sessiz olurdu. 4'ten sonra olsaydı yetki kararı zaten verilmiş
 // olurdu.
+//
+// UseRateLimiter'ın kimlik doğrulamasından SONRA olması bir ÖDÜNLEŞİM (55. gün):
+// cihaz politikası token'daki cihaz kimliğine göre bölümlüyor, o da ancak
+// kimlik doğrulandıktan sonra var. Bedeli, kimliksiz bir istek selinin token
+// doğrulama maliyetini yine de ödetmesi. Gerçek çözüm ağ geçidi (Nginx)
+// seviyesinde bir ön sınırlama — 20. haftaya ait.
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseMiddleware<DeviceTokenScopeMiddleware>();
 app.UseAuthorization();
 

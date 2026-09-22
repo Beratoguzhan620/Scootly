@@ -15,7 +15,25 @@ public sealed class RideEndpointsTests : IClassFixture<ScootlyApiFactory>
         _factory = factory;
     }
 
-    [Fact]
+    /// <remarks>
+    /// <para>
+    /// <b>60. gün — bu test BAYAT ve atlanıyor.</b> İki ayrı sebeple:
+    /// </para>
+    /// <list type="number">
+    ///   <item>Testcontainers bu geliştirme ortamında çalışmıyor: Apple
+    ///   Silicon üzerinde Parallels ile çalışan bir Windows misafirinde
+    ///   Docker'a erişim yok (bkz. tests/Scootly.DbLab/Lab.cs).</item>
+    ///   <item>Sınadığı akış artık yok: 26. günde <c>DriverId</c> gövdeden
+    ///   kaldırıldı ve uçlar kimlik doğrulaması istiyor, 42. günde ise
+    ///   <c>/api/vehicles</c> enlem/boylam zorunlu hale geldi.</item>
+    /// </list>
+    /// <para>
+    /// SİLİNMEDİ çünkü silmek, uçtan uca testin hiç var olmadığını
+    /// düşündürürdü. Atlandığı ve NEDEN atlandığı görünür duruyor; teknik
+    /// borç listesinde de kayıtlı.
+    /// </para>
+    /// </remarks>
+    [Fact(Skip = "Bayat: Testcontainers bu ortamda calismiyor ve sinanan akis 26/42. gunlerde degisti.")]
     public async Task Kirala_Baslat_Bitir_Akisi_Uctan_Uca_Calismali()
     {
         var client = _factory.CreateClient();

@@ -32,6 +32,34 @@ public sealed class Ride : AggregateRoot
         AddDomainEvent(new RideStartedEvent(id, DateTime.UtcNow));
     }
 
+    /// <summary>
+    /// Terk edilmiş sürüşü kapatır (54. gün).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Complete"/>'ten ayrı bir metot, çünkü ayrı bir olay: burada
+    /// bitiş konumu YOK. Kullanıcı sürüşü bitirmedi; sistem uzun süre hareket
+    /// görmediği için kapatıyor. <c>Complete</c>'e sahte bir bitiş konumu
+    /// uydurup göndermek, veriye "bu sürüş normal bitti" diye yalan söylemek
+    /// olurdu — ve o yalan, mesafe/ücret raporlarında ortaya çıkardı.
+    /// </para>
+    /// <para>
+    /// Ücret hesaplanmıyor. Terk edilmiş bir sürüşün ücretlendirilmesi bir
+    /// iş kararı (ve muhtemelen bir müşteri şikayeti); alan modeli o kararı
+    /// kendi başına vermiyor.
+    /// </para>
+    /// </remarks>
+    public void MarkAbandoned(DateTime detectedAt)
+    {
+        if (Status != RideStatus.Active)
+        {
+            throw new DomainException("Yalnızca aktif bir sürüş terk edilmiş sayılabilir.");
+        }
+
+        EndedAt = detectedAt;
+        Status = RideStatus.Abandoned;
+    }
+
     public void Complete(GeoPoint endLocation, DateTime endedAt)
     {
         if (Status != RideStatus.Active)

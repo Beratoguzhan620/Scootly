@@ -51,6 +51,27 @@ public static class Lab
         return new ScootlyDbContext(options);
     }
 
+    /// <summary>
+    /// Üretilen her SQL ifadesini <paramref name="sqlYakala"/>'ya veren bağlam.
+    /// </summary>
+    /// <remarks>
+    /// 42. günün N+1 avı için. Sorguların "kaç tane" olduğunu göz kararı
+    /// saymak yerine, EF'in ürettiği komutları yakalayıp saymak testi
+    /// tekrarlanabilir bir iddiaya dönüştürüyor: "bu uç TAM OLARAK iki sorgu
+    /// çalıştırmalı" gibi.
+    /// </remarks>
+    public static ScootlyDbContext Context(Action<string> sqlYakala)
+    {
+        ArgumentNullException.ThrowIfNull(sqlYakala);
+
+        var options = new DbContextOptionsBuilder<ScootlyDbContext>()
+            .UseNpgsql(LabBaglantisi)
+            .LogTo(sqlYakala, [DbLoggerCategory.Database.Command.Name])
+            .Options;
+
+        return new ScootlyDbContext(options);
+    }
+
     public static async Task<NpgsqlConnection> AcAsync(CancellationToken cancellationToken = default)
     {
         var connection = new NpgsqlConnection(LabBaglantisi);

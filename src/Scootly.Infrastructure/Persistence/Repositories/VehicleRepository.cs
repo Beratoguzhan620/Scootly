@@ -13,9 +13,20 @@ public sealed class VehicleRepository : IVehicleRepository
         _dbContext = dbContext;
     }
 
+    /// <summary>Aracı DEĞİŞTİRİLMEK ÜZERE okur.</summary>
+    /// <remarks>
+    /// <c>AsTracking()</c> burada zorunlu (41. gün): bağlamın varsayılanı artık
+    /// takipsiz okuma. Bu satır olmasaydı <c>vehicle.Reserve()</c> çağrısı
+    /// nesneyi değiştirir, <c>SaveChangesAsync</c> hiçbir değişiklik görmez ve
+    /// <b>sessizce 0 satır</b> yazardı — istek 200 dönerdi, araç rezerve
+    /// edilmezdi. Repository'nin işi değiştirilecek varlığı getirmek olduğuna
+    /// göre takip burada isteniyor; sorgu handler'larında istenmiyor.
+    /// </remarks>
     public async Task<Vehicle?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Vehicles.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+        return await _dbContext.Vehicles
+            .AsTracking()
+            .FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
     }
 
     /// <summary>
@@ -45,6 +56,10 @@ public sealed class VehicleRepository : IVehicleRepository
     {
         return await _dbContext.Vehicles
             .FromSql($"SELECT * FROM \"Vehicles\" WHERE \"Id\" = {id} FOR UPDATE")
+            // 41. günden sonra gerekli: adı "ForUpdate" olan bir metodun
+            // döndürdüğü nesne takip edilmiyorsa, kilidi alıp hiçbir şey
+            // yazmamış olurduk.
+            .AsTracking()
             .FirstOrDefaultAsync(cancellationToken);
     }
 

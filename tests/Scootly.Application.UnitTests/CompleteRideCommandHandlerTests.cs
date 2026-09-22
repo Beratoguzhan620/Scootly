@@ -33,7 +33,8 @@ public sealed class CompleteRideCommandHandlerTests
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock);
+        var handler = new CompleteRideCommandHandler(
+            rideRepository, vehicleRepository, unitOfWork, clock, new FakeNearbyVehicleCache());
         var command = new CompleteRideCommand(ride.Id, 41.01, 29.01);
 
         var result = await handler.Handle(command);
@@ -51,7 +52,8 @@ public sealed class CompleteRideCommandHandlerTests
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock);
+        var handler = new CompleteRideCommandHandler(
+            rideRepository, vehicleRepository, unitOfWork, clock, new FakeNearbyVehicleCache());
         var command = new CompleteRideCommand(Guid.NewGuid(), 41.01, 29.01);
 
         var result = await handler.Handle(command);

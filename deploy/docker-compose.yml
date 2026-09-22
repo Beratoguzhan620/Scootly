@@ -50,5 +50,52 @@ services:
       # Konteyner içindeki bir sürecin setuid ile yetki yükseltmesini engeller.
       - no-new-privileges:true
 
+  # --- 47. gün: dağıtık önbellek ------------------------------------------
+  redis:
+    # Sürüm sabitlendi, "latest" değil — Postgres'teki gerekçenin aynısı.
+    image: redis:7-alpine
+    container_name: scootly-redis
+    restart: unless-stopped
+
+    # Varsayılan yapılandırmada iki şey değiştiriliyor:
+    #
+    # 1) maxmemory + allkeys-lru: Redis'e bellek SINIRI konuyor ve sınıra
+    #    gelindiğinde en az kullanılan anahtarlar atılıyor. Sınır olmasaydı
+    #    Redis makinenin belleğini doldurana kadar büyürdü ve işletim sistemi
+    #    onu (ya da Postgres'i) öldürürdü. Bir önbellek için veri kaybı kabul
+    #    edilebilir; komşu servisin ölmesi değil.
+    #
+    # 2) appendonly no: kalıcılık kapalı. Bu bir önbellek — diske yazmasının
+    #    tek etkisi, yeniden başlatmada bayat veriyi geri yüklemek olurdu.
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly no
+
+    ports:
+      # Postgres'teki gerekçenin aynısı: 127.0.0.1'e bağlı. Kimlik doğrulaması
+      # olmayan bir Redis'i ağa açmak, ona ulaşan herkese veri erişimi vermek
+      # demek — Redis varsayılan olarak parola sormaz.
+      - "127.0.0.1:6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+    # 59. gün: bellek limiti. Limit aşıldığında konteyner zorla durdurulur
+    # (OOM kill). maxmemory'nin (256mb) bu limitin belirgin biçimde altında
+    # olması bilinçli: Redis'in kendi ek yükü için pay bırakıyor, yoksa
+    # Redis kendi sınırına varmadan konteyner öldürülürdü.
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   scootly-pgdata:

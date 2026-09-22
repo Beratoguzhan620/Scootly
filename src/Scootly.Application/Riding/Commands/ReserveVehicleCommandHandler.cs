@@ -19,11 +19,16 @@ public sealed class ReserveVehicleCommandHandler
 
     private readonly IVehicleRepository _vehicleRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INearbyVehicleCache _nearbyCache;
 
-    public ReserveVehicleCommandHandler(IVehicleRepository vehicleRepository, IUnitOfWork unitOfWork)
+    public ReserveVehicleCommandHandler(
+        IVehicleRepository vehicleRepository,
+        IUnitOfWork unitOfWork,
+        INearbyVehicleCache nearbyCache)
     {
         _vehicleRepository = vehicleRepository;
         _unitOfWork = unitOfWork;
+        _nearbyCache = nearbyCache;
     }
 
     public async Task<Result> Handle(ReserveVehicleCommand command, CancellationToken cancellationToken = default)
@@ -51,6 +56,19 @@ public sealed class ReserveVehicleCommandHandler
             // "rezerve ettiniz" yanıtı alırdı.
             return Result.Failure(CakismaMesaji);
         }
+
+        // 49. gün — geçersizleştirme. Araç artık müsait değil; harita
+        // önbelleğinde onu müsait gösteren her girdi yanlış.
+        //
+        // SIRA ÖNEMLİ: silme, kaydetmeden SONRA. Önce silinseydi, kaydetme ile
+        // silme arasındaki aralıkta gelen bir okuma eski veriyi yeniden
+        // önbelleğe yazar ve silme boşa giderdi.
+        //
+        // Silme başarısız olursa istek YİNE DE başarılı sayılıyor: rezervasyon
+        // gerçekten yapıldı. Bunun bedeli en fazla beş saniyelik bayat harita
+        // (bkz. NearbyVehicleCache.YasamSuresi) — kullanıcıya "rezervasyon
+        // başarısız" demekten çok daha az zararlı.
+        await _nearbyCache.InvalidateAsync(cancellationToken);
 
         return Result.Success();
     }

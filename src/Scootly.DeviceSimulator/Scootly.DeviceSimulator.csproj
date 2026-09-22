@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Scootly.DeviceSimulator</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    PROJE REFERANSI YOK — bilerek.
+
+    Simülatör gerçek bir scooter'ın yerini tutuyor ve gerçek scooter'ın
+    Scootly.Domain'e erişimi yok. Domain'e referans verilseydi, simülatör
+    alan modelindeki tipleri kullanarak "her zaman geçerli" veri üretirdi ve
+    API'nin doğrulama kodunu hiç sınamazdı. Bağımsız olması, simülatörün
+    bozuk veri üretebilmesini ve sunucunun onu reddettiğini görebilmemizi
+    sağlıyor.
+
+    Aynı sebeple sözleşme tipleri burada elle yazılı: API'nin sözleşmesi
+    değişirse simülatör KIRILMALI — sessizce uyum sağlamamalı.
+  -->
+
+</Project>

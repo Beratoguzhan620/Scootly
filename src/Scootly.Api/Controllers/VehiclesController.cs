@@ -1,12 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Common;
 using Scootly.Application.Fleet.Commands;
+using Scootly.Application.Fleet.Queries;
 using Scootly.Application.Riding.Commands;
 
 namespace Scootly.Api.Controllers;
@@ -19,54 +19,58 @@ namespace Scootly.Api.Controllers;
 [Route("api/v1/vehicles")]
 public sealed class VehiclesController : ControllerBase
 {
-    private readonly IApplicationDbContext _dbContext;
+    private readonly FindNearbyVehiclesQueryHandler _nearbyHandler;
     private readonly ReserveVehicleCommandHandler _reserveHandler;
     private readonly RegisterVehicleCommandHandler _registerHandler;
     private readonly ICurrentUser _currentUser;
 
     public VehiclesController(
-        IApplicationDbContext dbContext,
+        FindNearbyVehiclesQueryHandler nearbyHandler,
         ReserveVehicleCommandHandler reserveHandler,
         RegisterVehicleCommandHandler registerHandler,
         ICurrentUser currentUser)
     {
-        _dbContext = dbContext;
+        _nearbyHandler = nearbyHandler;
         _reserveHandler = reserveHandler;
         _registerHandler = registerHandler;
         _currentUser = currentUser;
     }
 
-    /// <summary>Araçları sayfalı olarak listeler. Ziyaretçiye de açık.</summary>
+    /// <summary>Verilen noktanın çevresindeki müsait araçlar. Ziyaretçiye açık.</summary>
     /// <remarks>
-    /// Sıralama (<c>OrderBy</c>) sayfalamanın vazgeçilmez parçası, süs değil.
-    /// Sıralama verilmezse PostgreSQL satırları istediği düzende döndürebilir;
-    /// aynı sorgu iki kez çalıştığında farklı sıra gelirse bazı kayıtlar iki
-    /// sayfada birden çıkar, bazıları hiç çıkmaz — ve bu, veri az olduğu sürece
-    /// fark edilmez.
+    /// <para>
+    /// <b>42. günde kırılan sözleşme.</b> Bu uç bugüne kadar "yakındaki
+    /// araçlar" adını taşıyordu ama hiçbir konum filtresi yoktu: tablodaki her
+    /// aracı sayfalayarak döndürüyordu. Artık enlem ve boylam ZORUNLU.
+    /// </para>
+    /// <para>
+    /// Kırıcı bir değişikliği sürümlemek yerine yapmayı seçtik çünkü bu ucun
+    /// henüz tek bir istemcisi yok (MVC paneli 17. haftada, mobil hiç yok).
+    /// Yanlış davranışı bir sürüm numarasının arkasında dondurmak, ileride onu
+    /// desteklemeye devam etmek demekti. Karar teknik borç listesinde kayıtlı.
+    /// </para>
+    /// <para>
+    /// Sorgu artık controller'da değil, Application katmanındaki bir handler'da
+    /// (41-43. günler): takipsiz okuma, dört alanlı projeksiyon ve veritabanı
+    /// tarafında yarıçap filtresi orada.
+    /// </para>
     /// </remarks>
     [HttpGet]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(PagedResult<VehicleResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<NearbyVehicleResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetNearby(
-        [FromQuery] PageRequest page,
+        [FromQuery] NearbyQueryRequest request,
         CancellationToken cancellationToken)
     {
-        var sorgu = _dbContext.Vehicles.OrderBy(v => v.Id);
+        var sonuc = await _nearbyHandler.Handle(request.ToQuery(), cancellationToken);
 
-        var toplam = await sorgu.CountAsync(cancellationToken);
+        var kayitlar = sonuc.Items
+            .Select(v => new NearbyVehicleResponse(v.Id, v.Latitude, v.Longitude, v.BatteryPercentage))
+            .ToList();
 
-        var kayitlar = await sorgu
-            .Skip((page.PageNumber - 1) * page.PageSize)
-            .Take(page.PageSize)
-            .Select(v => new VehicleResponse(
-                v.Id,
-                v.Location.Latitude,
-                v.Location.Longitude,
-                v.Battery.Percentage,
-                v.Status.ToString()))
-            .ToListAsync(cancellationToken);
-
-        return Ok(new PagedResult<VehicleResponse>(kayitlar, page.PageNumber, page.PageSize, toplam));
+        return Ok(new PagedResult<NearbyVehicleResponse>(
+            kayitlar, sonuc.PageNumber, sonuc.PageSize, sonuc.TotalCount));
     }
 
     /// <summary>Filoya yeni araç ekler. Yalnızca filo yöneticisi.</summary>

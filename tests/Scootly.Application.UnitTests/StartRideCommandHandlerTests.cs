@@ -24,14 +24,19 @@ public sealed class StartRideCommandHandlerTests
         var rideRepository = new FakeRideRepository();
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
+        var nearbyCache = new FakeNearbyVehicleCache();
 
-        var handler = new StartRideCommandHandler(vehicleRepository, rideRepository, unitOfWork, clock);
+        var handler = new StartRideCommandHandler(
+            vehicleRepository, rideRepository, unitOfWork, clock, nearbyCache);
         var command = new StartRideCommand(vehicle.Id, Guid.NewGuid());
 
         var result = await handler.Handle(command);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(VehicleStatus.InRide, vehicle.Status);
+
+        // 49. gun: arac suruse gectigine gore harita onbellegi temizlenmis olmali.
+        Assert.Equal(1, nearbyCache.GecersizlestirmeSayisi);
     }
 
     private sealed class FakeVehicleRepository : IVehicleRepository

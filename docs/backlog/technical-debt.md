@@ -159,3 +159,67 @@ Doğrulanması gereken asgari liste:
   26. günde kapatıldı.
 - ~~`Reserve` ve `Start` uçlarında `DriverId` gövdeden okunuyor~~ — 26. günde
   kapatıldı, `ContractShapeTests` geri gelmesini engelliyor.
+
+## Faz 3 sonu (41.–60. gün)
+
+### Bu fazda kapatılanlar
+
+- ~~`Ride.StartedAt` hiçbir sütuna eşlenmemiş~~ — 41. günde düzeltildi.
+  Salt okunur (`{ get; }`) özellikler EF Core kuralıyla eşlenmiyor; alan
+  aylarca migration'a girmemişti ve `Ride.Complete` süreyi `endedAt -
+  StartedAt` ile hesapladığı için **veritabanından okunan her sürüşün süresi
+  iki bin yıl çıkardı**. Derleme temizdi, birim testler yeşildi — hiçbiri
+  veritabanına gitmiyordu. `EslemeButunluguTests` artık modeli yansımayla
+  gezip eşlenmemiş alan kalmadığını doğruluyor.
+- ~~"Yakındaki araçlar" ucunda konum filtresi yok~~ — 42.–43. günde eklendi.
+  Uç, adına rağmen tablodaki her aracı döndürüyordu.
+- ~~`CompleteRide` ucu için doğrulayıcı yok~~ — `CompleteRideRequestValidator`
+  yazıldı.
+- ~~`Wallet` ve `Tariff` domain tipleri yok~~ — `Tariff` ve `Money` yazıldı.
+  `Wallet` hâlâ yok (aşağıda).
+- ~~`CancelReservationCommand` yazıldı ama handler'ı yok~~ — rezervasyonun
+  süresi dolduğunda düşürülmesi 54. günün `ReservationTimeoutService`'ine
+  geçti; `Vehicle.ReleaseReservation` alan kuralını tek yerde tutuyor.
+
+### Faz 4'e taşınanlar
+
+- **`GET /api/v1/vehicles` KIRICI biçimde değişti.** Enlem/boylam artık
+  zorunlu ve yanıt tipi `NearbyVehicleResponse`. Sürümlemek yerine kırmayı
+  seçtik: ucun tek bir istemcisi yok (MVC paneli 17. haftada, mobil hiç yok)
+  ve yanlış davranışı bir sürüm numarasının arkasında dondurmak, ileride onu
+  desteklemeye devam etmek demekti.
+- **Harita önbelleği önek silerek geçersizleştiriliyor.** Bir aracın
+  değişmesi bütün harita önbelleğini düşürüyor. Beş saniyelik TTL'de maliyeti
+  düşük; trafik arttığında (saniyede onlarca kiralama) önbellek sürekli boş
+  kalır. Bölgesel anahtarlama gerekecek (ADR 0017).
+- **Cache stampede korumasız.** Aynı anahtar için aynı anda gelen N istek,
+  ıska durumunda N kez veritabanına gidiyor. Ölçülüp karar verilecek.
+- **Yakınlık sorgusu dikdörtgen, daire değil.** Köşelerde yarıçapın ~1,41
+  katına kadar fazla kayıt dönüyor. Gerçek çözüm PostGIS; kurulmama gerekçesi
+  ADR 0015'te.
+- **`Scootly.Worker` iki kopya çalıştırılamaz.** Üç arka plan servisi de
+  zamanlayıcıyla çalışıyor; iki kopya aynı rezervasyonu düşürmeye kalkar.
+  Çözüm lider seçimi ya da 50. günün dağıtık kilidi.
+- **Terk edilmiş sürüş tespiti süreye bakıyor, hareketsizliğe değil.**
+  Doğrusu telemetriye bakmak olurdu; öyle yapılsaydı telemetri kesintisi
+  "sürüş terk edildi"ye dönüşürdü.
+- **`BatteryThresholdScanner` her turda aynı araçları buluyor.** Tekrarlı
+  uyarıyı engelleyen bir durum yok. Kuyruk (13. hafta) gelmeden bunu çözmek,
+  yanlış yere yazmak olurdu.
+- **Telemetri yazımı başarısız olursa grup kaybediliyor**, yeniden
+  denenmiyor. Gerekçe ve ödünleşim ADR 0019'da.
+- **`TelemetryBulkWriter` tablo/sütun adlarını metin olarak biliyor.** Şema
+  değişirse çalışma zamanında patlar. `Gun44_TopluYazmaTests` bunu yakalıyor
+  ama derleme zamanı güvencesi yok.
+- **Oran sınırlama ters vekil arkasında yanlış çalışır.** `RemoteIpAddress`
+  vekilin adresini verir; `ForwardedHeaders` ara katmanı 20. haftada Nginx
+  kurulurken eklenecek. Şimdi eklemek, doğrulanmamış bir `X-Forwarded-For`
+  başlığına güvenmek olurdu.
+- **`Wallet` ve ödeme akışı hâlâ yok.** `Tariff.CalculateFare` var ama onu
+  çağıran bir yol yok — `Ride.Fare` hâlâ doldurulmuyor.
+- **Sürümsüz yollar (`/api/vehicles`) hâlâ duruyor.** Kaldırma tarihi
+  belirlenmedi.
+- **Faz 3'ün ölçüm tabloları boş.** `docs/architecture/system-design.md`
+  içindeki Faz 3 bölümünde 17 adet `(doldur)` var. Kod yazıldı, ölçüm
+  yapılmadı — bu fazın asıl teslim ettiği şey sayılar olduğu için, bu borcun
+  en önemlisi bu.
