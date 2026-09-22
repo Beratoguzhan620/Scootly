@@ -10,6 +10,7 @@ public sealed class Vehicle : AggregateRoot
     public VehicleStatus Status { get; private set; }
     public BatteryLevel Battery { get; private set; }
     public GeoPoint Location { get; private set; }
+    public DateTime? ReservedAt { get; private set; }
 
     private Vehicle()
     {
@@ -33,12 +34,21 @@ public sealed class Vehicle : AggregateRoot
     {
         EnsureStatusIs(VehicleStatus.Available, "Araç müsait değil, rezerve edilemez.");
         ChangeStatus(VehicleStatus.Reserved);
+        ReservedAt = DateTime.UtcNow;
+    }
+
+    public void CancelReservation()
+    {
+        EnsureStatusIs(VehicleStatus.Reserved, "Araç rezerve edilmemiş, rezervasyon iptal edilemez.");
+        ChangeStatus(VehicleStatus.Available);
+        ReservedAt = null;
     }
 
     public void StartRide()
     {
         EnsureStatusIs(VehicleStatus.Reserved, "Araç rezerve edilmemiş, sürüş başlatılamaz.");
         ChangeStatus(VehicleStatus.InRide);
+        ReservedAt = null;
     }
 
     public void CompleteRide()
@@ -50,6 +60,7 @@ public sealed class Vehicle : AggregateRoot
     public void SendToMaintenance()
     {
         ChangeStatus(VehicleStatus.Maintenance);
+        ReservedAt = null;
     }
 
     private void EnsureStatusIs(VehicleStatus expected, string errorMessage)

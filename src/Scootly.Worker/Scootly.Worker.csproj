@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Scootly.Worker-80f049e3-8bc0-4dd2-842e-43a1aa59645d</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scootly.Application\Scootly.Application.csproj" />
+    <ProjectReference Include="..\Scootly.Infrastructure\Scootly.Infrastructure.csproj" />
+    <ProjectReference Include="..\Scootly.Domain\Scootly.Domain.csproj" />
+  </ItemGroup>
+</Project>

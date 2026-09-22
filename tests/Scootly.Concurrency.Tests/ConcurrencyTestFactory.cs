@@ -25,7 +25,10 @@ public sealed class ConcurrencyTestFactory : WebApplicationFactory<Program>, IAs
                 services.Remove(descriptor);
 
             services.AddDbContext<ScootlyDbContext>(options =>
-                options.UseNpgsql(_postgresContainer.GetConnectionString()));
+            {
+                options.UseNpgsql(_postgresContainer.GetConnectionString());
+                options.AddInterceptors(new QueryCounter.CountingInterceptor());
+            });
         });
     }
 

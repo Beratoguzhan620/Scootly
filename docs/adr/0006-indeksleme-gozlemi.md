@@ -48,3 +48,18 @@ performans testlerini yanıltabileceği görüldü — en az iki ölçüm alıp 
 
 **Asıl darboğaz** indeksleme değil, toplu INSERT performansı olarak tespit edildi
 (SaveChanges: 2532 ms / 10.000 kayıt). Bu, 44. günde (toplu yazma) ele alınacak.
+
+## AsNoTracking Gözlemi (41. gün)
+
+34. günde AsNoTracking'in fark yaratmadığı gözlemlenmişti, ama o ölçüm SaveChangesAsync
+(10.000 INSERT) maliyetiyle karışıktı. 41. günde, yalnızca okuma sorgusu izole edilerek
+tekrar ölçüldü:
+
+- Tracking (izlenen): 213 ms / 5.000 kayıt
+- AsNoTracking: 125 ms / 5.000 kayıt (~%41 iyileşme)
+
+**Sonuç:** AsNoTracking, saf okuma sorgularında gerçek ve ölçülebilir bir fayda
+sağlıyor — özellikle çok sayıda kayıt dönen listelerde. Bu yüzden VehiclesController
+ve RidesController'daki tüm salt-okunur sorgulara (GetNearby, GetById) AsNoTracking
+eklendi. Veriyi değiştiren sorgulara (Register, Reserve gibi) eklenmedi çünkü EF Core'un
+değişiklik tespiti için izlemeye ihtiyacı var.

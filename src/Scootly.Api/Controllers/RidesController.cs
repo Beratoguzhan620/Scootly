@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Validators;
@@ -47,7 +48,7 @@ public sealed class RidesController : ControllerBase
         if (!authResult.Succeeded)
             return Forbid();
 
-        var ride = _dbContext.Rides.FirstOrDefault(r => r.Id == id);
+        var ride = _dbContext.Rides.AsNoTracking().FirstOrDefault(r => r.Id == id);
 
         if (ride is null)
             return NotFound();

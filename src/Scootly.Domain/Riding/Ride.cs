@@ -47,4 +47,15 @@ public sealed class Ride : AggregateRoot
         AddDomainEvent(new RideCompletedEvent(
             new RideId(Id), duration, distanceMeters, DateTime.UtcNow));
     }
+
+    public void Abandon()
+    {
+        if (Status != RideStatus.Active)
+            throw new DomainException("Yalnızca aktif bir sürüş terk edilmiş sayılabilir.");
+
+        Status = RideStatus.Abandoned;
+        EndedAt = DateTime.UtcNow;
+
+        AddDomainEvent(new RideAbandonedEvent(new RideId(Id), DateTime.UtcNow));
+    }
 }
