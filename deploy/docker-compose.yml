@@ -17,5 +17,15 @@ services:
     ports:
       - "6379:6379"
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: scootly-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: scootly
+      RABBITMQ_DEFAULT_PASS: rabbit123
+
 volumes:
   scootly-postgres-data:

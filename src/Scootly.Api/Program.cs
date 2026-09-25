@@ -11,6 +11,7 @@ using StackExchange.Redis;
 using Scootly.Api.Authorization;
 using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
+using Scootly.Api.Services;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
@@ -20,6 +21,7 @@ using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Caching;
+using Scootly.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -82,7 +84,9 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<NearbyVehicleCache>();
 
 builder.Services.AddSingleton<TelemetryChannel>();
-builder.Services.AddHostedService<Scootly.Api.Services.TelemetryChannelConsumer>();
+builder.Services.AddHostedService<TelemetryChannelConsumer>();
+
+builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scootly", "rabbit123"));
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
