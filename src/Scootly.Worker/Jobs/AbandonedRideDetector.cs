@@ -23,23 +23,34 @@ public sealed class AbandonedRideDetector : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = _services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-            var cutoff = DateTime.UtcNow.AddHours(-AbandonedThresholdHours);
-
-            var staleRides = await dbContext.Rides
-                .Where(r => r.Status == RideStatus.Active && r.StartedAt < cutoff)
-                .ToListAsync(stoppingToken);
-
-            foreach (var ride in staleRides)
+            try
             {
-                ride.Abandon();
-                _logger.LogWarning("Sürüş terk edildi olarak işaretlendi: {RideId}", ride.Id);
-            }
+                using var scope = _services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
 
-            if (staleRides.Count > 0)
-                await dbContext.SaveChangesAsync(stoppingToken);
+                var cutoff = DateTime.UtcNow.AddHours(-AbandonedThresholdHours);
+
+                var staleRides = await dbContext.Rides
+                    .Where(r => r.Status == RideStatus.Active && r.StartedAt < cutoff)
+                    .ToListAsync(stoppingToken);
+
+                foreach (var ride in staleRides)
+                {
+                    ride.Abandon();
+                    _logger.LogWarning("Sürüş terk edildi olarak işaretlendi: {RideId}", ride.Id);
+                }
+
+                if (staleRides.Count > 0)
+                    await dbContext.SaveChangesAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Uygulama kapanıyor, normal.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AbandonedRideDetector turunda beklenmeyen hata oluştu.");
+            }
 
             await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
         }

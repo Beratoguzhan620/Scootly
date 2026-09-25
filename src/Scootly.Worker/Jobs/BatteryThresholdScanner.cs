@@ -22,19 +22,30 @@ public sealed class BatteryThresholdScanner : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = _services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-            var lowBatteryVehicles = await dbContext.Vehicles
-                .AsNoTracking()
-                .Where(v => v.Battery.Percentage < LowBatteryThreshold)
-                .Select(v => new { v.Id, v.Battery.Percentage })
-                .ToListAsync(stoppingToken);
-
-            foreach (var vehicle in lowBatteryVehicles)
+            try
             {
-                _logger.LogWarning(
-                    "Batarya düşük: {VehicleId} — %{Percentage}", vehicle.Id, vehicle.Percentage);
+                using var scope = _services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
+
+                var lowBatteryVehicles = await dbContext.Vehicles
+                    .AsNoTracking()
+                    .Where(v => v.Battery.Percentage < LowBatteryThreshold)
+                    .Select(v => new { v.Id, v.Battery.Percentage })
+                    .ToListAsync(stoppingToken);
+
+                foreach (var vehicle in lowBatteryVehicles)
+                {
+                    _logger.LogWarning(
+                        "Batarya düşük: {VehicleId} — %{Percentage}", vehicle.Id, vehicle.Percentage);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Uygulama kapanıyor, normal.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BatteryThresholdScanner turunda beklenmeyen hata oluştu.");
             }
 
             await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);

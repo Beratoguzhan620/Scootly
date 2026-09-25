@@ -24,24 +24,35 @@ public sealed class ReservationTimeoutService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = _services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-            var handler = scope.ServiceProvider.GetRequiredService<CancelReservationCommandHandler>();
-
-            var cutoff = DateTime.UtcNow.AddMinutes(-ReservationDurationMinutes);
-
-            var expiredVehicles = await dbContext.Vehicles
-                .Where(v => v.Status == VehicleStatus.Reserved && v.ReservedAt != null && v.ReservedAt < cutoff)
-                .Select(v => v.Id)
-                .ToListAsync(stoppingToken);
-
-            foreach (var vehicleId in expiredVehicles)
+            try
             {
-                var command = new CancelReservationCommand(vehicleId);
-                var result = await handler.Handle(command, stoppingToken);
+                using var scope = _services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
+                var handler = scope.ServiceProvider.GetRequiredService<CancelReservationCommandHandler>();
 
-                if (result.IsSuccess)
-                    _logger.LogInformation("Süresi dolmuş rezervasyon iptal edildi: {VehicleId}", vehicleId);
+                var cutoff = DateTime.UtcNow.AddMinutes(-ReservationDurationMinutes);
+
+                var expiredVehicles = await dbContext.Vehicles
+                    .Where(v => v.Status == VehicleStatus.Reserved && v.ReservedAt != null && v.ReservedAt < cutoff)
+                    .Select(v => v.Id)
+                    .ToListAsync(stoppingToken);
+
+                foreach (var vehicleId in expiredVehicles)
+                {
+                    var command = new CancelReservationCommand(vehicleId);
+                    var result = await handler.Handle(command, stoppingToken);
+
+                    if (result.IsSuccess)
+                        _logger.LogInformation("Süresi dolmuş rezervasyon iptal edildi: {VehicleId}", vehicleId);
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Uygulama kapanıyor, normal.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ReservationTimeoutService turunda beklenmeyen hata oluştu.");
             }
 
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);

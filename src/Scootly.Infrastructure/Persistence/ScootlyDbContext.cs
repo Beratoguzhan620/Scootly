@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
+using Scootly.Domain.Telemetry;
 using Scootly.Infrastructure.Identity;
 
 namespace Scootly.Infrastructure.Persistence;
@@ -14,9 +15,11 @@ public sealed class ScootlyDbContext
 
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<Ride> Rides => Set<Ride>();
+    public DbSet<TelemetryReading> TelemetryReadings => Set<TelemetryReading>();
 
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;
+    IQueryable<TelemetryReading> IApplicationDbContext.TelemetryReadings => TelemetryReadings;
 
     public void AddVehicle(Vehicle vehicle)
     {
@@ -26,6 +29,11 @@ public sealed class ScootlyDbContext
     public void AddRide(Ride ride)
     {
         Rides.Add(ride);
+    }
+
+    public void AddTelemetryReading(TelemetryReading reading)
+    {
+        TelemetryReadings.Add(reading);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
