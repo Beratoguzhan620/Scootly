@@ -90,6 +90,7 @@ builder.Services.AddHostedService<TelemetryChannelConsumer>();
 builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scootly", "rabbit123"));
 
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
+builder.Services.AddHostedService<OutboxPublisher>();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
