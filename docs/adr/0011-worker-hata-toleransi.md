@@ -25,3 +25,17 @@ Bu servisler zaten periyodik olarak (30 saniye - 10 dakika aralıklarla) tekrar
 çalışıyor — bir turun başarısız olup bir sonraki turda kendiliğinden düzelmesi,
 ayrı bir retry mekanizmasına göre yeterli. Polly, 13-14. haftada (dış servis
 çağrıları, ödeme entegrasyonu gibi daha kritik senaryolarda) değerlendirilecek.
+
+## Güncelleme (69-70. gün)
+
+Aynı problem, Scootly.Worker'daki servislerin dışında, Scootly.Api'nin kendi
+hosted service'inde (RideCompletedMessageConsumer) de tekrarlandı: ExecuteAsync'in
+BAŞLANGIÇ kısmı (bağlantı kurma, exchange/kuyruk tanımlama) try/catch dışında
+bırakılmıştı. Test ortamında RabbitMQ container'ı olmadığında, bu başlangıç
+kodu istisna fırlatıp TÜM test host'unu (WebApplicationFactory tabanlı tüm
+entegrasyon testlerini) çökertti — 17 test "ObjectDisposedException" ile
+başarısız oldu.
+
+**Genişletilmiş kural:** Bir BackgroundService'in try/catch koruması yalnızca
+döngü içindeki periyodik işi değil, ExecuteAsync'in TÜM gövdesini (bağlantı
+kurma dahil, döngü dışındaki hazırlık kodu dahil) kapsamalıdır.
