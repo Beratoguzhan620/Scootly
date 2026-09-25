@@ -14,6 +14,7 @@ using Scootly.Api.Middleware;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
+using Scootly.Application.Telemetry;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
@@ -79,6 +80,8 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<NearbyVehicleCache>();
+
+builder.Services.AddSingleton<TelemetryChannel>();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Application.Abstractions;
+using Scootly.Application.Telemetry;
 using Scootly.Domain.Geo;
 using Scootly.Domain.Telemetry;
 
@@ -11,12 +12,12 @@ namespace Scootly.Api.Controllers;
 [Route("api/telemetry")]
 public sealed class TelemetryController : ControllerBase
 {
-    private readonly IApplicationDbContext _dbContext;
+    private readonly TelemetryChannel _telemetryChannel;
     private readonly IClock _clock;
 
-    public TelemetryController(IApplicationDbContext dbContext, IClock clock)
+    public TelemetryController(TelemetryChannel telemetryChannel, IClock clock)
     {
-        _dbContext = dbContext;
+        _telemetryChannel = telemetryChannel;
         _clock = clock;
     }
 
@@ -33,10 +34,8 @@ public sealed class TelemetryController : ControllerBase
                 item.BatteryPercentage,
                 _clock.UtcNow);
 
-            _dbContext.AddTelemetryReading(reading);
+            await _telemetryChannel.WriteAsync(reading);
         }
-
-        await _dbContext.SaveChangesAsync();
 
         return Ok(new { Received = request.Readings.Count });
     }
