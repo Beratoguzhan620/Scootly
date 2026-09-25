@@ -5,6 +5,7 @@ using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
 using Scootly.Domain.Telemetry;
 using Scootly.Infrastructure.Identity;
+using Scootly.Infrastructure.Messaging.Idempotency;
 using Scootly.Infrastructure.Messaging.Outbox;
 
 namespace Scootly.Infrastructure.Persistence;
@@ -18,6 +19,7 @@ public sealed class ScootlyDbContext
     public DbSet<Ride> Rides => Set<Ride>();
     public DbSet<TelemetryReading> TelemetryReadings => Set<TelemetryReading>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
 
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;

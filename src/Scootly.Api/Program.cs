@@ -91,6 +91,7 @@ builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scoot
 
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 builder.Services.AddHostedService<OutboxPublisher>();
+builder.Services.AddHostedService<RideCompletedMessageConsumer>();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
