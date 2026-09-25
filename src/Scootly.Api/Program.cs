@@ -82,6 +82,7 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<NearbyVehicleCache>();
 
 builder.Services.AddSingleton<TelemetryChannel>();
+builder.Services.AddHostedService<Scootly.Api.Services.TelemetryChannelConsumer>();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
