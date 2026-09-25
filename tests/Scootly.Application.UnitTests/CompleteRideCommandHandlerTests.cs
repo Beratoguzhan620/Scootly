@@ -32,8 +32,9 @@ public sealed class CompleteRideCommandHandlerTests
         var rideRepository = new FakeRideRepository(ride);
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
+        var outboxWriter = new FakeOutboxWriter();
 
-        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock);
+        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock, outboxWriter);
         var command = new CompleteRideCommand(ride.Id, 41.01, 29.01);
 
         var result = await handler.Handle(command);
@@ -50,8 +51,9 @@ public sealed class CompleteRideCommandHandlerTests
         var rideRepository = new FakeRideRepository(null);
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
+        var outboxWriter = new FakeOutboxWriter();
 
-        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock);
+        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock, outboxWriter);
         var command = new CompleteRideCommand(Guid.NewGuid(), 41.01, 29.01);
 
         var result = await handler.Handle(command);
@@ -115,5 +117,13 @@ public sealed class CompleteRideCommandHandlerTests
         }
 
         public DateTime UtcNow { get; }
+    }
+
+    private sealed class FakeOutboxWriter : IOutboxWriter
+    {
+        public void Write<T>(string eventType, T payload)
+        {
+            // Test amaçlı — hiçbir şey yapmıyor.
+        }
     }
 }

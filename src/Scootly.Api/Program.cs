@@ -22,6 +22,7 @@ using Scootly.Infrastructure.Persistence.Repositories;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Caching;
 using Scootly.Infrastructure.Messaging;
+using Scootly.Infrastructure.Messaging.Outbox;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,6 +88,8 @@ builder.Services.AddSingleton<TelemetryChannel>();
 builder.Services.AddHostedService<TelemetryChannelConsumer>();
 
 builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scootly", "rabbit123"));
+
+builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 
 builder.Services.AddDbContext<ScootlyDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
