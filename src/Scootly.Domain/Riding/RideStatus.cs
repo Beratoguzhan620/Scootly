@@ -5,5 +5,6 @@ public enum RideStatus
     Reserved,
     Active,
     Completed,
-    Abandoned
+    Abandoned,
+    PaymentPending
 }

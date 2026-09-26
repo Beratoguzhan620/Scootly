@@ -9,6 +9,7 @@
     <Project Path="src/Scootly.DeviceSimulator/Scootly.DeviceSimulator.csproj" />
     <Project Path="src/Scootly.Domain/Scootly.Domain.csproj" />
     <Project Path="src/Scootly.Infrastructure/Scootly.Infrastructure.csproj" />
+    <Project Path="src/Scootly.PaymentSimulator/Scootly.PaymentSimulator.csproj" />
     <Project Path="src/Scootly.Worker/Scootly.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">

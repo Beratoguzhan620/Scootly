@@ -1,11 +1,15 @@
 ﻿using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Scootly.Application.IntegrationEvents;
+using Scootly.Domain.Fleet;
+using Scootly.Domain.Riding;
 using Scootly.Infrastructure.Messaging;
 using Scootly.Infrastructure.Messaging.Idempotency;
+using Scootly.Infrastructure.Payments;
 using Scootly.Infrastructure.Persistence;
 
 namespace Scootly.Api.Services;
@@ -20,6 +24,7 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
     private const string DeadLetterExchangeName = "scootly.events.dlx";
     private const string DeadLetterQueueName = "scootly.ride-completed-consumer.dlq";
     private const int MaxRetryCount = 3;
+    private const decimal PerMinuteRate = 2.5m;
 
     public RideCompletedMessageConsumer(
         IServiceProvider services,
@@ -69,15 +74,12 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
 
                     using var scope = _services.CreateScope();
                     var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
+                    var paymentClient = scope.ServiceProvider.GetRequiredService<PaymentSimulatorClient>();
                     var idempotentHandler = new IdempotentMessageHandler(dbContext);
 
                     var processed = await idempotentHandler.TryProcessAsync(integrationEvent.RideId, async () =>
                     {
-                        _logger.LogInformation(
-                            "RideCompleted mesajı işlendi: Ride={RideId}, Süre={DurationMinutes}dk, Mesafe={DistanceMeters}m",
-                            integrationEvent.RideId, integrationEvent.DurationMinutes, integrationEvent.DistanceMeters);
-
-                        await Task.CompletedTask;
+                        await ProcessPaymentSagaAsync(dbContext, paymentClient, integrationEvent, stoppingToken);
                     });
 
                     if (!processed)
@@ -116,12 +118,50 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Uygulama kapanıyor, normal.
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "RideCompletedMessageConsumer başlatılırken hata oluştu. Servis bu turda devre dışı kalacak.");
         }
+    }
+
+    private async Task ProcessPaymentSagaAsync(
+        ScootlyDbContext dbContext,
+        PaymentSimulatorClient paymentClient,
+        RideCompletedIntegrationEvent integrationEvent,
+        CancellationToken cancellationToken)
+    {
+        var fare = Math.Round((decimal)integrationEvent.DurationMinutes * PerMinuteRate, 2);
+
+        _logger.LogInformation(
+            "Saga: ücret hesaplandı, ödeme yetkilendirmesi isteniyor. Ride={RideId}, Ücret={Fare}",
+            integrationEvent.RideId, fare);
+
+        var paymentResult = await paymentClient.AuthorizeAsync(integrationEvent.RideId, fare, cancellationToken);
+
+        var ride = await dbContext.Rides.FirstOrDefaultAsync(r => r.Id == integrationEvent.RideId, cancellationToken);
+        var vehicle = await dbContext.Vehicles.FirstOrDefaultAsync(v => v.Id == integrationEvent.VehicleId, cancellationToken);
+
+        if (ride is null || vehicle is null)
+        {
+            _logger.LogError("Saga: Ride veya Vehicle bulunamadı, devam edilemiyor. Ride={RideId}", integrationEvent.RideId);
+            return;
+        }
+
+        if (paymentResult.Success)
+        {
+            ride.MarkFarePaid(fare);
+            _logger.LogInformation("Saga: ödeme başarılı, araç zaten serbest. Ride={RideId}", integrationEvent.RideId);
+        }
+        else
+        {
+            ride.MarkPaymentPending(fare);
+            _logger.LogWarning(
+                "Saga: ödeme başarısız ({Message}), sürüş 'ödeme bekliyor' olarak işaretlendi ama araç serbest bırakılıyor (telafi). Ride={RideId}",
+                paymentResult.Message, integrationEvent.RideId);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static int GetRetryCount(IDictionary<string, object?>? headers)

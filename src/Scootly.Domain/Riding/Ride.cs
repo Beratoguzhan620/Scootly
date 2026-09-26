@@ -58,4 +58,15 @@ public sealed class Ride : AggregateRoot
 
         AddDomainEvent(new RideAbandonedEvent(new RideId(Id), DateTime.UtcNow));
     }
+
+    public void MarkFarePaid(decimal fare)
+    {
+        Fare = fare;
+    }
+
+    public void MarkPaymentPending(decimal fare)
+    {
+        Status = RideStatus.PaymentPending;
+        Fare = fare;
+    }
 }

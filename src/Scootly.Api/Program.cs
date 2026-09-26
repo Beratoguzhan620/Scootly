@@ -23,6 +23,7 @@ using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Caching;
 using Scootly.Infrastructure.Messaging;
 using Scootly.Infrastructure.Messaging.Outbox;
+using Scootly.Infrastructure.Payments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -89,6 +90,13 @@ builder.Services.AddHostedService<TelemetryChannelConsumer>();
 
 builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scootly", "rabbit123"));
 builder.Services.AddScoped<IEventPublisher, RabbitMqEventPublisher>();
+
+builder.Services.AddHttpClient<PaymentSimulatorClient>(client =>
+{
+    client.BaseAddress = new Uri("http://localhost:5094");
+});
+
+builder.Services.AddScoped<PaymentWebhookValidator>();
 
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 builder.Services.AddHostedService<OutboxPublisher>();
