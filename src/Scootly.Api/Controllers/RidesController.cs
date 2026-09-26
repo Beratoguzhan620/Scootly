@@ -62,6 +62,38 @@ public sealed class RidesController : ControllerBase
         });
     }
 
+    [HttpGet("{id}/payment-status")]
+    [Authorize]
+    public async Task<IActionResult> GetPaymentStatus(Guid id)
+    {
+        var authResult = await _authorizationService.AuthorizeAsync(User, id, PolicyNames.RideOwner);
+
+        if (!authResult.Succeeded)
+            return Forbid();
+
+        var ride = _dbContext.Rides.AsNoTracking().FirstOrDefault(r => r.Id == id);
+
+        if (ride is null)
+            return NotFound();
+
+        var paymentStatus = ride.Status.ToString() switch
+        {
+            "Active" or "Reserved" => "NotYetCharged",
+            "Completed" when ride.Fare.HasValue => "Paid",
+            "Completed" => "Pending",
+            "PaymentPending" => "Pending",
+            "Abandoned" => "NotApplicable",
+            _ => "Unknown"
+        };
+
+        return Ok(new
+        {
+            RideId = ride.Id,
+            PaymentStatus = paymentStatus,
+            Fare = ride.Fare
+        });
+    }
+
     [HttpPost("start")]
     [Authorize]
     public async Task<IActionResult> Start([FromBody] StartRideRequest request)
@@ -95,6 +127,6 @@ public sealed class RidesController : ControllerBase
         if (!result.IsSuccess)
             return Conflict(result.Error);
 
-        return Ok();
+        return Ok(new { Status = "Completed", PaymentStatus = "Processing" });
     }
 }
