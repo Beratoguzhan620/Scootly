@@ -94,7 +94,8 @@ builder.Services.AddScoped<IEventPublisher, RabbitMqEventPublisher>();
 builder.Services.AddHttpClient<PaymentSimulatorClient>(client =>
 {
     client.BaseAddress = new Uri("http://localhost:5094");
-});
+})
+    .AddPaymentResilience();
 
 builder.Services.AddScoped<PaymentWebhookValidator>();
 

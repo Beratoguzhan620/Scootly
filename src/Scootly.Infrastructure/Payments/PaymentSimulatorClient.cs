@@ -9,7 +9,6 @@ public sealed class PaymentSimulatorClient
     public PaymentSimulatorClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        _httpClient.Timeout = TimeSpan.FromSeconds(5);
     }
 
     public async Task<PaymentAuthorizationResult> AuthorizeAsync(Guid rideId, decimal amount, CancellationToken cancellationToken = default)
