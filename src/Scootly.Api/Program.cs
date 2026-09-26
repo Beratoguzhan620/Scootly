@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using StackExchange.Redis;
 using Scootly.Api.Authorization;
+using Scootly.Api.Hubs;
 using Scootly.Api.Logging;
 using Scootly.Api.Middleware;
 using Scootly.Api.Services;
@@ -36,6 +37,7 @@ builder.Host.UseSerilog((context, configuration) =>
 });
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 builder.Services.AddApiVersioning(options =>
 {
@@ -50,9 +52,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ScootlyWebPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://localhost:3000")
+        policy.WithOrigins("http://localhost:3000", "https://localhost:3000", "http://localhost:5500")
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -98,6 +101,7 @@ builder.Services.AddHttpClient<PaymentSimulatorClient>(client =>
     .AddPaymentResilience();
 
 builder.Services.AddScoped<PaymentWebhookValidator>();
+builder.Services.AddScoped<IFleetNotifier, SignalRFleetNotifier>();
 
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 builder.Services.AddHostedService<OutboxPublisher>();
@@ -195,6 +199,7 @@ app.UseMiddleware<DeviceAuthenticationMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<FleetHub>("/hubs/fleet");
 
 app.Run();
 

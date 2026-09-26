@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Scootly.Application.Abstractions;
 using Scootly.Application.IntegrationEvents;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
@@ -25,6 +26,7 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
     private const string DeadLetterQueueName = "scootly.ride-completed-consumer.dlq";
     private const int MaxRetryCount = 3;
     private const decimal PerMinuteRate = 2.5m;
+    private const string DefaultRegion = "default-region";
 
     public RideCompletedMessageConsumer(
         IServiceProvider services,
@@ -75,11 +77,12 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
                     using var scope = _services.CreateScope();
                     var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
                     var paymentClient = scope.ServiceProvider.GetRequiredService<PaymentSimulatorClient>();
+                    var fleetNotifier = scope.ServiceProvider.GetRequiredService<IFleetNotifier>();
                     var idempotentHandler = new IdempotentMessageHandler(dbContext);
 
                     var processed = await idempotentHandler.TryProcessAsync(integrationEvent.RideId, async () =>
                     {
-                        await ProcessPaymentSagaAsync(dbContext, paymentClient, integrationEvent, stoppingToken);
+                        await ProcessPaymentSagaAsync(dbContext, paymentClient, fleetNotifier, integrationEvent, stoppingToken);
                     });
 
                     if (!processed)
@@ -128,6 +131,7 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
     private async Task ProcessPaymentSagaAsync(
         ScootlyDbContext dbContext,
         PaymentSimulatorClient paymentClient,
+        IFleetNotifier fleetNotifier,
         RideCompletedIntegrationEvent integrationEvent,
         CancellationToken cancellationToken)
     {
@@ -162,6 +166,9 @@ public sealed class RideCompletedMessageConsumer : BackgroundService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await fleetNotifier.NotifyVehicleStatusChangedAsync(
+            vehicle.Id, DefaultRegion, vehicle.Status.ToString(), cancellationToken);
     }
 
     private static int GetRetryCount(IDictionary<string, object?>? headers)
