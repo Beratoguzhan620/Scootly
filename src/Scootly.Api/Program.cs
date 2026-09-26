@@ -88,6 +88,7 @@ builder.Services.AddSingleton<TelemetryChannel>();
 builder.Services.AddHostedService<TelemetryChannelConsumer>();
 
 builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scootly", "rabbit123"));
+builder.Services.AddScoped<IEventPublisher, RabbitMqEventPublisher>();
 
 builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
 builder.Services.AddHostedService<OutboxPublisher>();

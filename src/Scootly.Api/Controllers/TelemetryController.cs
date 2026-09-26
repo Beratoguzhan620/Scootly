@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Telemetry;
@@ -23,6 +24,7 @@ public sealed class TelemetryController : ControllerBase
 
     [HttpPost("batch")]
     [Authorize]
+    [EnableRateLimiting("DevicePolicy")]
     public async Task<IActionResult> IngestBatch([FromBody] TelemetryBatchRequest request)
     {
         foreach (var item in request.Readings)
