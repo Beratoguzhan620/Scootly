@@ -27,16 +27,20 @@ services:
       RABBITMQ_DEFAULT_USER: scootly
       RABBITMQ_DEFAULT_PASS: rabbit123
 
-  api-memtest:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.api
-    container_name: scootly-api-memtest
-    mem_limit: 512m
-    depends_on:
-      - postgres
-    profiles:
-      - memtest
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: scootly-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://localhost:9092
+    ports:
+      - "9092:9092"
 
 volumes:
   scootly-postgres-data:
