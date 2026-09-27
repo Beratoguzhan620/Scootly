@@ -20,6 +20,12 @@ public sealed class RideConfiguration : IEntityTypeConfiguration<Ride>
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        // 69. gun. NULL = odeme henuz sonuclanmadi; mevcut satirlar icin
+        // migration'da da NULL kaliyor (bkz. RidePaymentStatus).
+        builder.Property(r => r.PaymentStatus)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
         builder.OwnsOne(r => r.StartLocation, location =>
         {
             location.Property(l => l.Latitude).HasColumnName("StartLatitude");

@@ -54,7 +54,16 @@ public static class RabbitMqTopology
     public static readonly QueueDefinition FieldTasks =
         new("scootly.field-tasks", VehicleBatteryLowIntegrationEvent.EventName);
 
-    public static IReadOnlyList<QueueDefinition> Queues { get; } = [FareCalculation, FieldTasks];
+    /// <summary>Ödeme istendi → ödeme sağlayıcısına git (69. gün).</summary>
+    public static readonly QueueDefinition PaymentAuthorization =
+        new("scootly.payment-authorization", PaymentAuthorizationRequestedIntegrationEvent.EventName);
+
+    /// <summary>Ödeme sonuçlandı → sürüşü kapat, aracı serbest bırak (69. gün).</summary>
+    public static readonly QueueDefinition PaymentSettlement =
+        new("scootly.payment-settlement", PaymentAuthorizedIntegrationEvent.EventName);
+
+    public static IReadOnlyList<QueueDefinition> Queues { get; } =
+        [FareCalculation, FieldTasks, PaymentAuthorization, PaymentSettlement];
 
     public static string RetryQueueOf(string queueName) => queueName + ".retry";
 

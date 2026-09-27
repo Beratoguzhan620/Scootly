@@ -6,26 +6,28 @@ using Scootly.Application.IntegrationEvents;
 namespace Scootly.Infrastructure.Messaging;
 
 /// <summary>
-/// Entegrasyon olaylarını RabbitMQ'ya gönderir (62. gün).
+/// Olayları RabbitMQ'ya gönderir (62. gün; 67. günde yayıncı onayı eklendi).
 /// </summary>
 /// <remarks>
 /// <para>
 /// Mesajlar <b>kalıcı</b> (persistent) gönderiliyor ve kuyruklar dayanıklı:
 /// RabbitMQ yeniden başlasa bile kuyrukta bekleyen olaylar kaybolmuyor.
-/// İkisinden biri eksik olsaydı — dayanıklı kuyrukta kalıcı olmayan mesaj ya
-/// da tersi — yeniden başlatmada kuyruk dururdu ama içi boşalırdı.
 /// </para>
 /// <para>
-/// <b>Tek kanal, kilitle.</b> Bir kanal aynı anda iki iş parçacığından
-/// yayınlamaya uygun değil; iki eşzamanlı sürüş bitirme isteği aynı kanalda
-/// çakışır ve kanal hata verip kapanırdı. Her yayınlamada yeni kanal açmak da
-/// çözüm olurdu ama her seferinde bir ağ gidiş-dönüşü demek.
+/// <b>Yayıncı onayı (publisher confirm) AÇIK — 67. gün.</b> Metot ancak
+/// RabbitMQ mesajı aldığını onayladıktan sonra dönüyor; reddederse
+/// (<c>nack</c>) ya da mesaj hiçbir kuyruğa yönlenemezse istisna fırlatıyor.
+/// Outbox göndericisi "gönderildi" işaretini bu dönüşe bağlıyor. Onay
+/// olmasaydı metot mesaj ağa yazılır yazılmaz dönerdi ve arada kopan bir
+/// bağlantı olayı, kimse fark etmeden kaybettirirdi.
 /// </para>
 /// <para>
-/// <b>Yayıncı onayı (publisher confirm) YOK.</b> Metot döndüğünde mesaj ağa
-/// yazılmış ama RabbitMQ'nun onu diske aldığı garanti değil. 67. günün outbox
-/// göndericisi "gönderildi" işaretini ancak bu onaydan sonra koymalı; o gün
-/// eklenecek.
+/// <b>mandatory: true.</b> Bağlı kuyruğu olmayan bir olay RabbitMQ'da
+/// sessizce atılır. Bu bayrakla atılmak yerine geri dönüyor ve yayınlama
+/// başarısız sayılıyor — outbox kaydı "gönderilmedi" olarak kalıyor.
+/// </para>
+/// <para>
+/// Tek kanal, kilitle: bir kanal eşzamanlı yayınlamaya uygun değil.
 /// </para>
 /// </remarks>
 public sealed class RabbitMqEventPublisher : IEventPublisher, IAsyncDisposable
@@ -48,18 +50,29 @@ public sealed class RabbitMqEventPublisher : IEventPublisher, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(integrationEvent);
 
-        // Anlamsiz bir olayi kuyruga koymak, sorunu tuketiciye ve olu mektup
-        // kuyruguna tasimak demek. Yayinlayan tarafta yakalamak daha ucuz.
         integrationEvent.Validate();
 
-        var govde = IntegrationEventSerializer.Serialize(integrationEvent);
+        await PublishRawAsync(
+            TEvent.EventName,
+            integrationEvent.EventId,
+            IntegrationEventSerializer.Serialize(integrationEvent),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Hazır bir gövdeyi yayınlar ve RabbitMQ'nun onayını bekler (outbox göndericisi için).
+    /// </summary>
+    public async Task PublishRawAsync(string eventType, Guid messageId, byte[] body, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
+        ArgumentNullException.ThrowIfNull(body);
 
         var ozellikler = new BasicProperties
         {
             Persistent = true,
             ContentType = "application/json",
-            MessageId = integrationEvent.EventId.ToString(),
-            Type = TEvent.EventName,
+            MessageId = messageId.ToString(),
+            Type = eventType,
             Headers = new Dictionary<string, object?>
             {
                 [MessageHeaders.Attempt] = 1
@@ -73,10 +86,10 @@ public sealed class RabbitMqEventPublisher : IEventPublisher, IAsyncDisposable
 
             await kanal.BasicPublishAsync(
                 RabbitMqTopology.EventsExchange,
-                TEvent.EventName,
-                false,
+                eventType,
+                true,
                 ozellikler,
-                govde,
+                body,
                 cancellationToken);
         }
         finally
@@ -84,8 +97,7 @@ public sealed class RabbitMqEventPublisher : IEventPublisher, IAsyncDisposable
             _kilit.Release();
         }
 
-        _logger.LogInformation(
-            "Olay yayinlandi: {EventName} EventId={EventId}", TEvent.EventName, integrationEvent.EventId);
+        _logger.LogInformation("Olay yayinlandi: {EventType} MessageId={MessageId}", eventType, messageId);
     }
 
     public async ValueTask DisposeAsync()
@@ -123,7 +135,14 @@ public sealed class RabbitMqEventPublisher : IEventPublisher, IAsyncDisposable
         }
 
         var baglanti = await _connectionProvider.GetConnectionAsync(cancellationToken);
-        var kanal = await baglanti.CreateChannelAsync(cancellationToken: cancellationToken);
+
+        // Onay izleme acik: BasicPublishAsync onaylanana kadar bekliyor,
+        // nack ya da yonlendirilemeyen mesajda istisna firlatiyor.
+        var kanal = await baglanti.CreateChannelAsync(
+            new CreateChannelOptions(
+                publisherConfirmationsEnabled: true,
+                publisherConfirmationTrackingEnabled: true),
+            cancellationToken);
 
         await RabbitMqTopology.DeclareAsync(kanal, cancellationToken);
 

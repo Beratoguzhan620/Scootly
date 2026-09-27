@@ -2,17 +2,22 @@ namespace Scootly.Application.IntegrationEvents;
 
 /// <summary>Bir sürüşün ödemesi için yetkilendirme sonucu (63. gün).</summary>
 /// <remarks>
-/// Bugün yayınlayan ya da dinleyen yok. Sözleşme şimdi tanımlanıyor çünkü
-/// 69. günün saga'sı (sürüş bitti → ödeme → araç serbest) bu üç olay
-/// üzerine kurulacak; sözleşmeyi ilk kullanıldığı gün değil, tasarlandığı gün
-/// yazmak onu kullanım yerinin şekline uydurmayı engelliyor.
+/// Saga'nın 3. adımı (69. gün). İki kaynaktan gelebilir: Worker'daki ödeme
+/// tüketicisi (bugün sahte ödeme sağlayıcısını çağırıyor) ya da ödeme
+/// sağlayıcısının webhook'u (70. gün). İkisi de aynı olayı üretiyor, dolayısıyla
+/// sonucu işleyen tüketici kaynağı bilmek zorunda değil.
+/// <para>
+/// <c>Success = false</c> bir HATA değil, bir SONUÇ: kart reddedildi. Tüketici
+/// bunu başarıyla işler (telafi yolu), yeniden denemez.
+/// </para>
 /// </remarks>
 public sealed record PaymentAuthorizedIntegrationEvent(
     Guid EventId,
     DateTime OccurredOnUtc,
     Guid RideId,
     decimal Amount,
-    bool Success) : IIntegrationEvent, IHasEventName
+    bool Success,
+    string? FailureReason = null) : IIntegrationEvent, IHasEventName
 {
     public static string EventName => "payment.authorized";
 

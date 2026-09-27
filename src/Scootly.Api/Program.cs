@@ -19,7 +19,10 @@ using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Caching;
-using Scootly.Infrastructure.Messaging;
+using Scootly.Application.Behaviors;
+using Scootly.Infrastructure.Messaging.Idempotency;
+using Scootly.Infrastructure.Messaging.Outbox;
+using Scootly.Infrastructure.Payments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,12 +86,20 @@ var redisBaglantisi = builder.Configuration["Redis:ConnectionString"] ?? "localh
 builder.Services.AddSingleton<IConnectionMultiplexer>(
     ConnectionMultiplexer.Connect($"{redisBaglantisi},abortConnect=false"));
 
-// --- 62. gun: olay yayinlama -----------------------------------------------
-// API yalnizca YAYINLIYOR; tuketiciler Worker'da.
-var rabbitMq = builder.Configuration.GetSection(RabbitMqOptions.SectionName).Get<RabbitMqOptions>()
-               ?? new RabbitMqOptions();
-rabbitMq.ClientName = "scootly-api";
-builder.Services.AddScootlyMessaging(rabbitMq);
+// --- 66. gun: API artik RabbitMQ'ya HIC baglanmiyor -------------------------
+// Olaylar outbox tablosuna yaziliyor; kuyruga tasimak Worker'in isi. Sonuc:
+// RabbitMQ kapaliyken de surus bitirilebiliyor, olay kaybolmuyor, yalnizca
+// gecikiyor. Hafta 13'te burada duran yayinlayici kaydi bu yuzden kalkti.
+builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
+builder.Services.AddScoped<IProcessedMessageStore, ProcessedMessageStore>();
+builder.Services.AddScoped<IdempotencyBehavior>();
+
+// --- 70. gun: odeme webhook'u --------------------------------------------------
+var odeme = builder.Configuration.GetSection(PaymentOptions.SectionName).Get<PaymentOptions>()
+            ?? new PaymentOptions();
+builder.Services.AddSingleton(odeme);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PaymentWebhookValidator>();
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<NearbyVehicleCache>();

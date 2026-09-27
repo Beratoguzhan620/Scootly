@@ -23,7 +23,10 @@ public static class MessagingServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<RabbitMqConnectionProvider>();
-        services.AddSingleton<IEventPublisher, RabbitMqEventPublisher>();
+        // Ayni ornek iki adla: outbox gondericisi somut tipi (PublishRawAsync),
+        // digerleri arayuzu kullaniyor. Iki ayri kayit iki ayri kanal acardi.
+        services.AddSingleton<RabbitMqEventPublisher>();
+        services.AddSingleton<IEventPublisher>(p => p.GetRequiredService<RabbitMqEventPublisher>());
 
         return services;
     }

@@ -23,13 +23,24 @@ Bu dosya, bilinçli olarak şimdi düzeltilmeyen ama fark edilen eksiklikleri ka
 
 ## Faz 4 — Hafta 13 (61–65. günler)
 
-- **İkili yazma problemi (bilerek açık, 66. günde kapanacak).** `CompleteRideCommandHandler` sürüşü kaydedip ardından `ride.completed` yayınlıyor. Yayınlama başarısız olursa sürüş tamamlanmış ama ücreti hiç hesaplanmayacak; hata `LogError` ile görünür ama olay kayıp. Çözüm outbox.
-- **Yayıncı onayı (publisher confirm) yok.** `RabbitMqEventPublisher` döndüğünde mesajın RabbitMQ'nun diskinde olduğu garanti değil. 67. günün outbox göndericisi bunu eklemeli.
-- **Ücret tüketicisinin tekrar koruması tek tüketici için yeterli.** "Ücret zaten yazılmış mı" kontrolü, aynı mesajı aynı anda işleyen iki tüketiciye karşı korumuyor. 68. gün (`ProcessedMessage` tablosu).
+- ~~**İkili yazma problemi**~~ → **66. günde kapandı** (outbox, ADR 0015). Eski not: `CompleteRideCommandHandler` sürüşü kaydedip ardından `ride.completed` yayınlıyor. Yayınlama başarısız olursa sürüş tamamlanmış ama ücreti hiç hesaplanmayacak; hata `LogError` ile görünür ama olay kayıp. Çözüm outbox.
+- ~~**Yayıncı onayı yok**~~ → **67. günde kapandı** (onay + `mandatory`). Eski not: `RabbitMqEventPublisher` döndüğünde mesajın RabbitMQ'nun diskinde olduğu garanti değil. 67. günün outbox göndericisi bunu eklemeli.
+- ~~**Ücret tüketicisinin tekrar koruması tek tüketici için yeterli**~~ → **68. günde kapandı** (`ProcessedMessages`). Eski not: "Ücret zaten yazılmış mı" kontrolü, aynı mesajı aynı anda işleyen iki tüketiciye karşı korumuyor. 68. gün (`ProcessedMessage` tablosu).
 - **Tarife geçici ve sabit.** `Tariff.Standard` (açılış 10, dakika 2,5) gerçek bir fiyat kararı değil. Planın Faz 1'de istediği fiyatlandırma modeli (`Money`, `IFareCalculator`, veritabanında tarifeler, `TariffConfiguration`, tohum verisi) main'de yok.
 - **Batarya tarayıcısı her turda aynı araçları yeniden bildiriyor.** Beş dakikada bir, eşiğin altındaki her araç için olay. İkinci görevin açılmasını tüketici ve kısmi tekil indeks engelliyor ama kuyruk gereksiz yere doluyor. "Son bildirim zamanı" tutulmalı.
 - **Ölü mektup kuyruğundaki mesajı geri göndermek elle.** Bir "tekrar oynat" aracı yok.
 - **`docker-compose.yml`'da Postgres parolası düz metin (`sifre123`) ve portu `0.0.0.0`'a açık.** RabbitMQ `.env` ile geldi; Postgres'in de aynı düzene geçmesi gerekiyor. Git geçmişindeki parola değiştirilmeli.
 - **`docker compose up` artık `deploy/.env` istiyor.** RabbitMQ parolasının varsayılanı yok (bilerek). `.env` dosyası olmayan biri yalnızca Postgres'i başlatmak istese bile compose hata verir; `cp deploy/.env.example deploy/.env` yeterli.
-- **Worker ile API'nin user-secrets kimlikleri farklı.** Aynı bağlantı dizesi ve RabbitMQ parolası iki yerde tutuluyor; biri güncellenip diğeri unutulduğunda iki süreç farklı veritabanına bağlanır.
+- **Worker ile API'nin user-secrets kimlikleri farklı.** (66. günden beri API RabbitMQ parolasına ihtiyaç duymuyor; bağlantı dizesi hâlâ iki yerde.) Aynı bağlantı dizesi ve RabbitMQ parolası iki yerde tutuluyor; biri güncellenip diğeri unutulduğunda iki süreç farklı veritabanına bağlanır.
+
+## Faz 4 — Hafta 14 (66–70. günler)
+
+- **Worker çalışmıyorsa bitirilen sürüşlerin araçları "sürüşte" kalıyor.** Araç artık ödeme sonuçlanınca serbest bırakılıyor (saga'nın son adımı). Uzun süredir ödeme bekleyen sürüşler için izleme/alarm yok.
+- **Ödeme sağlayıcısı sahte** (`FakePaymentGateway`, `Payments:FakeDeclineAbove` üstünü reddeder, tekrar anahtarlarını bellekte tutar — Worker yeniden başlarsa unutur). 71. günde gerçek simülatörle değişecek.
+- **Borç kapatma akışı yok.** `OutstandingDebt.Settle` var ama çağıran bir yol yok.
+- **Sürekli gönderilemeyen outbox kaydı için alarm yok.** `Attempts` ve `LastError` sütunlarından elle bakılıyor.
+- **Sıra garantisi yok.** Outbox oluşturulma sırasıyla okunuyor ama tüketicideki yeniden denemeler sırayı bozabilir. Bugünkü saga'da sorun değil; sıraya bağımlı bir tüketici eklenirse değerlendirilmeli.
+- **"İşlendi" kayıtları 14 gün tutuluyor.** Daha eski bir mesajın tekrar gelmesi tanınmaz.
+- **Webhook gövdesi bizim tanımladığımız biçim.** Gerçek bir sağlayıcıya geçerken uyarlanmalı; sağlayıcının kendi imza şemasını kullanmak gerekecek.
+- **Batarya tarayıcısı hâlâ doğrudan yayınlıyor, outbox'tan geçmiyor.** Tarayıcı bir durum değiştirmediği için ikili yazma yok; ama RabbitMQ kapalıyken o turun olayları kayboluyor (bir sonraki tur zaten yeniden bulur).
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Scootly.Application.Behaviors;
 using Scootly.Application.IntegrationEvents;
 using Scootly.Infrastructure.Messaging;
 using Scootly.Infrastructure.Messaging.Consumers;
@@ -177,8 +178,25 @@ public sealed class RabbitMqConsumerService<TEvent, TConsumer> : BackgroundServi
             {
                 await using var kapsam = _scopeFactory.CreateAsyncScope();
                 var tuketici = kapsam.ServiceProvider.GetRequiredService<TConsumer>();
+                var tekrarKontrolu = kapsam.ServiceProvider.GetRequiredService<IdempotencyBehavior>();
 
-                sonuc = await tuketici.ConsumeAsync(olay, stoppingToken);
+                // 68. gun: ayni olay bu kuyrukta daha once islendiyse atla.
+                // "Islendi" kaydi, tuketicinin yaptigi isle AYNI kayitta
+                // yaziliyor (bkz. IdempotencyBehavior).
+                var cikti = await tekrarKontrolu.ExecuteAsync(
+                    olay.EventId,
+                    kuyruk.Name,
+                    ct => tuketici.ConsumeAsync(olay, ct),
+                    stoppingToken);
+
+                if (cikti.WasDuplicate)
+                {
+                    _logger.LogInformation(
+                        "'{Kuyruk}' EventId={EventId} daha once islenmis, atlandi (tekrar teslim).",
+                        kuyruk.Name, olay.EventId);
+                }
+
+                sonuc = cikti.Result;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
