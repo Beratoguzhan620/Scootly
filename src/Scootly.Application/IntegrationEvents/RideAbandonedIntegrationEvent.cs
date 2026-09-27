@@ -1,9 +1,8 @@
 namespace Scootly.Application.IntegrationEvents;
 
-public sealed record RideCompletedIntegrationEvent(
+public sealed record RideAbandonedIntegrationEvent(
     Guid RideId,
     Guid DriverId,
     Guid VehicleId,
     int DurationMinutes,
-    double DistanceMeters,
     decimal Fare);

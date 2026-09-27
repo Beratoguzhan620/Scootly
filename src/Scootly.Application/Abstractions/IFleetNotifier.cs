@@ -1,4 +1,4 @@
-﻿namespace Scootly.Application.Abstractions;
+namespace Scootly.Application.Abstractions;
 
 public interface IFleetNotifier
 {
