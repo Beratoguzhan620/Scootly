@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,15 +32,24 @@ public static class InfrastructureDependencyInjection
         {
             var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName);
 
+            // Bağlantı dizesi yoksa (örn. EF migration paketi derlenirken) sağlayıcı bağlantısız yapılandırılır;
+            // çalışma zamanındaki eksiklik aşağıdaki açılış doğrulamasıyla hemen yakalanır.
             if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                throw new InvalidOperationException(
-                    $"'ConnectionStrings:{ConnectionStringName}' yapılandırılmamış. Geliştirmede user-secrets, " +
-                    "diğer ortamlarda 'ConnectionStrings__DefaultConnection' ortam değişkeni kullanın.");
-            }
+                options.UseNpgsql();
+            else
+                options.UseNpgsql(connectionString);
 
-            options.UseNpgsql(connectionString);
+            // Aynı owned değer nesnesi örneğinin iki sahipte izlenmesi sessiz veri hatalarına yol açabilir; hataya çevrilir.
+            options.ConfigureWarnings(warnings => warnings.Throw(CoreEventId.DuplicateDependentEntityTypeInstanceWarning));
         });
+
+        services.AddOptions<DatabaseOptions>()
+            .Configure<IConfiguration>((options, config) => options.ConnectionString = config.GetConnectionString(ConnectionStringName))
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.ConnectionString),
+                $"'ConnectionStrings:{ConnectionStringName}' yapılandırılmamış. Geliştirmede user-secrets, " +
+                "diğer ortamlarda 'ConnectionStrings__DefaultConnection' ortam değişkeni kullanın.")
+            .ValidateOnStart();
 
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ScootlyDbContext>());
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ScootlyDbContext>());

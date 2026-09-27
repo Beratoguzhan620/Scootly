@@ -43,7 +43,7 @@ public sealed class StartRideCommandHandler
 
             vehicle.StartRide(command.DriverId, now);
 
-            var ride = new Ride(RideId.New(), command.DriverId, vehicle.Id, vehicle.Location, now);
+            var ride = new Ride(RideId.New(), command.DriverId, vehicle.Id, vehicle.Location.Copy(), now);
 
             await _rideRepository.AddAsync(ride, token);
             await _unitOfWork.SaveChangesAsync(token);

@@ -48,7 +48,7 @@ public sealed class CompleteRideCommandHandler
             var endLocation = new GeoPoint(command.EndLatitude, command.EndLongitude);
 
             ride.Complete(endLocation, now, Tariff.Standard);
-            vehicle.CompleteRide(endLocation, now);
+            vehicle.CompleteRide(endLocation.Copy(), now);
 
             await _unitOfWork.SaveChangesAsync(token);
 

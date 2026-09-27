@@ -39,7 +39,7 @@ public sealed class AbandonRideCommandHandler
 
             var vehicle = await _vehicleRepository.GetByIdAsync(ride.VehicleId, token);
             var now = _clock.UtcNow;
-            var lastKnownLocation = vehicle?.Location ?? ride.StartLocation!;
+            var lastKnownLocation = (vehicle?.Location ?? ride.StartLocation!).Copy();
 
             ride.Abandon(lastKnownLocation, now, Tariff.Standard);
 

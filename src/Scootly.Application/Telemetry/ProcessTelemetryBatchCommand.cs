@@ -50,7 +50,7 @@ public sealed class ProcessTelemetryBatchCommandHandler
                 }
 
                 readings.Add(new TelemetryReading(Guid.NewGuid(), data.VehicleId, location, battery, data.RecordedAt));
-                vehicle.ReportTelemetry(location, battery, data.RecordedAt);
+                vehicle.ReportTelemetry(location.Copy(), battery, data.RecordedAt);
             }
 
             _telemetryRepository.AddRange(readings);

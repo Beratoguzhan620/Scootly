@@ -19,6 +19,12 @@ public sealed class GeoPoint : ValueObject
         Longitude = longitude;
     }
 
+    /// <summary>
+    /// Aynı değere sahip yeni bir örnek. Değer nesnesi aynı anda iki farklı varlığa (örn. araç ve sürüş)
+    /// atanacaksa her birine ayrı örnek verilir; kalıcılık katmanı bir örneği tek sahiple ilişkilendirir.
+    /// </summary>
+    public GeoPoint Copy() => new(Latitude, Longitude);
+
     public double DistanceTo(GeoPoint other)
     {
         const double earthRadiusMeters = 6371000;
