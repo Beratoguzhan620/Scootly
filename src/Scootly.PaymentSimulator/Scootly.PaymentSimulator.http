@@ -1,6 +1,20 @@
-@Scootly.PaymentSimulator_HostAddress = http://localhost:5094
+@PaymentSimulator = http://localhost:5094
 
-GET {{Scootly.PaymentSimulator_HostAddress}}/weatherforecast/
-Accept: application/json
+### Ödeme yetkilendirme (aynı Idempotency-Key ile tekrar gönderilirse aynı sonuç döner)
+POST {{PaymentSimulator}}/api/payments/authorize
+Content-Type: application/json
+Idempotency-Key: ride-00000000000000000000000000000001-attempt-1
 
-###
+{
+  "rideId": "00000000-0000-0000-0000-000000000001",
+  "amount": 25.00
+}
+
+### Hata enjeksiyonu (yalnızca Development): %30 ret, %20 geçici kesinti
+POST {{PaymentSimulator}}/api/failure-rate
+Content-Type: application/json
+
+{
+  "declinePercent": 30,
+  "outagePercent": 20
+}
