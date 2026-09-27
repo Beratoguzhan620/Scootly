@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, berat]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Scootly.slnx
+
+      - name: Build
+        run: dotnet build Scootly.slnx --configuration Release --no-restore
+
+      # Testcontainers, GitHub'ın Ubuntu çalıştırıcısındaki Docker'ı kullanır.
+      # Ölçüm ve deney testleri (Category=Measurement/Experiment) CI'da çalıştırılmaz.
+      - name: Test
+        run: >
+          dotnet test Scootly.slnx --configuration Release --no-build
+          --filter "Category!=Measurement&Category!=Experiment"
+          --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+
+      - name: Check vulnerable packages
+        run: |
+          dotnet list Scootly.slnx package --vulnerable --include-transitive 2>&1 | tee vulnerable.txt
+          if grep -qi "has the following vulnerable packages" vulnerable.txt; then
+            echo "::error::Güvenlik açığı olan paket bulundu."
+            exit 1
+          fi
+
+  docker-images:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          docker build -f src/Scootly.Api/Dockerfile -t scootly-api .
+          docker build -f src/Scootly.Api/Dockerfile --target migrator -t scootly-migrator .
+          docker build -f src/Scootly.Worker/Dockerfile -t scootly-worker .
+          docker build -f src/Scootly.PaymentSimulator/Dockerfile -t scootly-payment-simulator .

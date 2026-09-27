@@ -1,9 +1,24 @@
+# IDE
 .vs/
+.vscode/
+.idea/
 *.suo
 *.user
+*.DotSettings.user
+
+# Derleme çıktıları
 bin/
 obj/
+
+# Test ve kapsam çıktıları
 CoverageReport/
 TestResults/
 **/TestResults/
-*.sql
+*.trx
+
+# Yerel sırlar (şablon: deploy/.env.example)
+.env
+deploy/.env
+
+# Kök dizindeki geçici SQL denemeleri (örn. explain.sql); migration veya script klasörlerini etkilemez
+/*.sql
