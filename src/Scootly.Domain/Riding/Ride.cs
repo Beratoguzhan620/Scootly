@@ -48,6 +48,30 @@ public sealed class Ride : AggregateRoot
             new RideId(Id), duration, distanceMeters, DateTime.UtcNow));
     }
 
+    /// <summary>
+    /// Hesaplanan ücreti sürüşe yazar (64. gün).
+    /// </summary>
+    /// <remarks>
+    /// Ücret <see cref="Complete"/> içinde değil, sonradan yazılıyor: hesap
+    /// artık sürüş bitirme isteğinin parçası değil, kuyruktan gelen bir
+    /// olayın sonucu. İkinci kez çağrılması bir HATA — aynı sürüş için iki
+    /// ücret yazılmaz. Tekrar teslim edilen mesajı sessizce atlamak
+    /// tüketicinin işi; alan modeli yalnızca kuralı koruyor.
+    /// </remarks>
+    public void ApplyFare(decimal fare)
+    {
+        if (Status != RideStatus.Completed)
+            throw new DomainException("Yalnızca tamamlanmış bir sürüşe ücret yazılabilir.");
+
+        if (Fare is not null)
+            throw new DomainException("Bu sürüşün ücreti zaten hesaplanmış.");
+
+        if (fare < 0)
+            throw new DomainException("Ücret negatif olamaz.");
+
+        Fare = fare;
+    }
+
     public void Abandon()
     {
         if (Status != RideStatus.Active)

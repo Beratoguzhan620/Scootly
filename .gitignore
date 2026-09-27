@@ -7,3 +7,12 @@ CoverageReport/
 TestResults/
 **/TestResults/
 *.sql
+
+# Ortam sirlari (deploy/.env). Ornegi deploy/.env.example.
+.env
+
+# Depo kokundeki yardimci betikler ve yamalar: tek seferlik araclar, projenin
+# parcasi degil.
+/*.sh
+/*.ps1
+/*.patch

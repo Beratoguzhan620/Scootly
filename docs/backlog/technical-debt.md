@@ -20,3 +20,16 @@ Bu dosya, bilinçli olarak şimdi düzeltilmeyen ama fark edilen eksiklikleri ka
 	- **40. gün — Faz 2 kapanış notu:** Dokümanın "6 aktör yetki sınırlarıyla doğrulanmış" hedefi kısmen karşılandı — Ziyaretçi, Sürücü, Filo Yöneticisi (policy düzeyinde) ve Araç Cihazı (token üretimi) doğrulandı; Saha Operatörü ve Denetçi rolleri henüz hiç kullanılmıyor (FieldTask domain'i yazılmadığı için, ilerleyen haftalarda gelecek). "Mimari kural testi" hedefi henüz karşılanmadı — bu, dokümanın kendi planında 77. güne ait, erken karşılanması beklenmiyordu.
 	- **50. gün — Faz 3 kapanış notu:** Redis/cache-aside deseni ve telemetri hattı (arka plan servisleri dahil) henüz kurulmadı — bunlar dokümanın orijinal planında 46-55. günlere yayılmıştı, biz checkpoint'i erken yaptık. 51. günden itibaren bu eksiklikler kapatılacak.
 	- **60. gün — Faz 3 kapanış notu:** Telemetri hattı henüz kurulmadı (TelemetryController, telemetri domain modeli, saniyede 200 kayıt işleme hedefi) — bu, Faz 4'ün (61. günden itibaren) doğal başlangıç konusu, eksiklik değil, sıralama gereği.
+
+## Faz 4 — Hafta 13 (61–65. günler)
+
+- **İkili yazma problemi (bilerek açık, 66. günde kapanacak).** `CompleteRideCommandHandler` sürüşü kaydedip ardından `ride.completed` yayınlıyor. Yayınlama başarısız olursa sürüş tamamlanmış ama ücreti hiç hesaplanmayacak; hata `LogError` ile görünür ama olay kayıp. Çözüm outbox.
+- **Yayıncı onayı (publisher confirm) yok.** `RabbitMqEventPublisher` döndüğünde mesajın RabbitMQ'nun diskinde olduğu garanti değil. 67. günün outbox göndericisi bunu eklemeli.
+- **Ücret tüketicisinin tekrar koruması tek tüketici için yeterli.** "Ücret zaten yazılmış mı" kontrolü, aynı mesajı aynı anda işleyen iki tüketiciye karşı korumuyor. 68. gün (`ProcessedMessage` tablosu).
+- **Tarife geçici ve sabit.** `Tariff.Standard` (açılış 10, dakika 2,5) gerçek bir fiyat kararı değil. Planın Faz 1'de istediği fiyatlandırma modeli (`Money`, `IFareCalculator`, veritabanında tarifeler, `TariffConfiguration`, tohum verisi) main'de yok.
+- **Batarya tarayıcısı her turda aynı araçları yeniden bildiriyor.** Beş dakikada bir, eşiğin altındaki her araç için olay. İkinci görevin açılmasını tüketici ve kısmi tekil indeks engelliyor ama kuyruk gereksiz yere doluyor. "Son bildirim zamanı" tutulmalı.
+- **Ölü mektup kuyruğundaki mesajı geri göndermek elle.** Bir "tekrar oynat" aracı yok.
+- **`docker-compose.yml`'da Postgres parolası düz metin (`sifre123`) ve portu `0.0.0.0`'a açık.** RabbitMQ `.env` ile geldi; Postgres'in de aynı düzene geçmesi gerekiyor. Git geçmişindeki parola değiştirilmeli.
+- **`docker compose up` artık `deploy/.env` istiyor.** RabbitMQ parolasının varsayılanı yok (bilerek). `.env` dosyası olmayan biri yalnızca Postgres'i başlatmak istese bile compose hata verir; `cp deploy/.env.example deploy/.env` yeterli.
+- **Worker ile API'nin user-secrets kimlikleri farklı.** Aynı bağlantı dizesi ve RabbitMQ parolası iki yerde tutuluyor; biri güncellenip diğeri unutulduğunda iki süreç farklı veritabanına bağlanır.
+

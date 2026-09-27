@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
+using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
 using Scootly.Infrastructure.Identity;
@@ -14,6 +15,9 @@ public sealed class ScootlyDbContext
 
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<Ride> Rides => Set<Ride>();
+
+    /// <summary>Saha görevleri (64. gün).</summary>
+    public DbSet<FieldTask> FieldTasks => Set<FieldTask>();
 
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;

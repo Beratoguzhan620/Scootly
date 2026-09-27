@@ -19,6 +19,7 @@ using Scootly.Infrastructure.Time;
 using Scootly.Infrastructure.Persistence.Repositories;
 using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Caching;
+using Scootly.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,8 +75,20 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
 
+// Redis adresi yapilandirmadan geliyor (61. gun). Kodda sabit "localhost"
+// vardi; Docker baska bir makinede (Mac) calisirken API'nin Redis'e hic
+// ulasamamasi demekti ve abortConnect=false yuzunden bu acilista degil, ilk
+// onbellek cagrisinda gorunuyordu.
+var redisBaglantisi = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect("localhost:6379,abortConnect=false"));
+    ConnectionMultiplexer.Connect($"{redisBaglantisi},abortConnect=false"));
+
+// --- 62. gun: olay yayinlama -----------------------------------------------
+// API yalnizca YAYINLIYOR; tuketiciler Worker'da.
+var rabbitMq = builder.Configuration.GetSection(RabbitMqOptions.SectionName).Get<RabbitMqOptions>()
+               ?? new RabbitMqOptions();
+rabbitMq.ClientName = "scootly-api";
+builder.Services.AddScootlyMessaging(rabbitMq);
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<NearbyVehicleCache>();

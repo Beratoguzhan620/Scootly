@@ -1,4 +1,6 @@
-﻿using Scootly.Application.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using Scootly.Application.Abstractions;
+using Scootly.Application.IntegrationEvents;
 using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Geo;
@@ -33,7 +35,7 @@ public sealed class CompleteRideCommandHandlerTests
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock);
+        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock, new FakeEventPublisher(), NullLogger<CompleteRideCommandHandler>.Instance);
         var command = new CompleteRideCommand(ride.Id, 41.01, 29.01);
 
         var result = await handler.Handle(command);
@@ -51,7 +53,7 @@ public sealed class CompleteRideCommandHandlerTests
         var unitOfWork = new FakeUnitOfWork();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock);
+        var handler = new CompleteRideCommandHandler(rideRepository, vehicleRepository, unitOfWork, clock, new FakeEventPublisher(), NullLogger<CompleteRideCommandHandler>.Instance);
         var command = new CompleteRideCommand(Guid.NewGuid(), 41.01, 29.01);
 
         var result = await handler.Handle(command);
@@ -115,5 +117,84 @@ public sealed class CompleteRideCommandHandlerTests
         }
 
         public DateTime UtcNow { get; }
+    }
+
+    [Fact]
+    public async Task Tamamlanan_Surus_RideCompleted_Entegrasyon_Olayini_Yayinlamali()
+    {
+        var (vehicle, ride) = AktifSurus();
+        var publisher = new FakeEventPublisher();
+
+        var handler = new CompleteRideCommandHandler(
+            new FakeRideRepository(ride), new FakeVehicleRepository(vehicle), new FakeUnitOfWork(),
+            new FakeClock(DateTime.UtcNow), publisher, NullLogger<CompleteRideCommandHandler>.Instance);
+
+        var result = await handler.Handle(new CompleteRideCommand(ride.Id, 41.01, 29.01));
+
+        Assert.True(result.IsSuccess);
+        var olay = Assert.IsType<RideCompletedIntegrationEvent>(Assert.Single(publisher.Yayinlananlar));
+        Assert.Equal(ride.Id, olay.RideId);
+        Assert.Equal(ride.DriverId, olay.DriverId);
+        Assert.Equal(vehicle.Id, olay.VehicleId);
+        Assert.NotEqual(Guid.Empty, olay.EventId);
+        olay.Validate();
+
+        // Olaylar temizlenmeli: ayni aggregate ikinci kez kaydedilirse ayni
+        // olay ikinci kez yayinlanmasin.
+        Assert.Empty(ride.DomainEvents);
+    }
+
+    [Fact]
+    public async Task Yayinlama_Basarisiz_Olsa_Da_Surus_Tamamlanmis_Sayilmali()
+    {
+        // Ikili yazma acigi (66. gune kadar): kayit yapildi, yayinlama patladi.
+        // Istek basarili donmeli, cunku surus gercekten tamamlandi; hata
+        // yutulmuyor, loglaniyor.
+        var (vehicle, ride) = AktifSurus();
+
+        var handler = new CompleteRideCommandHandler(
+            new FakeRideRepository(ride), new FakeVehicleRepository(vehicle), new FakeUnitOfWork(),
+            new FakeClock(DateTime.UtcNow), new FakeEventPublisher(patla: true),
+            NullLogger<CompleteRideCommandHandler>.Instance);
+
+        var result = await handler.Handle(new CompleteRideCommand(ride.Id, 41.01, 29.01));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RideStatus.Completed, ride.Status);
+    }
+
+    private static (Vehicle Vehicle, Ride Ride) AktifSurus()
+    {
+        var vehicle = new Vehicle(
+            VehicleId.New(), new VehicleModel("Xiaomi", 25), new GeoPoint(41.0, 29.0), new BatteryLevel(80));
+        vehicle.Reserve();
+        vehicle.StartRide();
+
+        var ride = new Ride(
+            RideId.New(), Guid.NewGuid(), vehicle.Id, new GeoPoint(41.0, 29.0), DateTime.UtcNow.AddMinutes(-10));
+
+        return (vehicle, ride);
+    }
+
+    private sealed class FakeEventPublisher : IEventPublisher
+    {
+        private readonly bool _patla;
+
+        public FakeEventPublisher(bool patla = false)
+        {
+            _patla = patla;
+        }
+
+        public List<IIntegrationEvent> Yayinlananlar { get; } = new();
+
+        public Task PublishAsync<TEvent>(TEvent integrationEvent, CancellationToken cancellationToken = default)
+            where TEvent : IIntegrationEvent, IHasEventName
+        {
+            if (_patla)
+                throw new InvalidOperationException("RabbitMQ erisilemiyor (test).");
+
+            Yayinlananlar.Add(integrationEvent);
+            return Task.CompletedTask;
+        }
     }
 }

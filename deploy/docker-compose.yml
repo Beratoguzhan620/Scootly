@@ -17,5 +17,38 @@ services:
     ports:
       - "6379:6379"
 
+  # --- 61. gun: mesaj kuyrugu ------------------------------------------------
+  rabbitmq:
+    # "management" etiketi yonetim arayuzunu (15672) iceriyor; kuyruklari,
+    # olu mektup kuyrugundaki mesajlari ve tuketici baglantilarini oradan
+    # goruyoruz.
+    image: rabbitmq:4-management
+    container_name: scootly-rabbitmq
+    # SABIT hostname sart. RabbitMQ verisini dugum adina (rabbit@<hostname>)
+    # gore saklar; konteyner her yeniden olusturuldugunda rastgele bir
+    # hostname alsaydi, dayanikli kuyruklar ve icindeki mesajlar bir sonraki
+    # baslatmada "kaybolmus" gibi gorunurdu.
+    hostname: scootly-rabbitmq
+    environment:
+      # Kullanici ve parola deploy/.env dosyasindan geliyor (depoya girmiyor,
+      # ornegi deploy/.env.example). guest/guest KULLANILMIYOR: RabbitMQ o
+      # hesabin yalnizca ayni makineden baglanmasina izin veriyor.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-scootly}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?deploy/.env icinde RABBITMQ_PASSWORD tanimlanmali}
+    ports:
+      # Varsayilan 127.0.0.1: kimlik dogrulamali olsa da kuyrugu butun aga
+      # acmanin sebebi yok. Docker baska bir makinedeyse (Mac + Parallels),
+      # .env icinde SCOOTLY_BIND_IP o makinenin sanal ag adresine ayarlanir.
+      - "${SCOOTLY_BIND_IP:-127.0.0.1}:5672:5672"
+      - "${SCOOTLY_BIND_IP:-127.0.0.1}:15672:15672"
+    volumes:
+      - scootly-rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   scootly-postgres-data:
+  scootly-rabbitmq-data:
