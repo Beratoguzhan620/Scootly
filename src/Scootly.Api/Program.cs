@@ -1,30 +1,16 @@
-using Serilog;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.IdentityModel.Tokens;
 using Asp.Versioning;
-using System.Text;
-using System.Threading.RateLimiting;
-using StackExchange.Redis;
-using Scootly.Api.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
+using Scootly.Api.ErrorHandling;
+using Scootly.Api.Extensions;
 using Scootly.Api.Hubs;
 using Scootly.Api.Logging;
-using Scootly.Api.Middleware;
 using Scootly.Api.Services;
 using Scootly.Api.Validators;
+using Scootly.Application;
 using Scootly.Application.Abstractions;
-using Scootly.Application.Riding.Commands;
-using Scootly.Application.Telemetry;
-using Scootly.Infrastructure.Persistence;
-using Scootly.Infrastructure.Time;
-using Scootly.Infrastructure.Persistence.Repositories;
-using Scootly.Infrastructure.Identity;
-using Scootly.Infrastructure.Caching;
-using Scootly.Infrastructure.Messaging;
-using Scootly.Infrastructure.Messaging.Outbox;
-using Scootly.Infrastructure.Payments;
+using Scootly.Infrastructure;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,12 +18,15 @@ builder.Host.UseSerilog((context, configuration) =>
 {
     configuration
         .ReadFrom.Configuration(context.Configuration)
+        .Enrich.FromLogContext()
         .Destructure.With<SensitiveDataDestructuringPolicy>()
         .WriteTo.Console();
 });
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddApiVersioning(options =>
 {
@@ -46,160 +35,95 @@ builder.Services.AddApiVersioning(options =>
     options.ReportApiVersions = true;
 })
     .AddMvc()
-    .AddApiExplorer();
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = true;
+    });
 
 builder.Services.AddCors(options =>
 {
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
     options.AddPolicy("ScootlyWebPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "https://localhost:3000", "http://localhost:5500")
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
 });
 
-builder.Services.AddRateLimiter(options =>
+// Ters vekil sunucu arkasında gerçek istemci IP'si (rate limiting bölümlemesi için) yalnızca tanımlı vekillerden kabul edilir.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    options.RejectionStatusCode = 429;
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 
-    options.AddFixedWindowLimiter("AnonymousPolicy", opt =>
-    {
-        opt.PermitLimit = 60;
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueLimit = 0;
-    });
-
-    options.AddFixedWindowLimiter("DevicePolicy", opt =>
-    {
-        opt.PermitLimit = 600;
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueLimit = 0;
-    });
+    foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        options.KnownProxies.Add(System.Net.IPAddress.Parse(proxy));
 });
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddHttpContextAccessor();
+builder.Services.AddScootlyRateLimiting();
+builder.Services.AddScootlySwagger();
 
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect("localhost:6379,abortConnect=false"));
+builder.Services.AddScootlyApplication();
+builder.Services.AddScootlyInfrastructure(builder.Configuration);
+builder.Services.AddScootlyIdentity();
+builder.Services.AddScootlyPaymentGateway();
+builder.Services.AddScootlyPaymentWebhooks();
+builder.Services.AddScootlyAuthentication();
+builder.Services.AddScootlyAuthorization();
 
-builder.Services.AddScoped<ICacheService, RedisCacheService>();
-builder.Services.AddScoped<NearbyVehicleCache>();
-
-builder.Services.AddSingleton<TelemetryChannel>();
-builder.Services.AddHostedService<TelemetryChannelConsumer>();
-
-builder.Services.AddSingleton(new RabbitMqConnectionProvider("localhost", "scootly", "rabbit123"));
-builder.Services.AddScoped<IEventPublisher, RabbitMqEventPublisher>();
-
-builder.Services.AddHttpClient<PaymentSimulatorClient>(client =>
-{
-    client.BaseAddress = new Uri("http://localhost:5094");
-})
-    .AddPaymentResilience();
-
-builder.Services.AddScoped<PaymentWebhookValidator>();
 builder.Services.AddScoped<IFleetNotifier, SignalRFleetNotifier>();
 
-builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
-builder.Services.AddHostedService<OutboxPublisher>();
-builder.Services.AddHostedService<RideCompletedMessageConsumer>();
+builder.Services.AddSingleton<CredentialsValidator>();
+builder.Services.AddSingleton<StartRideRequestValidator>();
+builder.Services.AddSingleton<CompleteRideRequestValidator>();
+builder.Services.AddSingleton<RegisterVehicleRequestValidator>();
+builder.Services.AddSingleton<VehicleQueryValidator>();
+builder.Services.AddSingleton<TelemetryBatchRequestValidator>();
+builder.Services.AddSingleton<CreateServiceAreaRequestValidator>();
 
-builder.Services.AddDbContext<ScootlyDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHostedService<TelemetryChannelConsumer>();
 
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
+if (InfrastructureDependencyInjection.IsMessagingEnabled(builder.Configuration))
 {
-    options.Password.RequiredLength = 6;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequireUppercase = false;
-})
-    .AddEntityFrameworkStores<ScootlyDbContext>();
+    builder.Services.AddHostedService<RideChargeConsumer>();
+    builder.Services.AddHostedService<VehicleStatusNotificationConsumer>();
+}
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-        };
-    });
-
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy(PolicyNames.FleetManagerOnly, policy =>
-        policy.RequireRole("FleetManager"));
-
-    options.AddPolicy(PolicyNames.OperatorOnly, policy =>
-        policy.RequireRole("FieldOperator"));
-
-    options.AddPolicy(PolicyNames.DriverOnly, policy =>
-        policy.RequireRole("Driver"));
-
-    options.AddPolicy(PolicyNames.RideOwner, policy =>
-        policy.Requirements.Add(new RideOwnerRequirement()));
-});
-
-builder.Services.AddScoped<IAuthorizationHandler, RideOwnerHandler>();
-
-builder.Services.AddScoped<IApplicationDbContext>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
-
-builder.Services.AddScoped<IUnitOfWork>(provider =>
-    provider.GetRequiredService<ScootlyDbContext>());
-
-builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
-builder.Services.AddScoped<IRideRepository, RideRepository>();
-
-builder.Services.AddScoped<IClock, SystemClock>();
-builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
-builder.Services.AddScoped<JwtTokenGenerator>();
-builder.Services.AddScoped<DeviceTokenService>();
-
-builder.Services.AddScoped<ReserveVehicleCommandHandler>();
-builder.Services.AddScoped<StartRideCommandHandler>();
-builder.Services.AddScoped<CompleteRideCommandHandler>();
-builder.Services.AddScoped<CancelReservationCommandHandler>();
-builder.Services.AddScoped<StartRideRequestValidator>();
-builder.Services.AddScoped<CompleteRideRequestValidator>();
+builder.Services.AddHealthChecks().AddScootlyHealthChecks(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseForwardedHeaders();
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseScootlySwagger();
+}
+else
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
+app.UseSerilogRequestLogging();
 
 app.UseCors("ScootlyWebPolicy");
-app.UseRateLimiter();
 
 app.UseAuthentication();
-app.UseMiddleware<DeviceAuthenticationMiddleware>();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<FleetHub>("/hubs/fleet");
+app.MapHub<FleetHub>($"{SecurityExtensions.HubsPathPrefix}/fleet");
+
+// Canlılık: süreç ayakta mı? Hazırlık: bağımlılıklar (veritabanı, önbellek, mesaj kuyruğu) erişilebilir mi?
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 
 app.Run();
 

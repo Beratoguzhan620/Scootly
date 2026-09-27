@@ -1,31 +1,21 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Scootly.Application.Abstractions;
+using Scootly.Domain.Riding;
 
 namespace Scootly.Api.Authorization;
 
-public sealed class RideOwnerHandler : AuthorizationHandler<RideOwnerRequirement, Guid>
+/// <summary>
+/// Kaynak tabanlı yetkilendirme: sürüş önce yüklenir, sonra bu handler'a kaynak olarak verilir
+/// (ek veritabanı sorgusu yapılmaz).
+/// </summary>
+public sealed class RideOwnerHandler : AuthorizationHandler<RideOwnerRequirement, Ride>
 {
-    private readonly IApplicationDbContext _dbContext;
-
-    public RideOwnerHandler(IApplicationDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
     protected override Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         RideOwnerRequirement requirement,
-        Guid rideId)
+        Ride ride)
     {
-        var userIdValue = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        if (userIdValue is null || !Guid.TryParse(userIdValue, out var userId))
-            return Task.CompletedTask;
-
-        var ride = _dbContext.Rides.FirstOrDefault(r => r.Id == rideId);
-
-        if (ride is not null && ride.DriverId == userId)
+        if (Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) && ride.DriverId == userId)
             context.Succeed(requirement);
 
         return Task.CompletedTask;

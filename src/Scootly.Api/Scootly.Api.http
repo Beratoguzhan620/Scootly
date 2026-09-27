@@ -1,6 +1,90 @@
-@Scootly.Api_HostAddress = http://localhost:5016
+@Api = http://localhost:5016
+@Email = surucu@example.com
+@Password = GucluParola1
 
-GET {{Scootly.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Kayıt (yeni kullanıcılar "Driver" rolüyle oluşturulur)
+POST {{Api}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{Email}}",
+  "password": "{{Password}}"
+}
+
+### Giriş — dönen token'ı aşağıdaki @Token değişkenine yapıştırın
+# @name login
+POST {{Api}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{Email}}",
+  "password": "{{Password}}"
+}
 
 ###
+@Token = {{login.response.body.$.token}}
+
+### Yakındaki araçlar (anonim, sayfalı, filtreli)
+GET {{Api}}/api/v1/vehicles?minLatitude=40.9&maxLatitude=41.2&minLongitude=28.8&maxLongitude=29.2&onlyAvailable=true
+
+### Araç ayrıntısı
+@VehicleId = 00000000-0000-0000-0000-000000000000
+GET {{Api}}/api/v1/vehicles/{{VehicleId}}
+
+### Araç kaydı (yalnızca FleetManager)
+POST {{Api}}/api/v1/vehicles
+Authorization: Bearer {{Token}}
+Content-Type: application/json
+
+{
+  "brand": "Xiaomi",
+  "rangeKm": 25,
+  "latitude": 41.0,
+  "longitude": 29.0,
+  "batteryPercentage": 90
+}
+
+### Rezervasyon
+POST {{Api}}/api/v1/vehicles/{{VehicleId}}/reserve
+Authorization: Bearer {{Token}}
+
+### Rezervasyonu iptal
+DELETE {{Api}}/api/v1/vehicles/{{VehicleId}}/reservation
+Authorization: Bearer {{Token}}
+
+### Sürüş başlat (201 + rideId)
+# @name start
+POST {{Api}}/api/rides/start
+Authorization: Bearer {{Token}}
+Content-Type: application/json
+
+{
+  "vehicleId": "{{VehicleId}}"
+}
+
+###
+@RideId = {{start.response.body.$.rideId}}
+
+### Aktif sürüşüm
+GET {{Api}}/api/rides/active
+Authorization: Bearer {{Token}}
+
+### Sürüşü bitir (202 — ödeme asenkron)
+POST {{Api}}/api/rides/{{RideId}}/complete
+Authorization: Bearer {{Token}}
+Content-Type: application/json
+
+{
+  "endLatitude": 41.01,
+  "endLongitude": 29.01
+}
+
+### Ödeme durumu
+GET {{Api}}/api/rides/{{RideId}}/payment-status
+Authorization: Bearer {{Token}}
+
+### Sağlık kontrolleri
+GET {{Api}}/health/live
+
+###
+GET {{Api}}/health/ready

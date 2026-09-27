@@ -1,132 +1,171 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Authorization;
 using Scootly.Api.Contracts.Requests;
+using Scootly.Api.Contracts.Responses;
+using Scootly.Api.ErrorHandling;
+using Scootly.Api.Extensions;
 using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
+using Scootly.Domain.Riding;
+using Scootly.Infrastructure.Caching;
 
 namespace Scootly.Api.Controllers;
 
 [ApiController]
 [Route("api/rides")]
+[Authorize(Policy = PolicyNames.DriverOnly)]
 public sealed class RidesController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
-    private readonly StartRideCommandHandler _startHandler;
-    private readonly CompleteRideCommandHandler _completeHandler;
-    private readonly StartRideRequestValidator _startValidator;
-    private readonly CompleteRideRequestValidator _completeValidator;
     private readonly IAuthorizationService _authorizationService;
     private readonly ICurrentUser _currentUser;
+    private readonly NearbyVehicleCache _cache;
 
     public RidesController(
         IApplicationDbContext dbContext,
-        StartRideCommandHandler startHandler,
-        CompleteRideCommandHandler completeHandler,
-        StartRideRequestValidator startValidator,
-        CompleteRideRequestValidator completeValidator,
         IAuthorizationService authorizationService,
-        ICurrentUser currentUser)
+        ICurrentUser currentUser,
+        NearbyVehicleCache cache)
     {
         _dbContext = dbContext;
-        _startHandler = startHandler;
-        _completeHandler = completeHandler;
-        _startValidator = startValidator;
-        _completeValidator = completeValidator;
         _authorizationService = authorizationService;
         _currentUser = currentUser;
+        _cache = cache;
     }
 
-    [HttpGet("{id}")]
-    [Authorize]
-    public async Task<IActionResult> GetById(Guid id)
+    [HttpGet("{id:guid}", Name = nameof(GetById))]
+    [ProducesResponseType<RideResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var authResult = await _authorizationService.AuthorizeAsync(User, id, PolicyNames.RideOwner);
+        var ride = await FindOwnedRideAsync(id, cancellationToken);
 
-        if (!authResult.Succeeded)
-            return Forbid();
+        return ride is null ? NotFound() : Ok(ToResponse(ride));
+    }
 
-        var ride = _dbContext.Rides.AsNoTracking().FirstOrDefault(r => r.Id == id);
+    [HttpGet("active")]
+    [ProducesResponseType<RideResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetActive(CancellationToken cancellationToken)
+    {
+        var driverId = _currentUser.UserId;
+
+        var ride = await _dbContext.Rides
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.DriverId == driverId && r.Status == RideStatus.Active, cancellationToken);
+
+        return ride is null ? NotFound() : Ok(ToResponse(ride));
+    }
+
+    [HttpGet("{id:guid}/payment-status")]
+    [ProducesResponseType<PaymentStatusResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPaymentStatus(Guid id, CancellationToken cancellationToken)
+    {
+        var ride = await FindOwnedRideAsync(id, cancellationToken);
 
         if (ride is null)
             return NotFound();
 
-        return Ok(new
-        {
-            ride.Id,
-            ride.DriverId,
-            ride.VehicleId,
-            Status = ride.Status.ToString()
-        });
-    }
-
-    [HttpGet("{id}/payment-status")]
-    [Authorize]
-    public async Task<IActionResult> GetPaymentStatus(Guid id)
-    {
-        var authResult = await _authorizationService.AuthorizeAsync(User, id, PolicyNames.RideOwner);
-
-        if (!authResult.Succeeded)
-            return Forbid();
-
-        var ride = _dbContext.Rides.AsNoTracking().FirstOrDefault(r => r.Id == id);
-
-        if (ride is null)
-            return NotFound();
-
-        var paymentStatus = ride.Status.ToString() switch
-        {
-            "Active" or "Reserved" => "NotYetCharged",
-            "Completed" when ride.Fare.HasValue => "Paid",
-            "Completed" => "Pending",
-            "PaymentPending" => "Pending",
-            "Abandoned" => "NotApplicable",
-            _ => "Unknown"
-        };
-
-        return Ok(new
-        {
-            RideId = ride.Id,
-            PaymentStatus = paymentStatus,
-            Fare = ride.Fare
-        });
+        return Ok(new PaymentStatusResponse(ride.Id, ToPaymentStatusText(ride.PaymentStatus), ride.Fare));
     }
 
     [HttpPost("start")]
-    [Authorize]
-    public async Task<IActionResult> Start([FromBody] StartRideRequest request)
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType<StartRideResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Start(
+        [FromBody] StartRideRequest request,
+        [FromServices] StartRideRequestValidator validator,
+        [FromServices] StartRideCommandHandler handler,
+        CancellationToken cancellationToken)
     {
-        var (isValid, error) = _startValidator.Validate(request);
+        var validation = validator.Validate(request);
 
-        if (!isValid)
-            return BadRequest(error);
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
 
-        var command = new StartRideCommand(request.VehicleId, _currentUser.UserId);
-        var result = await _startHandler.Handle(command);
+        var result = await handler.Handle(new StartRideCommand(request.VehicleId, _currentUser.UserId), cancellationToken);
 
         if (!result.IsSuccess)
-            return Conflict(result.Error);
+            return this.ToProblem(result);
 
-        return Ok();
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+
+        return CreatedAtRoute(nameof(GetById), new { id = result.Value }, new StartRideResponse(result.Value));
     }
 
-    [HttpPost("{id}/complete")]
-    [Authorize]
-    public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteRideRequest request)
+    [HttpPost("{id:guid}/complete")]
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType<CompleteRideResponse>(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Complete(
+        Guid id,
+        [FromBody] CompleteRideRequest request,
+        [FromServices] CompleteRideRequestValidator validator,
+        [FromServices] CompleteRideCommandHandler handler,
+        CancellationToken cancellationToken)
     {
-        var (isValid, error) = _completeValidator.Validate(request);
+        var validation = validator.Validate(request);
 
-        if (!isValid)
-            return BadRequest(error);
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
 
-        var command = new CompleteRideCommand(id, request.EndLatitude, request.EndLongitude);
-        var result = await _completeHandler.Handle(command);
+        var result = await handler.Handle(
+            new CompleteRideCommand(id, _currentUser.UserId, request.EndLatitude, request.EndLongitude),
+            cancellationToken);
 
         if (!result.IsSuccess)
-            return Conflict(result.Error);
+            return this.ToProblem(result);
 
-        return Ok(new { Status = "Completed", PaymentStatus = "Processing" });
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+
+        var completed = result.Value!;
+
+        // Ödeme asenkron işlenir (outbox → tüketici); istemci durumu payment-status ucundan izler.
+        return Accepted(
+            Url.Link(nameof(GetById), new { id = completed.RideId }),
+            new CompleteRideResponse(
+                completed.RideId,
+                RideStatus.Completed.ToString(),
+                ToPaymentStatusText(completed.PaymentStatus),
+                completed.Fare));
     }
+
+    /// <summary>Sürüşü yükler ve sahiplik politikasını uygular; başkasına ait sürüşün varlığı açığa çıkarılmaz.</summary>
+    private async Task<Ride?> FindOwnedRideAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var ride = await _dbContext.Rides.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+        if (ride is null)
+            return null;
+
+        var authorization = await _authorizationService.AuthorizeAsync(User, ride, PolicyNames.RideOwner);
+
+        return authorization.Succeeded ? ride : null;
+    }
+
+    private static RideResponse ToResponse(Ride ride) => new(
+        ride.Id,
+        ride.DriverId,
+        ride.VehicleId,
+        ride.Status.ToString(),
+        ride.StartedAt,
+        ride.EndedAt,
+        ride.Fare,
+        ToPaymentStatusText(ride.PaymentStatus));
+
+    private static string ToPaymentStatusText(PaymentStatus status) => status switch
+    {
+        PaymentStatus.None => "NotYetCharged",
+        _ => status.ToString()
+    };
 }
