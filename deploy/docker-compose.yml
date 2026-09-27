@@ -1,21 +1,146 @@
+# Yerel geliştirme ortamı.
+#   Yalnızca altyapı:            docker compose up -d
+#   Uygulama servisleri dahil:   docker compose --profile app up -d --build
+#   Redpanda stream deneyi:      docker compose --profile experiments up -d redpanda
+#
+# Tüm parolalar ve anahtarlar bu klasördeki .env dosyasından okunur (.env.example'a bakın; .env git'e girmez).
+# Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
+# Proje adı klasör adından (deploy) gelir; böylece mevcut veritabanı volume'u (deploy_scootly-postgres-data) korunur.
+
+x-app-secrets: &app-secrets
+  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable"
+  RabbitMq__HostName: rabbitmq
+  RabbitMq__UserName: ${RABBITMQ_USER:-scootly}
+  RabbitMq__Password: ${RABBITMQ_PASSWORD}
+  Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+  PaymentGateway__BaseUrl: http://payment-simulator:8080
+
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.15
     container_name: scootly-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: sifre123
-      POSTGRES_DB: scootly
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env dosyasında tanımlanmalı}
+      POSTGRES_DB: ${POSTGRES_DB:-scootly}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - scootly-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
-    image: redis:7
+    image: redis:7.4
     container_name: scootly-redis
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD .env dosyasında tanımlanmalı}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: scootly-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-scootly}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD .env dosyasında tanımlanmalı}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redpanda:
+    profiles: ["experiments"]
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.3
+    container_name: scootly-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://localhost:9092
+    ports:
+      - "127.0.0.1:9092:9092"
+
+  # --- Uygulama servisleri (profil: app) ---
+
+  migrator:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: src/Scootly.Api/Dockerfile
+      target: migrator
+    environment:
+      <<: *app-secrets
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-simulator:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: src/Scootly.PaymentSimulator/Dockerfile
+    environment:
+      Webhook__CallbackUrl: http://api:8080/api/webhooks/payment-callback
+      Webhook__Secret: ${PAYMENT_WEBHOOK_SECRET:?PAYMENT_WEBHOOK_SECRET .env dosyasında tanımlanmalı}
+    ports:
+      - "127.0.0.1:5094:8080"
+
+  api:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: src/Scootly.Api/Dockerfile
+    environment:
+      <<: *app-secrets
+      Jwt__Key: ${JWT_KEY:?JWT_KEY .env dosyasında tanımlanmalı}
+      DeviceAuth__ClientSecret: ${DEVICE_CLIENT_SECRET:?DEVICE_CLIENT_SECRET .env dosyasında tanımlanmalı}
+      PaymentWebhook__Secret: ${PAYMENT_WEBHOOK_SECRET}
+      Bootstrap__FleetManagerEmail: ${BOOTSTRAP_FLEET_MANAGER_EMAIL:-}
+      Bootstrap__FleetManagerPassword: ${BOOTSTRAP_FLEET_MANAGER_PASSWORD:-}
+    ports:
+      - "127.0.0.1:5016:8080"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      payment-simulator:
+        condition: service_started
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: src/Scootly.Worker/Dockerfile
+    environment:
+      <<: *app-secrets
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   scootly-postgres-data:

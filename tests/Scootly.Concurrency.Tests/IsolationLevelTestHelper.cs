@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Scootly.Infrastructure.Persistence;
 
@@ -20,7 +20,7 @@ public static class IsolationLevelTestHelper
             if (vehicle is null)
                 return false;
 
-            vehicle.Reserve();
+            vehicle.Reserve(Guid.NewGuid(), DateTime.UtcNow);
 
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();

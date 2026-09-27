@@ -1,50 +1,56 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Fleet;
-using Scootly.Infrastructure.Persistence;
+using Scootly.Domain.Riding;
+using Scootly.Infrastructure.Caching;
 
 namespace Scootly.Worker.Jobs;
 
-public sealed class ReservationTimeoutService : BackgroundService
+public sealed class ReservationTimeoutService : PeriodicJob
 {
-    private const int ReservationDurationMinutes = 10;
-    private readonly IServiceProvider _services;
-    private readonly ILogger<ReservationTimeoutService> _logger;
-
-    public ReservationTimeoutService(IServiceProvider services, ILogger<ReservationTimeoutService> logger)
+    public ReservationTimeoutService(IServiceScopeFactory scopeFactory, ILogger<ReservationTimeoutService> logger)
+        : base(scopeFactory, logger)
     {
-        _services = services;
-        _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override TimeSpan Interval => TimeSpan.FromSeconds(30);
+
+    protected override async Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        var dbContext = services.GetRequiredService<IApplicationDbContext>();
+        var clock = services.GetRequiredService<IClock>();
+
+        var cutoff = ReservationPolicy.ExpiryCutoff(clock.UtcNow);
+
+        var expiredVehicleIds = await dbContext.Vehicles
+            .AsNoTracking()
+            .Where(v => v.Status == VehicleStatus.Reserved && v.ReservedAt != null && v.ReservedAt <= cutoff)
+            .Select(v => v.Id)
+            .ToListAsync(cancellationToken);
+
+        if (expiredVehicleIds.Count == 0)
+            return;
+
+        var expired = 0;
+
+        await ForEachInOwnScopeAsync(expiredVehicleIds, async (scopedServices, vehicleId, token) =>
         {
-            using var scope = _services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-            var handler = scope.ServiceProvider.GetRequiredService<CancelReservationCommandHandler>();
+            var result = await scopedServices.GetRequiredService<ExpireReservationCommandHandler>()
+                .Handle(new ExpireReservationCommand(vehicleId), token);
 
-            var cutoff = DateTime.UtcNow.AddMinutes(-ReservationDurationMinutes);
-
-            var expiredVehicles = await dbContext.Vehicles
-                .Where(v => v.Status == VehicleStatus.Reserved && v.ReservedAt != null && v.ReservedAt < cutoff)
-                .Select(v => v.Id)
-                .ToListAsync(stoppingToken);
-
-            foreach (var vehicleId in expiredVehicles)
+            if (result.IsSuccess)
             {
-                var command = new CancelReservationCommand(vehicleId);
-                var result = await handler.Handle(command, stoppingToken);
-
-                if (result.IsSuccess)
-                    _logger.LogInformation("Süresi dolmuş rezervasyon iptal edildi: {VehicleId}", vehicleId);
+                expired++;
+                Logger.LogInformation("Süresi dolmuş rezervasyon kaldırıldı: {VehicleId}", vehicleId);
             }
+            else
+            {
+                Logger.LogInformation("Rezervasyon kaldırılamadı ({VehicleId}): {Error}", vehicleId, result.Error);
+            }
+        }, cancellationToken);
 
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-        }
+        if (expired > 0)
+            await services.GetRequiredService<NearbyVehicleCache>().InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
     }
 }

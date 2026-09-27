@@ -1,22 +1,74 @@
 # Teknik Borç Listesi
 
-Bu dosya, bilinçli olarak şimdi düzeltilmeyen ama fark edilen eksiklikleri kaydeder.
+Bu dosya, bilinçli olarak şimdi düzeltilmeyen ama fark edilen eksiklikleri kaydeder. Kapatılan maddeler silinmez;
+nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 
-## Faz 1 sonu itibariyle
+## Açık borçlar
 
-- `CancelReservationCommand` yazıldı ama handler'ı yok (7. gün — dokümanda bilinçli olarak bırakılmıştı, ileride tamamlanacak).
-- `CompleteRideCommand`/`Complete` ucu için doğrulayıcı (validator) yok — `StartRideRequestValidator` gibi bir `CompleteRideRequestValidator` eklenebilir.
-- `Wallet` ve `Tariff` domain tipleri henüz yazılmadı (Pricing/Billing context'leri ileriki günlerde gelecek).
-- Migration dosyaları `Scootly.Infrastructure` projesinin kökünde duruyor, `Persistence/Migrations` altında değil (EF Core'un varsayılan davranışı, kozmetik bir fark, işlevsel sorun yok).
-- Kapsam raporu (18. gün): Genel çizgi kapsamı %61, kritik domain sınıfları (Vehicle %88, Ride %75, GeoPoint %78, GeofenceEvaluator %87) hedefin (%80) civarında veya üzerinde. Result<T>, ExceptionHandlingMiddleware ve henüz kullanılmayan tipler (Reservation, NoParkingZone, olay sınıfları) düşük kapsamlı — bunlar ilgili özellikler yazıldığında doğal olarak artacak.
-	- `VehiclesController.Register` metodu `SaveChangesAsync` çağırmıyor — araç nesnesi oluşturuluyor ve `AddVehicle` ile izlemeye alınıyor ama veritabanına gerçekten kaydedilmiyor. Bu, dokümanın 23. gün planında sade tutulmuş basit bir örnekti; gerçek bir kullanım için `IUnitOfWork.SaveChangesAsync()` çağrısı eklenmeli.
-	- **24. gün derste:** `Ride` sınıfındaki `DriverId`, `VehicleId`, `StartedAt` alanları yalnızca `get;` (set olmadan) tanımlıydı ve EF Core bunları otomatik olarak sütun sanmadı, ilk migration'a hiç girmediler — bu, veritabanı sorgularında sessizce eksik veri üretebilecek bir hataydı, ancak elle test ederken fark edildi. Çözüm: `RideConfiguration.cs`'e bu üç alan için açık `Property(...)` tanımları eklendi ve bir düzeltme migration'ı (`FixMissingRideColumns`) üretildi. **Ders:** yalnızca `get;` olan alanların gerçekten veritabanına yazıldığını, migration dosyasını göz atarak doğrulamak iyi bir alışkanlık.
-	- **26. gün — OWASP taraması:** `Reserve` ve `Start` uçlarında `DriverId` gövdeden alınıyordu, token'dan değil — bu, başka bir kullanıcının kimliği adına işlem yapılabilmesine izin veren bir yetkisiz nesne erişimi (Insecure Direct Object Reference) açığıydı. Manuel test ile kanıtlandı (sürücü A'nın token'ıyla sürücü B adına rezervasyon yapılabiliyordu). Çözüm: `DriverId` artık `ICurrentUser.UserId` üzerinden, token'dan okunuyor; `ReserveVehicleRequest` boş, `StartRideRequest`'ten `DriverId` kaldırıldı. `Complete` ucuna da eksik olan `[Authorize]` eklendi.
-	- **28. gün:** `appsettings.Development.json` dosyası, user-secrets'a geçmeden önce dört commit boyunca gerçek (ama yalnızca yerel geliştirme ortamı için geçerli) parola ve anahtar değerlerini açık metin olarak içeriyordu. Bu commit'ler Git geçmişinde hâlâ duruyor. Repo private kaldığı sürece düşük risk taşır. Repo public olacaksa, geçmiş `git filter-repo` veya benzeri bir araçla temizlenmeli ve bu sırların (artık kullanılmasalar bile) değiştirilmesi (rotasyon) düşünülmeli.
-	- **30. gün:** Yalnızca `VehiclesController` sürümlendi (`/api/v1/...`, `/api/v2/...`); `RidesController` ve `AuthController` hâlâ sürümsüz (`/api/rides/...`, `/api/auth/...`). Tutarlılık için ileride tüm controller'lar sürümlemeye dahil edilmeli.
-	- **31. gün — KANITLANMIŞ RACE CONDITION:** `ParallelRideStartTests.Ayni_Araca_50_Paralel_Rezervasyon_Istegi_Yalnizca_Birini_Basarili_Kilmali` testi kasıtlı olarak KIRMIZI bırakıldı. 50 eşzamanlı rezervasyon isteğinden 7'si başarılı oluyor — aynı araç birden fazla sürücüye aynı anda rezerve edilebiliyor. Bu, `Vehicle.Reserve()`'in oku-kontrol-yaz adımları arasında hiçbir eşzamanlılık koruması olmamasından kaynaklanıyor. Çözüm 38. günde (sürüm damgası / optimistic concurrency) eklenecek.
-	- **38. gün:** `Scootly.Application` projesi artık `Microsoft.EntityFrameworkCore` paketine doğrudan bağımlı (`DbUpdateConcurrencyException`'ı yakalamak için). Bu, Karar 1'in "Application, somut teknolojiden bağımsız olmalı" ilkesine küçük bir istisna. Kabul edilebilir çünkü bu istisna EF Core'un genel bir tipi (PostgreSQL'e özgü değil), ama ileride bu istisnayı Infrastructure katmanında yakalayıp kendi (Application'a ait) bir istisna tipine çevirmek daha temiz olurdu.
-	- **39. gün — Not:** `DeadlockTests` ve `IndexPerformanceTests`, bilerek `Assert` yerine `throw XunitException` ile "rapor" formatında bırakıldı — bunlar sürekli regresyon testi değil, birer gözlem/ölçüm aracı. `ParallelRideStartTests` ve `IsolationLevelTests` ise gerçek `Assert` kullanan kalıcı regresyon testlerine çevrildi (xmin korumasının bozulmasını yakalayacaklar).
-	- **40. gün — Faz 2 kapanış notu:** Dokümanın "6 aktör yetki sınırlarıyla doğrulanmış" hedefi kısmen karşılandı — Ziyaretçi, Sürücü, Filo Yöneticisi (policy düzeyinde) ve Araç Cihazı (token üretimi) doğrulandı; Saha Operatörü ve Denetçi rolleri henüz hiç kullanılmıyor (FieldTask domain'i yazılmadığı için, ilerleyen haftalarda gelecek). "Mimari kural testi" hedefi henüz karşılanmadı — bu, dokümanın kendi planında 77. güne ait, erken karşılanması beklenmiyordu.
-	- **50. gün — Faz 3 kapanış notu:** Redis/cache-aside deseni ve telemetri hattı (arka plan servisleri dahil) henüz kurulmadı — bunlar dokümanın orijinal planında 46-55. günlere yayılmıştı, biz checkpoint'i erken yaptık. 51. günden itibaren bu eksiklikler kapatılacak.
-	- **60. gün — Faz 3 kapanış notu:** Telemetri hattı henüz kurulmadı (TelemetryController, telemetri domain modeli, saniyede 200 kayıt işleme hedefi) — bu, Faz 4'ün (61. günden itibaren) doğal başlangıç konusu, eksiklik değil, sıralama gereği.
+| Konu | Açıklama | Neden ertelendi |
+|---|---|---|
+| Git geçmişinde eski sırlar | 28. gün öncesi commit'lerde eski JWT anahtarı, cihaz sırrı ve DB parolası duruyor. Hepsi 27.09.2026'da yenilendi, artık geçersiz. | Geçmişi yeniden yazmak (`git filter-repo`) paylaşılan dalları bozar; rotasyon sızıntının etkisini zaten ortadan kaldırdı (ADR 0021). |
+| Araç başına cihaz kimliği | Cihazlar ağ geçidi modeliyle (tek istemci, çok araç) doğrulanıyor. | Provizyon ve sır dağıtımı gerektirir; gerçek cihaz filosuna geçişte değerlendirilecek (ADR 0021). |
+| DLQ izleme / alarm | Ölü mektup kuyruklarına düşen mesajlar yalnızca RabbitMQ yönetim arayüzünden görülebiliyor. | Gözlemlenebilirlik altyapısı (metrik, alarm) henüz yok. |
+| Sürüm tutarlılığı | `RidesController`, `AuthController`, `DeviceAuthController`, `TelemetryController`, `WebhooksController` sürümsüz rotalarda (`/api/...`). | Rota değişikliği mevcut istemcileri (simülatörler, mobil) kırar; bir sonraki kırıcı sürümde birlikte yapılmalı. |
+| Park yasağı / hizmet bölgesi kuralları | `GeofenceEvaluator` canlı bildirim bölgeleri için kullanılıyor, ancak sürüş bitirirken "hizmet bölgesi dışında / park yasağı bölgesinde bırakılamaz" kuralı yok. | Bölge verisi (poligonlar) henüz tanımlanmadı. |
+| FieldOps bağlamı | Batarya düşük ve terk edilmiş araç olayları yalnızca log ile "saha görevi" üretiyor. | `FieldTask` aggregate'i ve saha operatörü akışı yazılmadı. |
+| Wallet / Billing | Ödeme bilgisi hâlâ `Ride` içinde; fatura, vergi, farklı ödeme yöntemleri yok. | ADR 0019: gerçek karmaşıklık birikene kadar ayrı context gereksiz. |
+| Telemetri kuyruğu | Süreç içi `Channel`: API yeniden başlarsa kuyrukta bekleyen okumalar kaybolabilir; yatay ölçeklemede her instance kendi kuyruğunu işler. | ADR 0012; kalıcı kuyruk ihtiyacı henüz doğmadı. |
+| Denetçi (Auditor) rolü | Planlanan aktörlerden biri; henüz hiçbir uç kullanmıyor. | İlgili raporlama özellikleri yazılmadı. |
+| Boş migration | `20260926134327_AddPaymentPendingStatus` boş. | Uygulanmış migration'lar silinmez; zararsız. |
+
+## 27.09.2026 teknik incelemesiyle kapatılanlar
+
+- **Sızmış ve kullanımdaki sırlar:** tüm sırlar yenilendi, kaynak koddan çıkarıldı, Options + `ValidateOnStart` ile doğrulanıyor (ADR 0021).
+- **Başkasının sürüşünü bitirme (IDOR)** ve **başkasının rezervasyonuyla sürüş başlatma:** sahiplik kontrolleri + veritabanı kısıtları.
+- **`VehiclesController.Register` kaydetmiyordu** (bu listede 23. günden beri açıktı): artık kaydediyor ve `201` dönüyor.
+- **Terk edilen sürüşte araç sonsuza kadar `InRide` kalıyordu:** sürüş ücretlendirilip kapatılıyor, araç bakıma alınıyor.
+- **Retry/DLQ çalışmıyordu, çift tahsilat riski, outbox mesaj kaybı, işlevsiz webhook** (ADR 0013, 0015, 0022, 0023).
+- **Cihaz/kullanıcı token ayrımı, global rate limit, kilitleme yokluğu, hata ayrıntısı sızması** (ADR 0021).
+- **Application'ın EF Core bağımlılığı** (38. gün notu): `ConcurrencyConflictException` / `UniqueConstraintViolationException`
+  soyutlamalarıyla kaldırıldı; mimari test bunu artık denetliyor.
+- **Sabit `"default-region"`** (74. gün notu): bölge, aracın konumuna göre hizmet bölgelerinden çözümleniyor.
+- **Konum saklama süresi uygulanmamıştı** (ADR 0004): `DataRetentionService` eklendi.
+- **Ölçüm testleri her zaman kırmızıydı** (39. gün notu): artık raporluyor ve `Category=Measurement` ile ayrılıyor; N+1 ve
+  deadlock gözlemleri gerçek doğrulamalara dönüştü. `dotnet test` yeşil.
+- **Entegrasyon testleri geliştirici makinesine bağımlıydı:** sırlar test başına üretiliyor; Redis/RabbitMQ gerekmiyor.
+- **Ölü kod:** `TransactionBehavior`, `IEventPublisher`, `PaymentAuthorizedIntegrationEvent`, `Reservation`, `DeviceId`,
+  Worker şablonu, `UnitTest1`, `weatherforecast` .http örnekleri kaldırıldı; Kafka deneyi test projesine taşındı.
+- **Altyapı:** merkezi paket yönetimi, xunit v3, CI, Dockerfile'lar, health check'ler, sabit imaj sürümleri, yalnızca
+  localhost'a açılan portlar, Redis parolası.
+
+## Geçmiş kayıtlar
+
+### Faz 1 sonu
+- `CancelReservationCommand` handler'ı yoktu. — **Kapandı:** sürücü iptali (`CancelReservationCommand`) ve sistem
+  iptali (`ExpireReservationCommand`) ayrı komutlar olarak yazıldı.
+- `Complete` ucu için doğrulayıcı yoktu. — **Kapandı:** `CompleteRideRequestValidator` (sonlu sayı kontrolü dahil).
+- `Wallet` ve `Tariff` domain tipleri yazılmamıştı. — **Kısmen kapandı:** `Tariff` eklendi; `Wallet` açık.
+- Migration dosyaları `Persistence/Migrations` altında değil, projenin kökünde. — Kozmetik, bilinçli olarak bırakıldı.
+- Kapsam raporu (18. gün): genel çizgi kapsamı %61 idi. — Test sayısı 200'ün üzerine çıktı; güncel kapsam raporu
+  henüz üretilmedi (`dotnet test --collect "XPlat Code Coverage"` ile alınabilir).
+
+### 23-30. günler
+- **23. gün:** `VehiclesController.Register` `SaveChangesAsync` çağırmıyordu. — **Kapandı (27.09.2026).**
+- **24. gün:** `Ride` alanları yalnızca `get;` olduğu için ilk migration'a girmemişti; `FixMissingRideColumns` ile düzeltildi.
+  Ders: yalnızca `get;` olan alanların gerçekten veritabanına yazıldığını migration dosyasından doğrulamak.
+- **26. gün — OWASP taraması:** `DriverId` istek gövdesinden alınıyordu; token'dan okunacak şekilde düzeltildi. Aynı
+  taramada `Complete` ucunun sahiplik kontrolü atlanmıştı. — **Kapandı (27.09.2026).**
+- **28. gün:** `appsettings.Development.json` dört commit boyunca gerçek (yerel) parola ve anahtarlar içeriyordu. Depo
+  herkese açık olduğu ve aynı değerler kullanımda kaldığı için bu, kritik bir açığa dönüşmüştü. — **Kapandı:** tüm
+  değerler yenilendi (bkz. açık borçlar: geçmişin yeniden yazılması).
+- **30. gün:** Yalnızca `VehiclesController` sürümlendi. — Açık (bkz. "Sürüm tutarlılığı").
+
+### 31-40. günler
+- **31. gün — kanıtlanmış yarış durumu:** 50 eşzamanlı rezervasyondan 7'si başarılı oluyordu. — **Kapandı (38. gün):**
+  xmin ile iyimser eşzamanlılık; `ParallelRideStartTests` kalıcı regresyon testi.
+- **38. gün:** Application, `DbUpdateConcurrencyException` için EF Core'a bağımlıydı. — **Kapandı (27.09.2026).**
+- **39. gün:** Ölçüm testleri `throw XunitException` ile rapor veriyordu. — **Kapandı (27.09.2026).**
+- **40. gün — Faz 2 kapanışı:** Saha Operatörü ve Denetçi rolleri kullanılmıyordu. — **Kısmen kapandı:** `FieldOperator`
+  bakım uçlarında kullanılıyor; Denetçi açık.
+
+### 50-74. günler
+- **50/60. gün:** Redis, telemetri hattı ve arka plan servisleri sıralama gereği sonraya kalmıştı. — Tamamlandı.
+- **69-70. gün:** DLQ izleme mekanizması yok. — Açık.
+- **74. gün:** SignalR bildirimleri sabit `"default-region"` grubuna gidiyordu. — **Kapandı (27.09.2026).**

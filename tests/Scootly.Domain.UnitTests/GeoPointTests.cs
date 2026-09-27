@@ -1,4 +1,4 @@
-﻿using Scootly.Domain.Common;
+using Scootly.Domain.Common;
 using Scootly.Domain.Geo;
 using Xunit;
 
@@ -16,6 +16,15 @@ public class GeoPointTests
     public void Gecersiz_Boylam_Ile_GeoPoint_Olusturulamaz()
     {
         Assert.Throws<DomainException>(() => new GeoPoint(41, 181));
+    }
+
+    [Theory]
+    [InlineData(double.NaN, 29)]
+    [InlineData(41, double.NaN)]
+    [InlineData(double.PositiveInfinity, 29)]
+    public void Sayi_Olmayan_Koordinat_Ile_GeoPoint_Olusturulamaz(double latitude, double longitude)
+    {
+        Assert.Throws<DomainException>(() => new GeoPoint(latitude, longitude));
     }
 
     [Fact]

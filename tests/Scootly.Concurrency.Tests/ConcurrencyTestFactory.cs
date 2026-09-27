@@ -1,48 +1,26 @@
-﻿using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Scootly.Infrastructure.Persistence;
-using Testcontainers.PostgreSql;
+using Scootly.Testing;
 
 namespace Scootly.Concurrency.Tests;
 
-public sealed class ConcurrencyTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
+/// <summary>Ortak test sunucusu + her sorguyu sayan EF interceptor'ı (N+1 ölçümleri için).</summary>
+public sealed class ConcurrencyTestFactory : ScootlyApiFactory
 {
-    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder("postgres:16")
-        .WithDatabase("scootly_concurrency_test")
-        .WithUsername("postgres")
-        .WithPassword("test_sifre")
-        .Build();
-
-    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+    protected override void ConfigureTestServices(IServiceCollection services)
     {
-        builder.ConfigureServices(services =>
-        {
-            var descriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<ScootlyDbContext>));
-
-            if (descriptor is not null)
-                services.Remove(descriptor);
-
-            services.AddDbContext<ScootlyDbContext>(options =>
-            {
-                options.UseNpgsql(_postgresContainer.GetConnectionString());
-                options.AddInterceptors(new QueryCounter.CountingInterceptor());
-            });
-        });
+        services.ConfigureDbContext<ScootlyDbContext>(options => options.AddInterceptors(new QueryCounter.CountingInterceptor()));
     }
+}
 
-    public async Task InitializeAsync()
-    {
-        await _postgresContainer.StartAsync();
-
-        using var scope = Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-        await dbContext.Database.MigrateAsync();
-    }
-
-    public new async Task DisposeAsync()
-    {
-        await _postgresContainer.StopAsync();
-    }
+/// <summary>
+/// Ölçüm testleri regresyon testi değildir: süreleri/sayıları çıktıya yazar ve başarısız olmaz.
+/// Hızlı geri bildirim için hariç tutulabilir: <c>dotnet test --filter "Category!=Measurement"</c>.
+/// </summary>
+public static class TestCategories
+{
+    public const string Key = "Category";
+    public const string Measurement = "Measurement";
+    public const string Experiment = "Experiment";
 }

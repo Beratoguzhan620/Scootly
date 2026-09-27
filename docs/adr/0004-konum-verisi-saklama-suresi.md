@@ -26,3 +26,13 @@ karşılamak hem de gizlilik riskini sınırlamak arasında bir denge sağlar.
 Bu kararın gerçek uygulaması (otomatik anonimleştirme işi) henüz yazılmadı — bu,
 ileride bir arka plan servisi (BackgroundService) olarak eklenecek. Şimdilik yalnızca
 karar kayıt altına alınmıştır.
+## Güncelleme (27.09.2026) — Uygulandı
+
+Karar artık kodda uygulanıyor: `Scootly.Worker` içindeki `DataRetentionService` altı saatte bir çalışır ve
+
+- bitişinin üzerinden 90 gün geçmiş sürüşlerin başlangıç/bitiş konumlarını `NULL` yapar (süre, ücret, durum korunur),
+- 30 günden eski ham telemetri okumalarını (`TelemetryReadings`) siler — bu kayıtlar sürüş sırasında
+  kullanıcının hareketini de içerdiği için aynı gizlilik gerekçesi geçerlidir.
+
+Süreler `Worker:RideLocationRetentionDays` ve `Worker:TelemetryRetentionDays` ayarlarıyla değiştirilebilir.
+`Ride.StartLocation` bu nedenle domain'de ve veritabanında boş olabilir hale getirildi.

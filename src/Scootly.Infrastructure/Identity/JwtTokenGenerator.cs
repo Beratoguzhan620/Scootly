@@ -1,48 +1,68 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Scootly.Application.Abstractions;
 
 namespace Scootly.Infrastructure.Identity;
 
 public sealed class JwtTokenGenerator
 {
-    private readonly IConfiguration _configuration;
+    private readonly JwtOptions _options;
+    private readonly IClock _clock;
 
-    public JwtTokenGenerator(IConfiguration configuration)
+    public JwtTokenGenerator(IOptions<JwtOptions> options, IClock clock)
     {
-        _configuration = configuration;
+        _options = options.Value;
+        _clock = clock;
     }
 
-    public string GenerateToken(ApplicationUser user, IList<string> roles)
+    public string GenerateUserToken(ApplicationUser user, IEnumerable<string> roles)
     {
-        var key = _configuration["Jwt:Key"]!;
-        var issuer = _configuration["Jwt:Issuer"];
-        var audience = _configuration["Jwt:Audience"];
-        var expiryMinutes = int.Parse(_configuration["Jwt:ExpiryMinutes"]!);
-
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new(ClaimTypes.NameIdentifier, user.Id.ToString())
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
         };
 
         if (!string.IsNullOrEmpty(user.HomeRegion))
             claims.Add(new Claim("homeRegion", user.HomeRegion));
 
-        foreach (var role in roles)
-            claims.Add(new Claim(ClaimTypes.Role, role));
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+        return WriteToken(claims, TimeSpan.FromMinutes(_options.ExpiryMinutes));
+    }
+
+    public string GenerateDeviceToken(string clientId, TimeSpan lifetime)
+    {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, clientId),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(ClaimTypes.NameIdentifier, clientId),
+            new(ClaimTypes.Role, ScootlyRoles.Device),
+            new(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.DeviceClient)
+        };
+
+        return WriteToken(claims, lifetime);
+    }
+
+    private string WriteToken(IEnumerable<Claim> claims, TimeSpan lifetime)
+    {
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        var now = _clock.UtcNow;
 
         var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
+            issuer: _options.Issuer,
+            audience: _options.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
+            notBefore: now,
+            expires: now.Add(lifetime),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

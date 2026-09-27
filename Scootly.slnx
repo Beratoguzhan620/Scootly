@@ -6,14 +6,19 @@
   <Folder Name="/src/">
     <Project Path="src/Scootly.Api/Scootly.Api.csproj" />
     <Project Path="src/Scootly.Application/Scootly.Application.csproj" />
+    <Project Path="src/Scootly.DeviceSimulator/Scootly.DeviceSimulator.csproj" />
     <Project Path="src/Scootly.Domain/Scootly.Domain.csproj" />
     <Project Path="src/Scootly.Infrastructure/Scootly.Infrastructure.csproj" />
+    <Project Path="src/Scootly.PaymentSimulator/Scootly.PaymentSimulator.csproj" />
     <Project Path="src/Scootly.Worker/Scootly.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Scootly.Api.IntegrationTests/Scootly.Api.IntegrationTests.csproj" />
     <Project Path="tests/Scootly.Application.UnitTests/Scootly.Application.UnitTests.csproj" />
+    <Project Path="tests/Scootly.Architecture.Tests/Scootly.Architecture.Tests.csproj" />
     <Project Path="tests/Scootly.Concurrency.Tests/Scootly.Concurrency.Tests.csproj" />
     <Project Path="tests/Scootly.Domain.UnitTests/Scootly.Domain.UnitTests.csproj" />
+    <Project Path="tests/Scootly.Infrastructure.Tests/Scootly.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Scootly.Testing/Scootly.Testing.csproj" />
   </Folder>
 </Solution>

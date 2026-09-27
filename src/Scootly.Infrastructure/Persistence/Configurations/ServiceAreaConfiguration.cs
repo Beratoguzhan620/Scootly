@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Scootly.Application.Common;
 using Scootly.Domain.Geo;
 
 namespace Scootly.Infrastructure.Persistence.Configurations;
@@ -13,7 +14,11 @@ public sealed class ServiceAreaConfiguration : IEntityTypeConfiguration<ServiceA
         builder.Property<Guid>("Id");
         builder.HasKey("Id");
 
-        builder.Property(a => a.Name).HasMaxLength(200).IsRequired();
+        builder.Property(a => a.Name).HasMaxLength(ServiceArea.NameMaxLength).IsRequired();
+
+        builder.HasIndex(a => a.Name)
+            .HasDatabaseName(ConstraintNames.UniqueServiceAreaName)
+            .IsUnique();
 
         builder.OwnsMany(a => a.Boundary, boundary =>
         {
@@ -24,5 +29,7 @@ public sealed class ServiceAreaConfiguration : IEntityTypeConfiguration<ServiceA
             boundary.Property(p => p.Latitude).HasColumnName("Latitude");
             boundary.Property(p => p.Longitude).HasColumnName("Longitude");
         });
+
+        builder.Navigation(a => a.Boundary).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

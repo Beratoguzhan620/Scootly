@@ -1,9 +1,18 @@
-﻿namespace Scootly.Api.Authorization;
+namespace Scootly.Api.Authorization;
 
 public static class PolicyNames
 {
-    public const string FleetManagerOnly = "FleetManagerOnly";
-    public const string OperatorOnly = "OperatorOnly";
+    /// <summary>Sürücü rolüne sahip, kullanıcı token'ı taşıyan istekler (cihaz token'ları hariç).</summary>
     public const string DriverOnly = "DriverOnly";
+
+    public const string FleetManagerOnly = "FleetManagerOnly";
+
+    /// <summary>Filo yöneticisi veya saha operatörü: bakım gibi saha operasyonları.</summary>
+    public const string FleetOperations = "FleetOperations";
+
+    /// <summary>Yalnızca cihaz (telemetri) token'ları.</summary>
+    public const string DeviceOnly = "DeviceOnly";
+
+    /// <summary>Kaynak tabanlı: sürüşün sahibi mi?</summary>
     public const string RideOwner = "RideOwner";
 }

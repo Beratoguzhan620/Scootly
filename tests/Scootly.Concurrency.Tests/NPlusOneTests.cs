@@ -1,16 +1,24 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Scootly.Domain.Fleet;
-using Scootly.Domain.Geo;
-using Scootly.Domain.Riding;
 using Scootly.Infrastructure.Persistence;
+using Scootly.Testing;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Scootly.Concurrency.Tests;
 
+/// <summary>Sorgu sayacı süreç genelinde paylaşıldığı için bu testler diğerleriyle paralel çalışmaz.</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class QueryCountingCollection
+{
+    public const string Name = "query-counting";
+}
+
+/// <summary>ADR 0008: N+1 sorgu deseninin tespiti ve önlenmesi.</summary>
+[Collection(QueryCountingCollection.Name)]
 public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
 {
+    private const int RideCount = 10;
+
     private readonly ConcurrencyTestFactory _factory;
     private readonly ITestOutputHelper _output;
 
@@ -25,21 +33,17 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
     {
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-        await SeedRidesWithVehiclesAsync(dbContext, count: 10);
+        var rideIds = await SeedRidesWithVehiclesAsync(dbContext);
 
         QueryCounter.Reset();
 
-        var rides = await dbContext.Rides.ToListAsync();
+        var rides = await dbContext.Rides.Where(r => rideIds.Contains(r.Id)).ToListAsync();
 
         foreach (var ride in rides)
-        {
-            var vehicle = await dbContext.Vehicles.FirstOrDefaultAsync(v => v.Id == ride.VehicleId);
-            _output.WriteLine($"Ride {ride.Id} -> Vehicle {vehicle?.Model.Brand}");
-        }
+            await dbContext.Vehicles.FirstOrDefaultAsync(v => v.Id == ride.VehicleId);
 
-        throw new Xunit.Sdk.XunitException(
-            $"KÖTÜ desen — 10 Ride için toplam sorgu sayısı: {QueryCounter.Count} (beklenen: 11)");
+        _output.WriteLine($"KÖTÜ desen: {RideCount} sürüş için sorgu sayısı {QueryCounter.Count}");
+        Assert.Equal(RideCount + 1, QueryCounter.Count);
     }
 
     [Fact]
@@ -47,12 +51,12 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
     {
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-        await SeedRidesWithVehiclesAsync(dbContext, count: 10);
+        var rideIds = await SeedRidesWithVehiclesAsync(dbContext);
 
         QueryCounter.Reset();
 
         var results = await dbContext.Rides
+            .Where(r => rideIds.Contains(r.Id))
             .Select(ride => new
             {
                 RideId = ride.Id,
@@ -63,37 +67,28 @@ public sealed class NPlusOneTests : IClassFixture<ConcurrencyTestFactory>
             })
             .ToListAsync();
 
-        foreach (var result in results)
-        {
-            _output.WriteLine($"Ride {result.RideId} -> Vehicle {result.Brand}");
-        }
-
-        throw new Xunit.Sdk.XunitException(
-            $"İYİ desen — 10 Ride için toplam sorgu sayısı: {QueryCounter.Count} (beklenen: 1)");
+        _output.WriteLine($"İYİ desen: {results.Count} sürüş için sorgu sayısı {QueryCounter.Count}");
+        Assert.Equal(1, QueryCounter.Count);
+        Assert.All(results, r => Assert.NotNull(r.Brand));
     }
 
-    private async Task SeedRidesWithVehiclesAsync(ScootlyDbContext dbContext, int count)
+    private static async Task<List<Guid>> SeedRidesWithVehiclesAsync(ScootlyDbContext dbContext)
     {
-        for (var i = 0; i < count; i++)
-        {
-            var vehicle = new Vehicle(
-                VehicleId.New(),
-                new VehicleModel("Xiaomi", 25),
-                new GeoPoint(41.0, 29.0),
-                new BatteryLevel(80));
+        var rideIds = new List<Guid>();
 
+        for (var i = 0; i < RideCount; i++)
+        {
+            var vehicle = TestData.NewVehicle();
             dbContext.Vehicles.Add(vehicle);
 
-            var ride = new Ride(
-                RideId.New(),
-                Guid.NewGuid(),
-                vehicle.Id,
-                new GeoPoint(41.0, 29.0),
-                DateTime.UtcNow);
-
+            var ride = TestData.NewActiveRide(Guid.NewGuid(), vehicle.Id);
             dbContext.Rides.Add(ride);
+            rideIds.Add(ride.Id);
         }
 
         await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        return rideIds;
     }
 }

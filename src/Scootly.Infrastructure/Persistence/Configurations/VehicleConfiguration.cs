@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Scootly.Application.Common;
 using Scootly.Domain.Fleet;
 
 namespace Scootly.Infrastructure.Persistence.Configurations;
@@ -19,11 +20,17 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         builder.HasIndex(v => v.Status)
             .HasDatabaseName("IX_Vehicles_Status");
 
+        // Bir sürücünün aynı anda yalnızca bir aktif rezervasyonu olabilir (uygulama kontrolüne ek, yarışa dayanıklı güvence).
+        builder.HasIndex(v => v.ReservedBy)
+            .HasDatabaseName(ConstraintNames.OneActiveReservationPerDriver)
+            .IsUnique()
+            .HasFilter("\"ReservedBy\" IS NOT NULL");
+
         builder.Property<uint>("xmin").IsRowVersion();
 
         builder.OwnsOne(v => v.Model, model =>
         {
-            model.Property(m => m.Brand).HasColumnName("Brand").HasMaxLength(100);
+            model.Property(m => m.Brand).HasColumnName("Brand").HasMaxLength(VehicleModel.BrandMaxLength);
             model.Property(m => m.RangeKm).HasColumnName("RangeKm");
         });
 
@@ -44,5 +51,7 @@ public sealed class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         builder.Navigation(v => v.Model).IsRequired();
         builder.Navigation(v => v.Battery).IsRequired();
         builder.Navigation(v => v.Location).IsRequired();
+
+        builder.Ignore(v => v.DomainEvents);
     }
 }

@@ -1,4 +1,4 @@
-﻿using Asp.Versioning;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -6,10 +6,13 @@ using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
+using Scootly.Api.ErrorHandling;
+using Scootly.Api.Extensions;
+using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
+using Scootly.Application.Fleet.Commands;
 using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Fleet;
-using Scootly.Domain.Geo;
 using Scootly.Infrastructure.Caching;
 
 namespace Scootly.Api.Controllers;
@@ -21,26 +24,28 @@ namespace Scootly.Api.Controllers;
 public sealed class VehiclesController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
-    private readonly ReserveVehicleCommandHandler _reserveHandler;
     private readonly ICurrentUser _currentUser;
     private readonly NearbyVehicleCache _cache;
+    private readonly VehicleQueryValidator _queryValidator;
 
     public VehiclesController(
         IApplicationDbContext dbContext,
-        ReserveVehicleCommandHandler reserveHandler,
         ICurrentUser currentUser,
-        NearbyVehicleCache cache)
+        NearbyVehicleCache cache,
+        VehicleQueryValidator queryValidator)
     {
         _dbContext = dbContext;
-        _reserveHandler = reserveHandler;
         _currentUser = currentUser;
         _cache = cache;
+        _queryValidator = queryValidator;
     }
 
     [HttpGet]
     [MapToApiVersion("1.0")]
     [AllowAnonymous]
-    [EnableRateLimiting("AnonymousPolicy")]
+    [EnableRateLimiting(RateLimitPolicies.Anonymous)]
+    [ProducesResponseType<PagedResult<VehicleResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetNearbyV1(
         [FromQuery] double? minLatitude = null,
         [FromQuery] double? maxLatitude = null,
@@ -48,100 +53,220 @@ public sealed class VehiclesController : ControllerBase
         [FromQuery] double? maxLongitude = null,
         [FromQuery] bool onlyAvailable = false,
         [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        if (pageNumber < 1) pageNumber = 1;
-        if (pageSize is < 1 or > 100) pageSize = 20;
+        var query = new VehicleQuery(minLatitude, maxLatitude, minLongitude, maxLongitude, onlyAvailable, pageNumber, pageSize);
+        var validation = _queryValidator.Validate(query);
 
-        var isDefaultQuery = !minLatitude.HasValue && !maxLatitude.HasValue
-            && !minLongitude.HasValue && !maxLongitude.HasValue
-            && !onlyAvailable && pageNumber == 1 && pageSize == 20;
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
+
+        var isDefaultQuery = query == new VehicleQuery(null, null, null, null, false, 1, 20);
 
         if (isDefaultQuery)
         {
-            var cached = await _cache.GetOrSetAsync(
-                CacheKeys.NearbyVehiclesDefault(),
-                () => Task.FromResult(RunQuery(null, null, null, null, false, 1, 20)));
-
+            var cached = await _cache.GetOrSetAsync(CacheKeys.NearbyVehiclesDefault(), token => RunQueryAsync(query, token), cancellationToken);
             return Ok(cached);
         }
 
-        var result = RunQuery(minLatitude, maxLatitude, minLongitude, maxLongitude, onlyAvailable, pageNumber, pageSize);
-        return Ok(result);
-    }
-
-    private PagedResult<VehicleResponse> RunQuery(
-        double? minLatitude, double? maxLatitude, double? minLongitude, double? maxLongitude,
-        bool onlyAvailable, int pageNumber, int pageSize)
-    {
-        var baseQuery = _dbContext.Vehicles.AsNoTracking();
-
-        if (minLatitude.HasValue) baseQuery = baseQuery.Where(v => v.Location.Latitude >= minLatitude.Value);
-        if (maxLatitude.HasValue) baseQuery = baseQuery.Where(v => v.Location.Latitude <= maxLatitude.Value);
-        if (minLongitude.HasValue) baseQuery = baseQuery.Where(v => v.Location.Longitude >= minLongitude.Value);
-        if (maxLongitude.HasValue) baseQuery = baseQuery.Where(v => v.Location.Longitude <= maxLongitude.Value);
-        if (onlyAvailable) baseQuery = baseQuery.Where(v => v.Status == VehicleStatus.Available);
-
-        var query = baseQuery.Select(v => new VehicleResponse(
-            v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage, v.Status.ToString()));
-
-        var totalCount = query.Count();
-        var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
-
-        return new PagedResult<VehicleResponse>(items, pageNumber, pageSize, totalCount);
+        return Ok(await RunQueryAsync(query, cancellationToken));
     }
 
     [HttpGet]
     [MapToApiVersion("2.0")]
     [AllowAnonymous]
-    public IActionResult GetNearbyV2([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    [EnableRateLimiting(RateLimitPolicies.Anonymous)]
+    [ProducesResponseType<PagedResult<VehicleResponseV2>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetNearbyV2(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        if (pageNumber < 1) pageNumber = 1;
-        if (pageSize is < 1 or > 100) pageSize = 20;
+        var validation = _queryValidator.Validate(new VehicleQuery(null, null, null, null, false, pageNumber, pageSize));
+
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
 
         var query = _dbContext.Vehicles
             .AsNoTracking()
+            .OrderBy(v => v.Id)
             .Select(v => new VehicleResponseV2(
                 v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
                 v.Status.ToString(), v.Model.Brand, v.Model.RangeKm));
 
-        var totalCount = query.Count();
-        var items = query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
 
         return Ok(new PagedResult<VehicleResponseV2>(items, pageNumber, pageSize, totalCount));
+    }
+
+    [HttpGet("{id:guid}")]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Anonymous)]
+    [ProducesResponseType<VehicleResponseV2>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var vehicle = await _dbContext.Vehicles
+            .AsNoTracking()
+            .Where(v => v.Id == id)
+            .Select(v => new VehicleResponseV2(
+                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
+                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return vehicle is null ? NotFound() : Ok(vehicle);
     }
 
     [HttpPost]
     [MapToApiVersion("1.0")]
     [MapToApiVersion("2.0")]
     [Authorize(Policy = PolicyNames.FleetManagerOnly)]
-    public IActionResult Register([FromBody] RegisterVehicleRequest request)
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType<RegisterVehicleResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Register(
+        [FromBody] RegisterVehicleRequest request,
+        [FromServices] RegisterVehicleRequestValidator validator,
+        [FromServices] RegisterVehicleCommandHandler handler,
+        CancellationToken cancellationToken)
     {
-        var vehicle = new Vehicle(
-            VehicleId.New(),
-            new VehicleModel(request.Brand, request.RangeKm),
-            new GeoPoint(request.Latitude, request.Longitude),
-            new BatteryLevel(request.BatteryPercentage));
+        var validation = validator.Validate(request);
 
-        _dbContext.AddVehicle(vehicle);
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
 
-        return Ok(vehicle.Id);
-    }
-
-    [HttpPost("{id}/reserve")]
-    [MapToApiVersion("1.0")]
-    [MapToApiVersion("2.0")]
-    [Authorize]
-    public async Task<IActionResult> Reserve(Guid id)
-    {
-        var command = new ReserveVehicleCommand(id, _currentUser.UserId);
-        var result = await _reserveHandler.Handle(command);
+        var result = await handler.Handle(
+            new RegisterVehicleCommand(request.Brand, request.RangeKm, request.Latitude, request.Longitude, request.BatteryPercentage),
+            cancellationToken);
 
         if (!result.IsSuccess)
-            return Conflict(result.Error);
+            return this.ToProblem(result);
 
-        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault());
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+
+        return CreatedAtAction(
+            nameof(GetById),
+            new { id = result.Value, version = RouteData.Values["version"] },
+            new RegisterVehicleResponse(result.Value));
+    }
+
+    [HttpPost("{id:guid}/reserve")]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [Authorize(Policy = PolicyNames.DriverOnly)]
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Reserve(
+        Guid id,
+        [FromServices] ReserveVehicleCommandHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(new ReserveVehicleCommand(id, _currentUser.UserId), cancellationToken);
+
+        if (!result.IsSuccess)
+            return this.ToProblem(result);
+
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
 
         return Ok();
+    }
+
+    [HttpDelete("{id:guid}/reservation")]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [Authorize(Policy = PolicyNames.DriverOnly)]
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelReservation(
+        Guid id,
+        [FromServices] CancelReservationCommandHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(new CancelReservationCommand(id, _currentUser.UserId), cancellationToken);
+
+        if (!result.IsSuccess)
+            return this.ToProblem(result);
+
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/maintenance")]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [Authorize(Policy = PolicyNames.FleetOperations)]
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> SendToMaintenance(
+        Guid id,
+        [FromServices] VehicleMaintenanceCommandHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(new SendVehicleToMaintenanceCommand(id), cancellationToken);
+
+        if (!result.IsSuccess)
+            return this.ToProblem(result);
+
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/return-to-service")]
+    [MapToApiVersion("1.0")]
+    [MapToApiVersion("2.0")]
+    [Authorize(Policy = PolicyNames.FleetOperations)]
+    [EnableRateLimiting(RateLimitPolicies.User)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReturnToService(
+        Guid id,
+        [FromServices] VehicleMaintenanceCommandHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(new ReturnVehicleToServiceCommand(id), cancellationToken);
+
+        if (!result.IsSuccess)
+            return this.ToProblem(result);
+
+        await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+
+        return NoContent();
+    }
+
+    private async Task<PagedResult<VehicleResponse>> RunQueryAsync(VehicleQuery filter, CancellationToken cancellationToken)
+    {
+        var baseQuery = _dbContext.Vehicles.AsNoTracking();
+
+        if (filter.MinLatitude is { } minLatitude) baseQuery = baseQuery.Where(v => v.Location.Latitude >= minLatitude);
+        if (filter.MaxLatitude is { } maxLatitude) baseQuery = baseQuery.Where(v => v.Location.Latitude <= maxLatitude);
+        if (filter.MinLongitude is { } minLongitude) baseQuery = baseQuery.Where(v => v.Location.Longitude >= minLongitude);
+        if (filter.MaxLongitude is { } maxLongitude) baseQuery = baseQuery.Where(v => v.Location.Longitude <= maxLongitude);
+        if (filter.OnlyAvailable) baseQuery = baseQuery.Where(v => v.Status == VehicleStatus.Available);
+
+        var query = baseQuery
+            .OrderBy(v => v.Id)
+            .Select(v => new VehicleResponse(
+                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage, v.Status.ToString()));
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((filter.PageNumber - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<VehicleResponse>(items, filter.PageNumber, filter.PageSize, totalCount);
     }
 }

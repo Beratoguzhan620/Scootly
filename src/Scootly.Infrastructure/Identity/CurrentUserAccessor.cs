@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Scootly.Application.Abstractions;
 
@@ -13,20 +13,24 @@ public sealed class CurrentUserAccessor : ICurrentUser
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public Guid UserId
-    {
-        get
-        {
-            var value = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return value is not null ? Guid.Parse(value) : Guid.Empty;
-        }
-    }
+    public bool IsAuthenticated => TryGetUserId(out _);
 
-    public string Role
+    public Guid UserId => TryGetUserId(out var userId)
+        ? userId
+        : throw new UnauthorizedAccessException("İstek, geçerli bir kullanıcı kimliği taşımıyor.");
+
+    private bool TryGetUserId(out Guid userId)
     {
-        get
-        {
-            return _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
-        }
+        userId = Guid.Empty;
+        var user = _httpContextAccessor.HttpContext?.User;
+
+        if (user?.Identity?.IsAuthenticated != true)
+            return false;
+
+        // Cihaz token'larının kimliği bir kullanıcı kimliği değildir.
+        if (user.FindFirstValue(ScootlyClaimTypes.ClientType) != ScootlyClaimTypes.UserClient)
+            return false;
+
+        return Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out userId) && userId != Guid.Empty;
     }
 }

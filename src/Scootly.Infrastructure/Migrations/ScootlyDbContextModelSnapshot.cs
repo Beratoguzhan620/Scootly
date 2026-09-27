@@ -17,7 +17,7 @@ namespace Scootly.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -131,8 +131,14 @@ namespace Scootly.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("LastTelemetryAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("ReservedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReservedBy")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -146,6 +152,11 @@ namespace Scootly.Infrastructure.Migrations
                         .HasColumnName("xmin");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReservedBy")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Vehicles_ReservedBy")
+                        .HasFilter("\"ReservedBy\" IS NOT NULL");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_Vehicles_Status");
@@ -166,6 +177,10 @@ namespace Scootly.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ServiceAreas_Name");
+
                     b.ToTable("ServiceAreas", (string)null);
                 });
 
@@ -182,7 +197,28 @@ namespace Scootly.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal?>("Fare")
-                        .HasColumnType("numeric");
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<DateTime?>("LastPaymentAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastPaymentError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PaymentAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("None");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp with time zone");
@@ -195,9 +231,60 @@ namespace Scootly.Infrastructure.Migrations
                     b.Property<Guid>("VehicleId")
                         .HasColumnType("uuid");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("DriverId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Rides_DriverId_Active")
+                        .HasFilter("\"Status\" = 'Active'");
+
+                    b.HasIndex("EndedAt")
+                        .HasDatabaseName("IX_Rides_EndedAt");
+
+                    b.HasIndex("PaymentStatus")
+                        .HasDatabaseName("IX_Rides_PaymentStatus");
+
+                    b.HasIndex("VehicleId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Rides_VehicleId_Active")
+                        .HasFilter("\"Status\" = 'Active'");
+
+                    b.HasIndex("Status", "StartedAt")
+                        .HasDatabaseName("IX_Rides_Status_StartedAt");
+
                     b.ToTable("Rides", (string)null);
+                });
+
+            modelBuilder.Entity("Scootly.Domain.Telemetry.TelemetryReading", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BatteryPercentage")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedAt")
+                        .HasDatabaseName("IX_TelemetryReadings_RecordedAt");
+
+                    b.HasIndex("VehicleId")
+                        .HasDatabaseName("IX_TelemetryReadings_VehicleId");
+
+                    b.ToTable("TelemetryReadings", (string)null);
                 });
 
             modelBuilder.Entity("Scootly.Infrastructure.Identity.ApplicationRole", b =>
@@ -225,6 +312,29 @@ namespace Scootly.Infrastructure.Migrations
                         .HasDatabaseName("RoleNameIndex");
 
                     b.ToTable("AspNetRoles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("0b3f5c1e-6a3d-4f2e-9d41-6c2a7e8b1f01"),
+                            ConcurrencyStamp = "0b3f5c1e-6a3d-4f2e-9d41-6c2a7e8b1f01",
+                            Name = "Driver",
+                            NormalizedName = "DRIVER"
+                        },
+                        new
+                        {
+                            Id = new Guid("0b3f5c1e-6a3d-4f2e-9d41-6c2a7e8b1f02"),
+                            ConcurrencyStamp = "0b3f5c1e-6a3d-4f2e-9d41-6c2a7e8b1f02",
+                            Name = "FleetManager",
+                            NormalizedName = "FLEETMANAGER"
+                        },
+                        new
+                        {
+                            Id = new Guid("0b3f5c1e-6a3d-4f2e-9d41-6c2a7e8b1f03"),
+                            ConcurrencyStamp = "0b3f5c1e-6a3d-4f2e-9d41-6c2a7e8b1f03",
+                            Name = "FieldOperator",
+                            NormalizedName = "FIELDOPERATOR"
+                        });
                 });
 
             modelBuilder.Entity("Scootly.Infrastructure.Identity.ApplicationUser", b =>
@@ -293,6 +403,68 @@ namespace Scootly.Infrastructure.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Scootly.Infrastructure.Messaging.Idempotency.ProcessedMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Consumer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("MessageId", "Consumer");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_ProcessedMessages_ProcessedAt");
+
+                    b.ToTable("ProcessedMessages", (string)null);
+                });
+
+            modelBuilder.Entity("Scootly.Infrastructure.Messaging.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_OutboxMessages_Pending_CreatedAt")
+                        .HasFilter("\"ProcessedAt\" IS NULL");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("IX_OutboxMessages_ProcessedAt");
+
+                    b.ToTable("OutboxMessages", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -502,7 +674,33 @@ namespace Scootly.Infrastructure.Migrations
 
                     b.Navigation("EndLocation");
 
-                    b.Navigation("StartLocation")
+                    b.Navigation("StartLocation");
+                });
+
+            modelBuilder.Entity("Scootly.Domain.Telemetry.TelemetryReading", b =>
+                {
+                    b.OwnsOne("Scootly.Domain.Geo.GeoPoint", "Location", b1 =>
+                        {
+                            b1.Property<Guid>("TelemetryReadingId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<double>("Latitude")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Latitude");
+
+                            b1.Property<double>("Longitude")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Longitude");
+
+                            b1.HasKey("TelemetryReadingId");
+
+                            b1.ToTable("TelemetryReadings");
+
+                            b1.WithOwner()
+                                .HasForeignKey("TelemetryReadingId");
+                        });
+
+                    b.Navigation("Location")
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

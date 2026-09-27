@@ -1,10 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Scootly.Domain.Fleet;
-using Scootly.Domain.Geo;
-using Scootly.Infrastructure.Persistence;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace Scootly.Concurrency.Tests;
@@ -24,56 +18,27 @@ public sealed class ParallelRideStartTests : IClassFixture<ConcurrencyTestFactor
     [InlineData(100)]
     public async Task Ayni_Araca_N_Paralel_Rezervasyon_Istegi_Yalnizca_Birini_Basarili_Kilmali(int concurrentRequestCount)
     {
-        var vehicleId = await SeedAvailableVehicleAsync();
+        var vehicle = await _factory.SeedVehicleAsync();
 
-        var tasks = Enumerable.Range(0, concurrentRequestCount).Select(async _ =>
-        {
-            var client = _factory.CreateClient();
-            var token = await RegisterAndLoginAsync(client);
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var drivers = await Task.WhenAll(Enumerable.Range(0, concurrentRequestCount).Select(_ => _factory.CreateDriverClientAsync()));
 
-            var response = await client.PostAsync($"/api/v1/vehicles/{vehicleId}/reserve", null);
-            return response.StatusCode;
-        });
+        var results = await Task.WhenAll(drivers.Select(async driver =>
+            (await driver.Client.PostAsync($"/api/v1/vehicles/{vehicle.Id}/reserve", null)).StatusCode));
 
-        var results = await Task.WhenAll(tasks);
-
-        var successCount = results.Count(status => status == HttpStatusCode.OK);
-        var conflictCount = results.Count(status => status == HttpStatusCode.Conflict);
-
-        Assert.Equal(1, successCount);
-        Assert.Equal(concurrentRequestCount - 1, conflictCount);
+        Assert.Equal(1, results.Count(status => status == HttpStatusCode.OK));
+        Assert.Equal(concurrentRequestCount - 1, results.Count(status => status == HttpStatusCode.Conflict));
     }
 
-    private async Task<string> RegisterAndLoginAsync(HttpClient client)
+    [Fact]
+    public async Task Ayni_Surucunun_Paralel_Rezervasyonlarindan_Yalnizca_Biri_Basarili_Olmali()
     {
-        var email = $"concurrency-test-{Guid.NewGuid()}@scootly.com";
-        var password = "test123";
+        var driver = await _factory.CreateDriverClientAsync();
+        var vehicles = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => _factory.SeedVehicleAsync()));
 
-        await client.PostAsJsonAsync("/api/auth/register", new { Email = email, Password = password });
+        var results = await Task.WhenAll(vehicles.Select(async vehicle =>
+            (await driver.Client.PostAsync($"/api/v1/vehicles/{vehicle.Id}/reserve", null)).StatusCode));
 
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
-        var result = await loginResponse.Content.ReadFromJsonAsync<TokenResponse>();
-
-        return result!.Token;
+        // Uygulama kontrolü yarışı kaçırsa bile veritabanındaki kısmi benzersiz indeks ikinci rezervasyonu engeller.
+        Assert.Equal(1, results.Count(status => status == HttpStatusCode.OK));
     }
-
-    private async Task<Guid> SeedAvailableVehicleAsync()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-        var vehicle = new Vehicle(
-            VehicleId.New(),
-            new VehicleModel("Xiaomi", 25),
-            new GeoPoint(41.0, 29.0),
-            new BatteryLevel(80));
-
-        dbContext.Vehicles.Add(vehicle);
-        await dbContext.SaveChangesAsync();
-
-        return vehicle.Id;
-    }
-
-    private sealed record TokenResponse(string Token);
 }

@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/TestResults/
+.git/
+.vs/
+.vscode/
+.idea/
+CoverageReport/
+docs/
+tests/
+deploy/.env
+**/*.user
+**/.env

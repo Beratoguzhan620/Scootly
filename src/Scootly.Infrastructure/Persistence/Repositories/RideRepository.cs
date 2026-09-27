@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Domain.Riding;
 
@@ -13,13 +13,13 @@ public sealed class RideRepository : IRideRepository
         _dbContext = dbContext;
     }
 
-    public async Task<Ride?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.Rides.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
-    }
+    public Task<Ride?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => _dbContext.Rides.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
     public async Task AddAsync(Ride ride, CancellationToken cancellationToken = default)
-    {
-        await _dbContext.Rides.AddAsync(ride, cancellationToken);
-    }
+        => await _dbContext.Rides.AddAsync(ride, cancellationToken);
+
+    public Task<bool> HasActiveRideAsync(Guid driverId, CancellationToken cancellationToken = default)
+        => _dbContext.Rides.AsNoTracking().AnyAsync(
+            r => r.DriverId == driverId && r.Status == RideStatus.Active, cancellationToken);
 }
