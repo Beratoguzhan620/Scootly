@@ -1,0 +1,26 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!--
+      xUnit1051: her async çağrıya TestContext.Current.CancellationToken geçirilmesini ister. Testler kısa ömürlü
+      olduğu ve iptal senaryosu içermediği için bu analiz, okunabilirliği düşüren gürültü üretir.
+    -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+
+  <!-- Ortak test kütüphanesi dışındaki tüm test projeleri xunit v3 çalıştırılabilir projeleridir. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' != 'Scootly.Testing'">
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Scootly.Testing'">
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

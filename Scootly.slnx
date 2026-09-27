@@ -18,5 +18,7 @@
     <Project Path="tests/Scootly.Architecture.Tests/Scootly.Architecture.Tests.csproj" />
     <Project Path="tests/Scootly.Concurrency.Tests/Scootly.Concurrency.Tests.csproj" />
     <Project Path="tests/Scootly.Domain.UnitTests/Scootly.Domain.UnitTests.csproj" />
+    <Project Path="tests/Scootly.Infrastructure.Tests/Scootly.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Scootly.Testing/Scootly.Testing.csproj" />
   </Folder>
 </Solution>

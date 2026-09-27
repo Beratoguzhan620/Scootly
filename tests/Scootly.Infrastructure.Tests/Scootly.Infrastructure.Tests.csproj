@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Testcontainers.RabbitMq" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Scootly.Testing\Scootly.Testing.csproj" />
   </ItemGroup>
 
