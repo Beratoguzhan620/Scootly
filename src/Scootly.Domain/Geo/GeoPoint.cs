@@ -1,4 +1,4 @@
-﻿using Scootly.Domain.Common;
+using Scootly.Domain.Common;
 
 namespace Scootly.Domain.Geo;
 
@@ -9,10 +9,10 @@ public sealed class GeoPoint : ValueObject
 
     public GeoPoint(double latitude, double longitude)
     {
-        if (latitude < -90 || latitude > 90)
+        if (!double.IsFinite(latitude) || latitude < -90 || latitude > 90)
             throw new DomainException("Enlem -90 ile 90 arasında olmalı.");
 
-        if (longitude < -180 || longitude > 180)
+        if (!double.IsFinite(longitude) || longitude < -180 || longitude > 180)
             throw new DomainException("Boylam -180 ile 180 arasında olmalı.");
 
         Latitude = latitude;

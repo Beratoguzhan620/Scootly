@@ -1,11 +1,11 @@
-﻿namespace Scootly.Domain.Riding;
+namespace Scootly.Domain.Riding;
 
-public sealed class ReservationPolicy
+public static class ReservationPolicy
 {
-    public const int ReservationDurationMinutes = 10;
+    public static readonly TimeSpan Duration = TimeSpan.FromMinutes(10);
 
-    public bool IsExpired(Reservation reservation, DateTime now)
-    {
-        return now > reservation.ExpiresAt;
-    }
+    /// <summary>Bu andan önce yapılmış rezervasyonların süresi dolmuştur.</summary>
+    public static DateTime ExpiryCutoff(DateTime now) => now - Duration;
+
+    public static bool IsExpired(DateTime reservedAt, DateTime now) => now >= reservedAt + Duration;
 }

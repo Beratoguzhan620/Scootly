@@ -1,4 +1,6 @@
-﻿namespace Scootly.Domain.Geo;
+using Scootly.Domain.Common;
+
+namespace Scootly.Domain.Geo;
 
 public sealed class ParkingStation
 {
@@ -7,6 +9,9 @@ public sealed class ParkingStation
 
     public ParkingStation(string name, GeoPoint location)
     {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new DomainException("Park istasyonu adı boş olamaz.");
+
         Name = name;
         Location = location;
     }

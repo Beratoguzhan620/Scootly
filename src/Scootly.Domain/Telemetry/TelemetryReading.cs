@@ -1,4 +1,5 @@
-﻿using Scootly.Domain.Common;
+using Scootly.Domain.Common;
+using Scootly.Domain.Fleet;
 using Scootly.Domain.Geo;
 
 namespace Scootly.Domain.Telemetry;
@@ -15,12 +16,15 @@ public sealed class TelemetryReading : Entity
         Location = null!;
     }
 
-    public TelemetryReading(Guid id, Guid vehicleId, GeoPoint location, int batteryPercentage, DateTime recordedAt)
+    public TelemetryReading(Guid id, Guid vehicleId, GeoPoint location, BatteryLevel battery, DateTime recordedAt)
         : base(id)
     {
+        if (vehicleId == Guid.Empty)
+            throw new DomainException("Telemetri kaydı için araç kimliği gerekli.");
+
         VehicleId = vehicleId;
         Location = location;
-        BatteryPercentage = batteryPercentage;
+        BatteryPercentage = battery.Percentage;
         RecordedAt = recordedAt;
     }
 }
