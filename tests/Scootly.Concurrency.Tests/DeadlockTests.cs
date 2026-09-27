@@ -1,19 +1,20 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Scootly.Domain.Fleet;
-using Scootly.Domain.Geo;
 using Scootly.Infrastructure.Persistence;
 using Xunit;
 
 namespace Scootly.Concurrency.Tests;
 
+/// <summary>ADR 0005: kilitlerin tutarlı sırayla alınması deadlock'u önler.</summary>
 public sealed class DeadlockTests : IClassFixture<ConcurrencyTestFactory>
 {
     private readonly ConcurrencyTestFactory _factory;
+    private readonly ITestOutputHelper _output;
 
-    public DeadlockTests(ConcurrencyTestFactory factory)
+    public DeadlockTests(ConcurrencyTestFactory factory, ITestOutputHelper output)
     {
         _factory = factory;
+        _output = output;
     }
 
     [Fact]
@@ -21,15 +22,13 @@ public sealed class DeadlockTests : IClassFixture<ConcurrencyTestFactory>
     {
         var (vehicle1Id, vehicle2Id) = await SeedTwoVehiclesAsync();
 
-        var taskA = LockInOrderAsync(vehicle1Id, vehicle2Id, delayMs: 200);
-        var taskB = LockInOrderAsync(vehicle2Id, vehicle1Id, delayMs: 200);
+        var results = await Task.WhenAll(
+            LockInOrderAsync(vehicle1Id, vehicle2Id, delayMs: 200),
+            LockInOrderAsync(vehicle2Id, vehicle1Id, delayMs: 200));
 
-        var results = await Task.WhenAll(taskA, taskB);
+        _output.WriteLine($"A: {results[0]} | B: {results[1]}");
 
-        var deadlockDetected = results.Any(r => r.Contains("deadlock", StringComparison.OrdinalIgnoreCase));
-
-        throw new Xunit.Sdk.XunitException(
-            $"A sonucu: {results[0]} | B sonucu: {results[1]} | Deadlock tespit edildi mi: {deadlockDetected}");
+        Assert.Contains(results, r => r.Contains("deadlock", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -37,16 +36,14 @@ public sealed class DeadlockTests : IClassFixture<ConcurrencyTestFactory>
     {
         var (vehicle1Id, vehicle2Id) = await SeedTwoVehiclesAsync();
 
-        // İki görev de ARTIK AYNI SIRAYLA kilitliyor: önce vehicle1, sonra vehicle2
-        var taskA = LockInOrderAsync(vehicle1Id, vehicle2Id, delayMs: 200);
-        var taskB = LockInOrderAsync(vehicle1Id, vehicle2Id, delayMs: 200);
+        // İki görev de aynı sırayla kilitliyor: önce vehicle1, sonra vehicle2.
+        var results = await Task.WhenAll(
+            LockInOrderAsync(vehicle1Id, vehicle2Id, delayMs: 200),
+            LockInOrderAsync(vehicle1Id, vehicle2Id, delayMs: 200));
 
-        var results = await Task.WhenAll(taskA, taskB);
+        _output.WriteLine($"A: {results[0]} | B: {results[1]}");
 
-        var deadlockDetected = results.Any(r => r.Contains("deadlock", StringComparison.OrdinalIgnoreCase));
-
-        throw new Xunit.Sdk.XunitException(
-            $"A sonucu: {results[0]} | B sonucu: {results[1]} | Deadlock tespit edildi mi: {deadlockDetected}");
+        Assert.All(results, r => Assert.Equal("Başarılı", r));
     }
 
     private async Task<string> LockInOrderAsync(Guid firstId, Guid secondId, int delayMs)
@@ -78,15 +75,8 @@ public sealed class DeadlockTests : IClassFixture<ConcurrencyTestFactory>
 
     private async Task<(Guid, Guid)> SeedTwoVehiclesAsync()
     {
-        using var scope = _factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-        var vehicle1 = new Vehicle(VehicleId.New(), new VehicleModel("Xiaomi", 25), new GeoPoint(41.0, 29.0), new BatteryLevel(80));
-        var vehicle2 = new Vehicle(VehicleId.New(), new VehicleModel("Segway", 30), new GeoPoint(41.1, 29.1), new BatteryLevel(90));
-
-        dbContext.Vehicles.Add(vehicle1);
-        dbContext.Vehicles.Add(vehicle2);
-        await dbContext.SaveChangesAsync();
+        var vehicle1 = await _factory.SeedVehicleAsync(41.0, 29.0);
+        var vehicle2 = await _factory.SeedVehicleAsync(41.1, 29.1);
 
         return (vehicle1.Id, vehicle2.Id);
     }

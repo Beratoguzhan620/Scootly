@@ -1,20 +1,26 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Scootly.Domain.Fleet;
-using Scootly.Domain.Geo;
 using Scootly.Infrastructure.Persistence;
+using Scootly.Testing;
 using Xunit;
 
 namespace Scootly.Concurrency.Tests;
 
+/// <summary>ADR 0006: bölge ve kimlik sorgularının maliyeti (ölçüm).</summary>
+[Trait(TestCategories.Key, TestCategories.Measurement)]
 public sealed class IndexPerformanceTests : IClassFixture<ConcurrencyTestFactory>
 {
-    private readonly ConcurrencyTestFactory _factory;
+    private const int VehicleCount = 10_000;
 
-    public IndexPerformanceTests(ConcurrencyTestFactory factory)
+    private readonly ConcurrencyTestFactory _factory;
+    private readonly ITestOutputHelper _output;
+
+    public IndexPerformanceTests(ConcurrencyTestFactory factory, ITestOutputHelper output)
     {
         _factory = factory;
+        _output = output;
     }
 
     [Fact]
@@ -22,23 +28,7 @@ public sealed class IndexPerformanceTests : IClassFixture<ConcurrencyTestFactory
     {
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-        var random = new Random(42);
-
-        for (var i = 0; i < 10_000; i++)
-        {
-            var vehicle = new Vehicle(
-                VehicleId.New(),
-                new VehicleModel("Xiaomi", 25),
-                new GeoPoint(
-                    40.0 + random.NextDouble() * 2,
-                    28.0 + random.NextDouble() * 2),
-                new BatteryLevel(random.Next(1, 100)));
-
-            dbContext.Vehicles.Add(vehicle);
-        }
-
-        await dbContext.SaveChangesAsync();
+        await SeedAsync(dbContext);
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -51,45 +41,8 @@ public sealed class IndexPerformanceTests : IClassFixture<ConcurrencyTestFactory
 
         stopwatch.Stop();
 
-        throw new Xunit.Sdk.XunitException(
-            $"10.000 araç arasında bölge sorgusu süresi (AsNoTracking): {stopwatch.ElapsedMilliseconds} ms | Bulunan: {results.Count}");
-    }
-
-    [Fact]
-    public async Task Tek_Id_Ile_Arama_Cok_Hizli_Olmali()
-    {
-        using var scope = _factory.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
-
-        var random = new Random(42);
-        Guid targetId = Guid.Empty;
-
-        for (var i = 0; i < 10_000; i++)
-        {
-            var vehicle = new Vehicle(
-                VehicleId.New(),
-                new VehicleModel("Xiaomi", 25),
-                new GeoPoint(
-                    40.0 + random.NextDouble() * 2,
-                    28.0 + random.NextDouble() * 2),
-                new BatteryLevel(random.Next(1, 100)));
-
-            dbContext.Vehicles.Add(vehicle);
-
-            if (i == 5000)
-                targetId = vehicle.Id;
-        }
-
-        await dbContext.SaveChangesAsync();
-
-        var stopwatch = Stopwatch.StartNew();
-
-        var result = await dbContext.Vehicles.AsNoTracking().FirstOrDefaultAsync(v => v.Id == targetId);
-
-        stopwatch.Stop();
-
-        throw new Xunit.Sdk.XunitException(
-            $"10.000 araç arasında Id ile arama süresi (AsNoTracking): {stopwatch.ElapsedMilliseconds} ms | Bulundu: {result is not null}");
+        _output.WriteLine($"{VehicleCount} araç arasında bölge sorgusu {stopwatch.ElapsedMilliseconds} ms, bulunan {results.Count}");
+        Assert.NotEmpty(results);
     }
 
     [Fact]
@@ -98,46 +51,43 @@ public sealed class IndexPerformanceTests : IClassFixture<ConcurrencyTestFactory
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ScootlyDbContext>();
 
+        var seedStopwatch = Stopwatch.StartNew();
+        var targetId = await SeedAsync(dbContext);
+        seedStopwatch.Stop();
+
+        var coldStopwatch = Stopwatch.StartNew();
+        var first = await dbContext.Vehicles.AsNoTracking().FirstOrDefaultAsync(v => v.Id == targetId);
+        coldStopwatch.Stop();
+
+        var warmStopwatch = Stopwatch.StartNew();
+        var second = await dbContext.Vehicles.AsNoTracking().FirstOrDefaultAsync(v => v.Id == targetId);
+        warmStopwatch.Stop();
+
+        _output.WriteLine(
+            $"Tohumlama {seedStopwatch.ElapsedMilliseconds} ms, 1. sorgu (soğuk) {coldStopwatch.ElapsedMilliseconds} ms, " +
+            $"2. sorgu (ısınmış) {warmStopwatch.ElapsedMilliseconds} ms");
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+    }
+
+    private static async Task<Guid> SeedAsync(ScootlyDbContext dbContext)
+    {
         var random = new Random(42);
-        Guid targetId = Guid.Empty;
+        var targetId = Guid.Empty;
 
-        var loopStopwatch = Stopwatch.StartNew();
-
-        for (var i = 0; i < 10_000; i++)
+        for (var i = 0; i < VehicleCount; i++)
         {
-            var vehicle = new Vehicle(
-                VehicleId.New(),
-                new VehicleModel("Xiaomi", 25),
-                new GeoPoint(
-                    40.0 + random.NextDouble() * 2,
-                    28.0 + random.NextDouble() * 2),
-                new BatteryLevel(random.Next(1, 100)));
-
+            var vehicle = TestData.NewVehicle(40.0 + random.NextDouble() * 2, 28.0 + random.NextDouble() * 2, random.Next(1, 100));
             dbContext.Vehicles.Add(vehicle);
 
-            if (i == 5000)
+            if (i == VehicleCount / 2)
                 targetId = vehicle.Id;
         }
 
-        loopStopwatch.Stop();
-
-        var saveStopwatch = Stopwatch.StartNew();
         await dbContext.SaveChangesAsync();
-        saveStopwatch.Stop();
+        dbContext.ChangeTracker.Clear();
 
-        var firstQueryStopwatch = Stopwatch.StartNew();
-        var result1 = await dbContext.Vehicles.AsNoTracking().FirstOrDefaultAsync(v => v.Id == targetId);
-        firstQueryStopwatch.Stop();
-
-        var secondQueryStopwatch = Stopwatch.StartNew();
-        var result2 = await dbContext.Vehicles.AsNoTracking().FirstOrDefaultAsync(v => v.Id == targetId);
-        secondQueryStopwatch.Stop();
-
-        throw new Xunit.Sdk.XunitException(
-            $"Döngü: {loopStopwatch.ElapsedMilliseconds} ms | " +
-            $"SaveChanges: {saveStopwatch.ElapsedMilliseconds} ms | " +
-            $"1. Sorgu (soğuk): {firstQueryStopwatch.ElapsedMilliseconds} ms | " +
-            $"2. Sorgu (ısınmış): {secondQueryStopwatch.ElapsedMilliseconds} ms | " +
-            $"Bulundu: {result1 is not null}, {result2 is not null}");
+        return targetId;
     }
 }

@@ -1,6 +1,5 @@
 ﻿using Npgsql;
 using Scootly.Domain.Fleet;
-using Scootly.Domain.Geo;
 
 namespace Scootly.Concurrency.Tests;
 
