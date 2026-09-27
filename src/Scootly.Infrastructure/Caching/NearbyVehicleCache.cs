@@ -1,32 +1,64 @@
-﻿using System.Text.Json;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Scootly.Application.Abstractions;
 
 namespace Scootly.Infrastructure.Caching;
 
+/// <summary>
+/// Cache-aside, "en iyi çaba" (best-effort) ilkesiyle: önbellek erişilemezse istek hata vermez,
+/// doğrudan kaynaktan (veritabanı) cevaplanır ve durum yalnızca loglanır.
+/// </summary>
 public sealed class NearbyVehicleCache
 {
-    private readonly ICacheService _cacheService;
     private static readonly TimeSpan Ttl = TimeSpan.FromSeconds(5);
 
-    public NearbyVehicleCache(ICacheService cacheService)
+    private readonly ICacheService _cacheService;
+    private readonly ILogger<NearbyVehicleCache> _logger;
+
+    public NearbyVehicleCache(ICacheService cacheService, ILogger<NearbyVehicleCache> logger)
     {
         _cacheService = cacheService;
+        _logger = logger;
     }
 
-    public async Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, CancellationToken cancellationToken = default)
+    public async Task<T> GetOrSetAsync<T>(string key, Func<CancellationToken, Task<T>> factory, CancellationToken cancellationToken = default)
     {
-        var cached = await _cacheService.GetAsync(key, cancellationToken);
+        try
+        {
+            var cached = await _cacheService.GetAsync(key, cancellationToken);
 
-        if (cached is not null)
-            return JsonSerializer.Deserialize<T>(cached)!;
+            if (cached is not null)
+                return JsonSerializer.Deserialize<T>(cached)!;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Önbellek okunamadı ({Key}); veritabanından cevaplanıyor.", key);
+        }
 
-        var value = await factory();
-        var serialized = JsonSerializer.Serialize(value);
-        await _cacheService.SetAsync(key, serialized, Ttl, cancellationToken);
+        var value = await factory(cancellationToken);
+
+        try
+        {
+            await _cacheService.SetAsync(key, JsonSerializer.Serialize(value), Ttl, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Önbelleğe yazılamadı ({Key}).", key);
+        }
 
         return value;
     }
 
-    public Task InvalidateAsync(string key, CancellationToken cancellationToken = default)
-        => _cacheService.RemoveAsync(key, cancellationToken);
+    public async Task InvalidateAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _cacheService.RemoveAsync(key, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // En kötü durumda eski veri TTL (5 sn) boyunca görünür.
+            _logger.LogWarning(ex, "Önbellek anahtarı silinemedi ({Key}).", key);
+        }
+    }
 }

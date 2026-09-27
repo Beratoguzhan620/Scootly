@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Scootly.Infrastructure.Messaging.Idempotency;
 
@@ -10,8 +10,12 @@ public sealed class ProcessedMessageConfiguration : IEntityTypeConfiguration<Pro
     {
         builder.ToTable("ProcessedMessages");
 
-        builder.HasKey(m => m.MessageId);
+        builder.HasKey(m => new { m.MessageId, m.Consumer });
 
+        builder.Property(m => m.Consumer).HasMaxLength(ProcessedMessage.ConsumerMaxLength);
         builder.Property(m => m.ProcessedAt).IsRequired();
+
+        builder.HasIndex(m => m.ProcessedAt)
+            .HasDatabaseName("IX_ProcessedMessages_ProcessedAt");
     }
 }

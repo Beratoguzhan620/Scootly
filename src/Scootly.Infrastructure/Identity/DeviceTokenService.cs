@@ -1,48 +1,43 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 
 namespace Scootly.Infrastructure.Identity;
 
 public sealed class DeviceTokenService
 {
-    private readonly IConfiguration _configuration;
+    private readonly DeviceAuthOptions _options;
+    private readonly JwtTokenGenerator _tokenGenerator;
 
-    public DeviceTokenService(IConfiguration configuration)
+    public DeviceTokenService(IOptions<DeviceAuthOptions> options, JwtTokenGenerator tokenGenerator)
     {
-        _configuration = configuration;
+        _options = options.Value;
+        _tokenGenerator = tokenGenerator;
     }
 
-    public string? IssueToken(string clientId, string clientSecret)
+    /// <returns>Kimlik bilgileri doğruysa cihaz token'ı, aksi halde null.</returns>
+    public string? IssueToken(string? clientId, string? clientSecret)
     {
-        var expectedClientId = _configuration["DeviceAuth:ClientId"];
-        var expectedClientSecret = _configuration["DeviceAuth:ClientSecret"];
-
-        if (clientId != expectedClientId || clientSecret != expectedClientSecret)
+        // Yapılandırma eksikse hiçbir istemci doğrulanamaz (fail closed).
+        if (string.IsNullOrEmpty(_options.ClientId) || string.IsNullOrEmpty(_options.ClientSecret))
             return null;
 
-        var key = _configuration["Jwt:Key"]!;
-        var issuer = _configuration["Jwt:Issuer"];
-        var audience = _configuration["Jwt:Audience"];
+        // Her iki karşılaştırma da her zaman yapılır ve sabit sürelidir; hangi alanın yanlış olduğu zamanlamadan anlaşılamaz.
+        var clientIdMatches = SecretEquals(clientId, _options.ClientId);
+        var secretMatches = SecretEquals(clientSecret, _options.ClientSecret);
 
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, clientId),
-            new(ClaimTypes.Role, "Device")
-        };
+        if (!(clientIdMatches & secretMatches))
+            return null;
 
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        return _tokenGenerator.GenerateDeviceToken(_options.ClientId, TimeSpan.FromMinutes(_options.TokenLifetimeMinutes));
+    }
 
-        var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(24),
-            signingCredentials: credentials);
+    /// <summary>Uzunluk bilgisini de sızdırmamak için değerlerin SHA-256 özetlerini sabit sürede karşılaştırır.</summary>
+    private static bool SecretEquals(string? provided, string expected)
+    {
+        var providedHash = SHA256.HashData(Encoding.UTF8.GetBytes(provided ?? string.Empty));
+        var expectedHash = SHA256.HashData(Encoding.UTF8.GetBytes(expected));
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return CryptographicOperations.FixedTimeEquals(providedHash, expectedHash);
     }
 }

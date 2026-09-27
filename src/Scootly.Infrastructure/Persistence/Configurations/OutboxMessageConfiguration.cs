@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Scootly.Infrastructure.Messaging.Outbox;
 
@@ -15,8 +15,15 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(m => m.EventType).IsRequired().HasMaxLength(200);
         builder.Property(m => m.Payload).IsRequired();
         builder.Property(m => m.CreatedAt).IsRequired();
+        builder.Property(m => m.Attempts).HasDefaultValue(0);
+        builder.Property(m => m.LastError).HasMaxLength(OutboxMessage.LastErrorMaxLength);
 
         builder.HasIndex(m => m.ProcessedAt)
             .HasDatabaseName("IX_OutboxMessages_ProcessedAt");
+
+        // Yayınlanmayı bekleyenlerin oluşturulma sırasıyla hızlı taranması için kısmi indeks.
+        builder.HasIndex(m => m.CreatedAt)
+            .HasDatabaseName("IX_OutboxMessages_Pending_CreatedAt")
+            .HasFilter("\"ProcessedAt\" IS NULL");
     }
 }

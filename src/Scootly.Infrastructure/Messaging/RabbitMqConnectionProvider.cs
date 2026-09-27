@@ -1,35 +1,53 @@
-﻿using RabbitMQ.Client;
+using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
 
 namespace Scootly.Infrastructure.Messaging;
 
+/// <summary>
+/// Süreç başına tek, otomatik kurtarmalı (automatic recovery) RabbitMQ bağlantısı.
+/// Bağlantı ağ kesintisinden sonra kendiliğinden yeniden kurulur; ilk bağlantı hatası çağırana iletilir.
+/// </summary>
 public sealed class RabbitMqConnectionProvider : IAsyncDisposable
 {
     private readonly ConnectionFactory _factory;
-    private IConnection? _connection;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private IConnection? _connection;
 
-    public RabbitMqConnectionProvider(string hostName, string userName, string password)
+    public RabbitMqConnectionProvider(IOptions<RabbitMqOptions> options)
     {
+        var settings = options.Value;
+
         _factory = new ConnectionFactory
         {
-            HostName = hostName,
-            UserName = userName,
-            Password = password
+            HostName = settings.HostName,
+            Port = settings.Port,
+            UserName = settings.UserName,
+            Password = settings.Password,
+            VirtualHost = settings.VirtualHost,
+            ClientProvidedName = AppDomain.CurrentDomain.FriendlyName,
+            AutomaticRecoveryEnabled = true,
+            TopologyRecoveryEnabled = true,
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
         };
     }
 
-    public async Task<IConnection> GetConnectionAsync()
+    public bool IsConnected => _connection is { IsOpen: true };
+
+    public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
-        if (_connection is not null && _connection.IsOpen)
+        if (_connection is { IsOpen: true })
             return _connection;
 
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (_connection is not null && _connection.IsOpen)
+            if (_connection is { IsOpen: true })
                 return _connection;
 
-            _connection = await _factory.CreateConnectionAsync();
+            if (_connection is not null)
+                await _connection.DisposeAsync();
+
+            _connection = await _factory.CreateConnectionAsync(cancellationToken);
             return _connection;
         }
         finally
@@ -42,5 +60,7 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable
     {
         if (_connection is not null)
             await _connection.DisposeAsync();
+
+        _lock.Dispose();
     }
 }

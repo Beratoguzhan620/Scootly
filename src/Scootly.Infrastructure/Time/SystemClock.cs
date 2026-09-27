@@ -1,4 +1,4 @@
-﻿using Scootly.Application.Abstractions;
+using Scootly.Application.Abstractions;
 
 namespace Scootly.Infrastructure.Time;
 
