@@ -39,3 +39,10 @@ başarısız oldu.
 **Genişletilmiş kural:** Bir BackgroundService'in try/catch koruması yalnızca
 döngü içindeki periyodik işi değil, ExecuteAsync'in TÜM gövdesini (bağlantı
 kurma dahil, döngü dışındaki hazırlık kodu dahil) kapsamalıdır.
+## Güncelleme (27.09.2026)
+
+- Periyodik işlerin iskeleti `PeriodicJob` taban sınıfında toplandı: her tur kendi DI scope'unda çalışır,
+  her kayıt (araç, sürüş) ayrı scope'ta işlenir; bir kaydın hatası diğerlerinin değişiklik izleyicisini kirletmez.
+- RabbitMQ tüketicileri artık açılışta broker'a ulaşamazsa kalıcı olarak devre dışı kalmıyor:
+  `RabbitMqConsumerService` artan beklemeyle (1 sn'den 60 sn'ye) yeniden bağlanmayı dener; bağlantı koptuğunda
+  istemci kütüphanesinin otomatik kurtarması, kanal düzeyindeki kapanmalarda ise kanalın yeniden kurulması devrededir.

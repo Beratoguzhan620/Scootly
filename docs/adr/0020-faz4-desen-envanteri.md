@@ -37,3 +37,15 @@ Mikroservisler bu ölçekte kesinlikle gereksizdir. Tek geliştirici, tek
 dağıtım birimi ve tek veritabanıyla mikroservise geçmek öğrenme hızını
 düşüren bir hatadır. Scootly, Faz 4 sonunda hâlâ bilinçli olarak bir
 modüler monolit.
+## Güncelleme (27.09.2026) — Sadeleştirme
+
+Teknik inceleme sonrasında aşağıdakiler kaldırıldı:
+
+- `IEventPublisher` / `RabbitMqEventPublisher`: hiçbir yerde kullanılmıyordu ve outbox'ı atlayan ikinci bir yayın yolu
+  sunuyordu. Tek yayın yolu artık outbox (domain olayı, outbox, `OutboxProcessor`).
+- `TransactionBehavior`, `PaymentAuthorizedIntegrationEvent`, `Reservation`, `DeviceId`, Worker şablon sınıfı.
+- `TelemetryStreamProducer`/`Consumer` üretim kodundan deney testinin yanına taşındı (ADR 0016).
+
+Eklenen desenler: yeniden deneme kuyruğu + DLQ (ADR 0013), publisher confirms ve `SKIP LOCKED` ile çoklu yayıncı
+güvenli outbox, domain olaylarının outbox'a aktarılması (ADR 0022), uzlaştırma işi (ADR 0015), kaynak tabanlı
+yetkilendirme ve istemci başına rate limiting (ADR 0021).

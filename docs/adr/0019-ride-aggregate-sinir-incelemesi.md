@@ -37,3 +37,10 @@ Aggregate sınırları statik değildir — bir alanın "doğru yerde" olup
 olmadığı, o alanın etrafında gerçek iş karmaşıklığı (kurallar, geçmiş,
 farklı durumlar) birikmeye başladığında yeniden değerlendirilmelidir.
 Erken ayırmak (henüz karmaşıklık yokken), gereksiz dolaylılık yaratır.
+## Güncelleme (27.09.2026)
+
+Ödeme bilgisi hâlâ `Ride` içinde, ancak yaşam döngüsünden ayrıldı: sürüşün durumu (`RideStatus`: Active /
+Completed / Abandoned) ile ödeme durumu (`PaymentStatus`: None / Pending / Paid / Failed) artık ayrı alanlar.
+Eski `RideStatus.PaymentPending` iki kavramı karıştırıyordu ("tamamlandı" bilgisi kayboluyordu). Ödeme geçişleri
+korumalı domain metotlarıyla yapılır (`RecordPaymentApproved`, `RecordPaymentDeclined`). Billing context'ine ayırma
+kararı (YAGNI) değişmedi; ayrıntılar ADR 0023'te.

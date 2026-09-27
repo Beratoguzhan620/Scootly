@@ -33,3 +33,9 @@ bir stream'e ihtiyaç duyulur" sorusuna, soyut bir okuma yerine kurup
 deneyerek cevap vermek içindi — örnek gerçek ihtiyaç senaryosu: birden
 fazla bağımsız ekibin (analitik, faturalama, arşivleme) aynı telemetri
 verisini kendi hızlarında, birbirinden habersiz işlemesi gerektiğinde.
+## Güncelleme (27.09.2026)
+
+Deneyin kodu (`TelemetryStreamProducer`/`Consumer`) ve `Confluent.Kafka` bağımlılığı üretim derlemesinden
+(`Scootly.Infrastructure`) çıkarılıp deney testinin yanına taşındı:
+`tests/Scootly.Concurrency.Tests/Experiments/Streaming`. Test yalnızca `SCOOTLY_REDPANDA_BOOTSTRAP` ortam değişkeni
+ayarlıysa çalışır; Redpanda container'ı `docker compose --profile experiments up -d redpanda` ile başlatılır.

@@ -35,3 +35,14 @@ TransactionBehavior sınıfı yazıldı ama otomatik bir pipeline'a bağlı değ
 gibi bir kütüphane kullanmadığımız için) — şu an yalnızca elle çağrılabilir bir
 gözlemleme/loglama katmanı. Gerçek bir pipeline ihtiyacı doğarsa (örnek: çok sayıda
 handler'da tekrar eden çapraz kesit kod biriktiğinde) ileride eklenebilir.
+## Güncelleme (27.09.2026)
+
+- `TransactionBehavior` kaldırıldı: adına rağmen transaction açmıyordu ve hiçbir yerde kullanılmıyordu.
+  Yerine yazma handler'larının ortak hata disiplinini taşıyan `OptimisticConcurrency` yardımcı sınıfı geldi:
+  eşzamanlılık çakışmasında değişiklikleri bırakıp taze veriyle en fazla 3 kez yeniden dener; domain kuralı ve
+  benzersizlik ihlallerini `Result`'a çevirir. Transaction sınırı hâlâ tek `SaveChangesAsync` çağrısıdır.
+- Domain olayları artık aynı `SaveChangesAsync` içinde outbox'a yazılıyor (bkz. ADR 0022); bu, "tek handler =
+  tek transaction" kuralını bozmadan olayların veriyle atomik kaydedilmesini sağlar.
+- Kuralın tek istisnası ödeme tahsilatıdır (`ChargeRideCommandHandler`): dış çağrı `SaveChangesAsync`'ten önce
+  yapılır. Bu, idempotency anahtarı sayesinde güvenlidir; kayıt başarısız olup işlem tekrarlanırsa sağlayıcı aynı
+  anahtarla ikinci kez tahsil etmez (bkz. ADR 0023).

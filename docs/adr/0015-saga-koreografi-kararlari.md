@@ -29,3 +29,16 @@ Bu projenin ölçeğinde (tek bir saga, iki adım), üç ayrı tüketiciye bölm
 gereksiz karmaşıklık ve yeni bir mesaj kaybı riski ekliyor. Gerçekten çok
 adımlı, bağımsız servislerin sorumlu olduğu bir saga'da (örnek: 5+ mikroservis)
 koreografi mantıklı olurdu — burada değil.
+## Düzeltme ve Güncelleme (27.09.2026)
+
+Bu ADR'deki "zaten idempotent ve hataya dayanıklı (retry+DLQ) bir tüketici" varsayımı ilk uygulamada doğru değildi
+(bkz. ADR 0013 düzeltmesi) ve ödeme adımı çift tahsilata açıktı: ödeme çağrısı idempotency kaydından önce yapılıyor,
+sağlayıcıya idempotency anahtarı gönderilmiyor ve POST isteği yeniden deneniyordu. Güncel durum:
+
+- Tahsilat `ChargeRideCommandHandler` ile Application katmanına taşındı ve doğası gereği idempotent:
+  ödeme durumu `Pending` değilse sağlayıcı çağrılmaz; her deneme sabit bir idempotency anahtarıyla gönderilir.
+- Tüketici `RideCompleted` ve `RideAbandoned` olaylarını dinler; sağlayıcıya ulaşılamazsa mesaj retry kuyruğuna gider.
+- **Uzlaştırma (reconciliation):** Worker'daki `PendingPaymentRetryService`, reddedilmiş ödemeleri geri çekilme
+  süresinden sonra yeniden dener ve olay mesajı herhangi bir nedenle kaybolmuş, hiç denenmemiş sürüşleri de yakalar.
+- Sağlayıcının imzalı webhook'u onaylar için yetkili ikinci kanaldır (bkz. ADR 0023).
+- Araç bildirimleri artık ödeme adımına bağlı değil; her durum değişikliği `VehicleStatusChanged` olayıyla iletilir.

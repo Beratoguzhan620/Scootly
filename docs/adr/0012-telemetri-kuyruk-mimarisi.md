@@ -27,3 +27,16 @@ bu yaklaşım yetersiz kalır.
 gerçek bir mesaj kuyruğu (kalıcı, process'ler arası, yeniden başlatmaya dayanıklı)
 alacak. Bugünkü Channel yaklaşımı, o zamana kadar geçerli bir "eğitim amaçlı basit
 model" olarak bırakılıyor.
+## Güncelleme (27.09.2026)
+
+Kuyruk hâlâ süreç içi bir `Channel`, ancak davranışı değişti:
+
+- **Sessiz veri kaybı yok:** `DropOldest` yerine geri basınç uygulanıyor. Parti ya tamamen kuyruğa alınır ya da hiç
+  alınmaz; kuyruk doluysa cihaza `503 + Retry-After` döner ve cihaz aynı partiyi tekrar gönderir.
+- **Toplu yazma:** Tüketici, 500 okuma veya 1 saniye (hangisi önce dolarsa) biriktirip tek transaction'da yazar
+  (daha önce her okuma için ayrı `SaveChanges` çağrılıyordu).
+- **Araç durumu güncellenir:** Aynı transaction'da aracın son bilinen konumu/bataryası güncellenir ve batarya eşiği
+  aşılırsa olay outbox'a yazılır (bkz. ADR 0024).
+
+Süreç yeniden başlatıldığında kuyrukta bekleyen okumaların kaybolabileceği sınırlaması geçerliliğini koruyor;
+kapanışta kuyrukta kalanlar mümkün olduğunca kaydedilir.
