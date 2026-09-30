@@ -72,3 +72,4 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **50/60. gün:** Redis, telemetri hattı ve arka plan servisleri sıralama gereği sonraya kalmıştı. — Tamamlandı.
 - **69-70. gün:** DLQ izleme mekanizması yok. — Açık.
 - **74. gün:** SignalR bildirimleri sabit `"default-region"` grubuna gidiyordu. — **Kapandı (27.09.2026).**
+- **81. gün:** `AddScootlyApplication()`, tüm handler'ları (Fleet, Riding, Payments, Telemetry) koşulsuz tek pakette kaydediyor — bu yüzden Mvc projesi, henüz ödeme akışını hiç kullanmasa bile `AddScootlyPaymentGateway()`'i çağırmak zorunda kaldı (`ChargeRideCommandHandler`'ın `IPaymentGateway` bağımlılığı `ValidateOnBuild` tarafından zorunlu kılınıyor). İleride `AddScootlyApplication()`, context bazlı ayrı metotlara (`AddFleetHandlers()`, `AddRidingHandlers()`, `AddPaymentHandlers()` gibi) bölünebilir, her sunum katmanı yalnızca gerçekten kullandığını kaydeder.
