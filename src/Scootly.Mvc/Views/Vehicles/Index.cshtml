@@ -1,0 +1,42 @@
+﻿@model Scootly.Mvc.ViewModels.VehicleListViewModel
+
+@{
+    ViewData["Title"] = "Araçlar";
+}
+
+<h1>Araçlar</h1>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Kısa Kimlik</th>
+            <th>Marka</th>
+            <th>Menzil (km)</th>
+            <th>Batarya</th>
+            <th>Durum</th>
+            <th>Konum</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var vehicle in Model.Items)
+        {
+            <tr>
+                <td><code>@vehicle.ShortId</code></td>
+                <td>@vehicle.Brand</td>
+                <td>@vehicle.RangeKm</td>
+                <td>%@vehicle.BatteryPercentage</td>
+                <td><vehicle-status status="@vehicle.Status"></vehicle-status></td>
+                <td>@vehicle.Latitude.ToString("F4"), @vehicle.Longitude.ToString("F4")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (Model.Items.Count == 0)
+{
+    <p class="text-muted">Henüz kayıtlı araç yok.</p>
+}
+
+<p class="text-muted">
+    Sayfa @Model.PageNumber / @Model.TotalPages (toplam @Model.TotalCount araç)
+</p>

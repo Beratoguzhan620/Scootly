@@ -1,0 +1,18 @@
+﻿@{
+    ViewData["Title"] = "Panel";
+}
+
+<h1>Hoş geldin, @User.Identity?.Name</h1>
+<p class="lead">Scootly filo yönetim paneline hoş geldiniz.</p>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Araçlar</h5>
+                <p class="card-text">Filodaki tüm araçları görüntüle ve yönet.</p>
+                <a asp-controller="Vehicles" asp-action="Index" class="btn btn-primary">Araçlara Git</a>
+            </div>
+        </div>
+    </div>
+</div>
