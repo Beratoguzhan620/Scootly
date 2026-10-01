@@ -2,7 +2,6 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 using Scootly.Api.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
@@ -12,7 +11,6 @@ using Scootly.Api.Validators;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Fleet.Commands;
 using Scootly.Application.Riding.Commands;
-using Scootly.Domain.Fleet;
 using Scootly.Infrastructure.Caching;
 
 namespace Scootly.Api.Controllers;
@@ -24,17 +22,20 @@ namespace Scootly.Api.Controllers;
 public sealed class VehiclesController : ControllerBase
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly IVehicleReadService _readService;
     private readonly ICurrentUser _currentUser;
     private readonly NearbyVehicleCache _cache;
     private readonly VehicleQueryValidator _queryValidator;
 
     public VehiclesController(
         IApplicationDbContext dbContext,
+        IVehicleReadService readService,
         ICurrentUser currentUser,
         NearbyVehicleCache cache,
         VehicleQueryValidator queryValidator)
     {
         _dbContext = dbContext;
+        _readService = readService;
         _currentUser = currentUser;
         _cache = cache;
         _queryValidator = queryValidator;
@@ -89,17 +90,14 @@ public sealed class VehiclesController : ControllerBase
         if (!validation.IsValid)
             return this.BadRequestProblem(validation.Error!);
 
-        var query = _dbContext.Vehicles
-            .AsNoTracking()
-            .OrderBy(v => v.Id)
-            .Select(v => new VehicleResponseV2(
-                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
-                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm));
+        var filter = new VehicleFilter(null, null, null, null, false, pageNumber, pageSize);
+        var page = await _readService.GetVehiclesAsync(filter, cancellationToken);
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+        var items = page.Items
+            .Select(v => new VehicleResponseV2(v.Id, v.Latitude, v.Longitude, v.BatteryPercentage, v.Status, v.Brand, v.RangeKm))
+            .ToList();
 
-        return Ok(new PagedResult<VehicleResponseV2>(items, pageNumber, pageSize, totalCount));
+        return Ok(new PagedResult<VehicleResponseV2>(items, page.PageNumber, page.PageSize, page.TotalCount));
     }
 
     [HttpGet("{id:guid}")]
@@ -111,15 +109,12 @@ public sealed class VehiclesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var vehicle = await _dbContext.Vehicles
-            .AsNoTracking()
-            .Where(v => v.Id == id)
-            .Select(v => new VehicleResponseV2(
-                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
-                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm))
-            .FirstOrDefaultAsync(cancellationToken);
+        var vehicle = await _readService.GetByIdAsync(id, cancellationToken);
 
-        return vehicle is null ? NotFound() : Ok(vehicle);
+        if (vehicle is null)
+            return NotFound();
+
+        return Ok(new VehicleResponseV2(vehicle.Id, vehicle.Latitude, vehicle.Longitude, vehicle.BatteryPercentage, vehicle.Status, vehicle.Brand, vehicle.RangeKm));
     }
 
     [HttpPost]
@@ -248,25 +243,16 @@ public sealed class VehiclesController : ControllerBase
 
     private async Task<PagedResult<VehicleResponse>> RunQueryAsync(VehicleQuery filter, CancellationToken cancellationToken)
     {
-        var baseQuery = _dbContext.Vehicles.AsNoTracking();
+        var readFilter = new VehicleFilter(
+            filter.MinLatitude, filter.MaxLatitude, filter.MinLongitude, filter.MaxLongitude,
+            filter.OnlyAvailable, filter.PageNumber, filter.PageSize);
 
-        if (filter.MinLatitude is { } minLatitude) baseQuery = baseQuery.Where(v => v.Location.Latitude >= minLatitude);
-        if (filter.MaxLatitude is { } maxLatitude) baseQuery = baseQuery.Where(v => v.Location.Latitude <= maxLatitude);
-        if (filter.MinLongitude is { } minLongitude) baseQuery = baseQuery.Where(v => v.Location.Longitude >= minLongitude);
-        if (filter.MaxLongitude is { } maxLongitude) baseQuery = baseQuery.Where(v => v.Location.Longitude <= maxLongitude);
-        if (filter.OnlyAvailable) baseQuery = baseQuery.Where(v => v.Status == VehicleStatus.Available);
+        var page = await _readService.GetVehiclesAsync(readFilter, cancellationToken);
 
-        var query = baseQuery
-            .OrderBy(v => v.Id)
-            .Select(v => new VehicleResponse(
-                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage, v.Status.ToString()));
+        var items = page.Items
+            .Select(v => new VehicleResponse(v.Id, v.Latitude, v.Longitude, v.BatteryPercentage, v.Status))
+            .ToList();
 
-        var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .ToListAsync(cancellationToken);
-
-        return new PagedResult<VehicleResponse>(items, filter.PageNumber, filter.PageSize, totalCount);
+        return new PagedResult<VehicleResponse>(items, page.PageNumber, page.PageSize, page.TotalCount);
     }
 }
