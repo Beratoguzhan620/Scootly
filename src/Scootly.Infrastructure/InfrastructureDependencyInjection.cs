@@ -61,6 +61,7 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IRideRepository, RideRepository>();
         services.AddScoped<ITelemetryRepository, TelemetryRepository>();
         services.AddScoped<IServiceAreaRepository, ServiceAreaRepository>();
+        services.AddScoped<IFieldTaskRepository, FieldTaskRepository>();
         services.AddScoped<IVehicleReadService, VehicleReadService>();
 
         services.AddSingleton<IClock, SystemClock>();

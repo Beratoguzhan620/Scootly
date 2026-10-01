@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Scootly.Application.FieldOps.Commands;
 using Scootly.Application.Fleet.Commands;
 using Scootly.Application.Payments.Commands;
 using Scootly.Application.Riding.Commands;
@@ -14,6 +15,7 @@ public static class ApplicationDependencyInjection
         services.AddScoped<VehicleMaintenanceCommandHandler>();
         services.AddScoped<UpdateVehicleDetailsCommandHandler>();
         services.AddScoped<CreateServiceAreaCommandHandler>();
+        services.AddScoped<FieldTaskCommandHandler>();
 
         services.AddScoped<ReserveVehicleCommandHandler>();
         services.AddScoped<CancelReservationCommandHandler>();

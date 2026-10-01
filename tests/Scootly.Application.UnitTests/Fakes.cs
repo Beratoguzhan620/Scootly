@@ -1,5 +1,6 @@
 using Scootly.Application.Abstractions;
 using Scootly.Application.Abstractions.Exceptions;
+using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
@@ -139,6 +140,32 @@ public sealed class InMemoryTelemetryRepository : ITelemetryRepository
     public List<TelemetryReading> Readings { get; } = new();
 
     public void AddRange(IEnumerable<TelemetryReading> readings) => Readings.AddRange(readings);
+}
+
+public sealed class InMemoryFieldTaskRepository : IFieldTaskRepository
+{
+    private readonly Dictionary<Guid, FieldTask> _tasks = new();
+
+    public List<FieldTask> Added { get; } = new();
+
+    public FieldTask Store(FieldTask fieldTask)
+    {
+        _tasks[fieldTask.Id] = fieldTask;
+        return fieldTask;
+    }
+
+    public Task<FieldTask?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        => Task.FromResult(_tasks.GetValueOrDefault(id));
+
+    public Task<bool> HasOpenTaskAsync(Guid vehicleId, FieldTaskType type, CancellationToken cancellationToken = default)
+        => Task.FromResult(_tasks.Values.Any(t => t.VehicleId == vehicleId && t.Type == type && t.Status != FieldTaskStatus.Completed)
+            || Added.Any(t => t.VehicleId == vehicleId && t.Type == type && t.Status != FieldTaskStatus.Completed));
+
+    public Task AddAsync(FieldTask fieldTask, CancellationToken cancellationToken = default)
+    {
+        Added.Add(fieldTask);
+        return Task.CompletedTask;
+    }
 }
 
 public sealed class StubPaymentGateway : IPaymentGateway

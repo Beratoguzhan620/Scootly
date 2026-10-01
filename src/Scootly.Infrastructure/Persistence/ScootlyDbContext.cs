@@ -4,6 +4,7 @@ using Npgsql;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Abstractions.Exceptions;
 using Scootly.Domain.Common;
+using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
@@ -25,6 +26,7 @@ public sealed class ScootlyDbContext
     public DbSet<ServiceArea> ServiceAreas => Set<ServiceArea>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<ProcessedMessage> ProcessedMessages => Set<ProcessedMessage>();
+    public DbSet<FieldTask> FieldTasks => Set<FieldTask>();
 
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;
