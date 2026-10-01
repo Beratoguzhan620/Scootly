@@ -1,9 +1,8 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
-using Scootly.Infrastructure.Identity;
 
-namespace Scootly.Mvc.Identity;
+namespace Scootly.Infrastructure.Identity;
 
 public sealed class ScootlyUserClaimsPrincipalFactory
     : UserClaimsPrincipalFactory<ApplicationUser, ApplicationRole>

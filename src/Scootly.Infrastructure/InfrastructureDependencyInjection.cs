@@ -72,13 +72,10 @@ public static class InfrastructureDependencyInjection
     public static bool IsMessagingEnabled(IConfiguration configuration)
         => configuration.GetValue($"{MessagingOptions.SectionName}:{nameof(MessagingOptions.Enabled)}", defaultValue: true);
 
-    /// <summary>ASP.NET Core Identity (çerez şemaları olmadan) ve token servisleri.</summary>
-    public static IServiceCollection AddScootlyIdentity(this IServiceCollection services)
+    /// <summary>Identity çekirdeği: kullanıcı/rol yönetimi, cookie-uyumlu claims factory, ICurrentUser.
+    /// JWT ve cihaz token servislerini İÇERMEZ — onlar için AddScootlyJwtTokens / AddScootlyDeviceAuth kullanılır.</summary>
+    public static IServiceCollection AddScootlyIdentityCore(this IServiceCollection services)
     {
-        services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
-        services.AddOptions<DeviceAuthOptions>().BindConfiguration(DeviceAuthOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
-        services.AddOptions<BootstrapOptions>().BindConfiguration(BootstrapOptions.SectionName);
-
         services
             .AddIdentityCore<ApplicationUser>(options =>
             {
@@ -96,11 +93,31 @@ public static class InfrastructureDependencyInjection
             })
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<ScootlyDbContext>()
+            .AddClaimsPrincipalFactory<ScootlyUserClaimsPrincipalFactory>()
+            .AddDefaultTokenProviders()
             .AddSignInManager();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUserAccessor>();
+
+        return services;
+    }
+
+    /// <summary>JWT token üretimi (yalnızca JWT çıkaran süreçlerde çağrılır, ör. Api).</summary>
+    public static IServiceCollection AddScootlyJwtTokens(this IServiceCollection services)
+    {
+        services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
         services.AddScoped<JwtTokenGenerator>();
+
+        return services;
+    }
+
+    /// <summary>Cihaz token üretimi ve açılış tohumlama (yalnızca Api).</summary>
+    public static IServiceCollection AddScootlyDeviceAuth(this IServiceCollection services)
+    {
+        services.AddOptions<DeviceAuthOptions>().BindConfiguration(DeviceAuthOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<BootstrapOptions>().BindConfiguration(BootstrapOptions.SectionName);
+
         services.AddScoped<DeviceTokenService>();
         services.AddHostedService<IdentityBootstrapper>();
 

@@ -10,4 +10,8 @@
 		<ProjectReference Include="..\Scootly.Infrastructure\Scootly.Infrastructure.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Identity\" />
+	</ItemGroup>
+
 </Project>

@@ -68,7 +68,9 @@ builder.Services.AddScootlySwagger();
 
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
-builder.Services.AddScootlyIdentity();
+builder.Services.AddScootlyIdentityCore();
+builder.Services.AddScootlyJwtTokens();
+builder.Services.AddScootlyDeviceAuth();
 builder.Services.AddScootlyPaymentGateway();
 builder.Services.AddScootlyPaymentWebhooks();
 builder.Services.AddScootlyAuthentication();
