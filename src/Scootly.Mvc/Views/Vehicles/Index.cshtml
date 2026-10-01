@@ -41,6 +41,5 @@
     <p class="text-muted">Henüz kayıtlı araç yok.</p>
 }
 
-<p class="text-muted">
-    Sayfa @Model.PageNumber / @Model.TotalPages (toplam @Model.TotalCount araç)
-</p>
+<p class="text-muted">Toplam @Model.TotalCount araç</p>
+<partial name="_Pagination" model='Model.ToPagination("Index")' />

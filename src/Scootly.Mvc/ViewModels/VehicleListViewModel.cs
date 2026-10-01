@@ -18,4 +18,12 @@ public sealed class VehicleListViewModel
     public required int TotalCount { get; init; }
 
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+
+    public PagedResultViewModel ToPagination(string actionName) => new()
+    {
+        PageNumber = PageNumber,
+        PageSize = PageSize,
+        TotalCount = TotalCount,
+        ActionName = actionName
+    };
 }

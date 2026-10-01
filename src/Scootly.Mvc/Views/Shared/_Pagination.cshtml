@@ -1,0 +1,18 @@
+﻿@model Scootly.Mvc.ViewModels.PagedResultViewModel
+
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="Sayfalama">
+        <ul class="pagination">
+            <li class="page-item @(Model.HasPrevious ? "" : "disabled")">
+                <a class="page-link" asp-action="@Model.ActionName" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-pageSize="@Model.PageSize">Önceki</a>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">Sayfa @Model.PageNumber / @Model.TotalPages</span>
+            </li>
+            <li class="page-item @(Model.HasNext ? "" : "disabled")">
+                <a class="page-link" asp-action="@Model.ActionName" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-pageSize="@Model.PageSize">Sonraki</a>
+            </li>
+        </ul>
+    </nav>
+}
