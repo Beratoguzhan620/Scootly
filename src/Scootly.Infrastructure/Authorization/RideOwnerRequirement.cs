@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 
-namespace Scootly.Api.Authorization;
+namespace Scootly.Infrastructure.Authorization;
 
 public sealed class RideOwnerRequirement : IAuthorizationRequirement
 {

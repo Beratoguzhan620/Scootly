@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Scootly.Api.Authorization;
+using Scootly.Infrastructure.Authorization;
 using Scootly.Api.ErrorHandling;
 using Scootly.Api.Extensions;
 using Scootly.Infrastructure.Identity;

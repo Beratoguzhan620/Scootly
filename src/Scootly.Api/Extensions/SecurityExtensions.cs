@@ -1,9 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Scootly.Api.Authorization;
 using Scootly.Infrastructure.Identity;
 
 namespace Scootly.Api.Extensions;
@@ -50,31 +48,6 @@ public static class SecurityExtensions
                     }
                 };
             });
-
-        return services;
-    }
-
-    public static IServiceCollection AddScootlyAuthorization(this IServiceCollection services)
-    {
-        services.AddAuthorizationBuilder()
-            // Varsayılan olarak güvenli: [AllowAnonymous] olmayan her uç kimlik doğrulaması ister.
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-            .AddPolicy(PolicyNames.DriverOnly, policy => policy
-                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
-                .RequireRole(ScootlyRoles.Driver))
-            .AddPolicy(PolicyNames.FleetManagerOnly, policy => policy
-                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
-                .RequireRole(ScootlyRoles.FleetManager))
-            .AddPolicy(PolicyNames.FleetOperations, policy => policy
-                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
-                .RequireRole(ScootlyRoles.FleetManager, ScootlyRoles.FieldOperator))
-            .AddPolicy(PolicyNames.DeviceOnly, policy => policy
-                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.DeviceClient)
-                .RequireRole(ScootlyRoles.Device))
-            .AddPolicy(PolicyNames.RideOwner, policy => policy
-                .AddRequirements(new RideOwnerRequirement()));
-
-        services.AddSingleton<IAuthorizationHandler, RideOwnerHandler>();
 
         return services;
     }

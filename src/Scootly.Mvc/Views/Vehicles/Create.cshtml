@@ -1,0 +1,52 @@
+﻿@model Scootly.Mvc.ViewModels.VehicleCreateViewModel
+
+@{
+    ViewData["Title"] = "Yeni Araç";
+}
+
+<h1>Yeni Araç Kaydet</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Create" method="post">
+            <div asp-validation-summary="All" class="text-danger"></div>
+
+            <div class="mb-3">
+                <label asp-for="Brand" class="form-label"></label>
+                <input asp-for="Brand" class="form-control" />
+                <span asp-validation-for="Brand" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="RangeKm" class="form-label"></label>
+                <input asp-for="RangeKm" class="form-control" />
+                <span asp-validation-for="RangeKm" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Latitude" class="form-label"></label>
+                <input asp-for="Latitude" class="form-control" />
+                <span asp-validation-for="Latitude" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Longitude" class="form-label"></label>
+                <input asp-for="Longitude" class="form-control" />
+                <span asp-validation-for="Longitude" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="BatteryPercentage" class="form-label"></label>
+                <input asp-for="BatteryPercentage" class="form-control" />
+                <span asp-validation-for="BatteryPercentage" class="text-danger"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Kaydet</button>
+            <a asp-action="Index" class="btn btn-secondary">İptal</a>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -2,7 +2,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Scootly.Api.Authorization;
+using Scootly.Infrastructure.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
 using Scootly.Api.ErrorHandling;

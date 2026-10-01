@@ -1,8 +1,8 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Scootly.Domain.Riding;
 
-namespace Scootly.Api.Authorization;
+namespace Scootly.Infrastructure.Authorization;
 
 /// <summary>
 /// Kaynak tabanlı yetkilendirme: sürüş önce yüklenir, sonra bu handler'a kaynak olarak verilir

@@ -1,4 +1,4 @@
-namespace Scootly.Api.Authorization;
+﻿namespace Scootly.Infrastructure.Authorization;
 
 public static class PolicyNames
 {

@@ -26,6 +26,8 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.SlidingExpiration = true;
 });
 
+builder.Services.AddScootlyAuthorization();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Scootly.Application.Abstractions;
+using Scootly.Infrastructure.Authorization;
 using Scootly.Infrastructure.Caching;
 using Scootly.Infrastructure.Geo;
 using Scootly.Infrastructure.HealthChecks;
@@ -122,6 +124,32 @@ public static class InfrastructureDependencyInjection
 
         services.AddScoped<DeviceTokenService>();
         services.AddHostedService<IdentityBootstrapper>();
+
+        return services;
+    }
+
+    /// <summary>Rol/claim tabanlı politikalar ve kaynak tabanlı RideOwner yetkilendirmesi (Api ve Mvc ortak).</summary>
+    public static IServiceCollection AddScootlyAuthorization(this IServiceCollection services)
+    {
+        services.AddAuthorizationBuilder()
+            // Varsayılan olarak güvenli: [AllowAnonymous] olmayan her uç kimlik doğrulaması ister.
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(PolicyNames.DriverOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+                .RequireRole(ScootlyRoles.Driver))
+            .AddPolicy(PolicyNames.FleetManagerOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+                .RequireRole(ScootlyRoles.FleetManager))
+            .AddPolicy(PolicyNames.FleetOperations, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+                .RequireRole(ScootlyRoles.FleetManager, ScootlyRoles.FieldOperator))
+            .AddPolicy(PolicyNames.DeviceOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.DeviceClient)
+                .RequireRole(ScootlyRoles.Device))
+            .AddPolicy(PolicyNames.RideOwner, policy => policy
+                .AddRequirements(new RideOwnerRequirement()));
+
+        services.AddSingleton<IAuthorizationHandler, RideOwnerHandler>();
 
         return services;
     }
