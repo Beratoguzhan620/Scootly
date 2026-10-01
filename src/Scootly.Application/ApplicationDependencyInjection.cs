@@ -12,6 +12,7 @@ public static class ApplicationDependencyInjection
     {
         services.AddScoped<RegisterVehicleCommandHandler>();
         services.AddScoped<VehicleMaintenanceCommandHandler>();
+        services.AddScoped<UpdateVehicleDetailsCommandHandler>();
         services.AddScoped<CreateServiceAreaCommandHandler>();
 
         services.AddScoped<ReserveVehicleCommandHandler>();

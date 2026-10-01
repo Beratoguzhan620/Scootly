@@ -14,7 +14,7 @@ namespace Scootly.Domain.Fleet;
 /// </summary>
 public sealed class Vehicle : AggregateRoot
 {
-    public VehicleModel Model { get; }
+    public VehicleModel Model { get; private set; }
     public VehicleStatus Status { get; private set; }
     public BatteryLevel Battery { get; private set; }
     public GeoPoint Location { get; private set; }
@@ -121,6 +121,15 @@ public sealed class Vehicle : AggregateRoot
             throw new DomainException("Yalnızca bakımdaki veya kayıp bir araç hizmete döndürülebilir.");
 
         ChangeStatus(VehicleStatus.Available, now);
+    }
+
+    /// <summary>Marka/menzil bilgisini günceller. Sürüşteki bir araç düzenlenemez.</summary>
+    public void UpdateModel(VehicleModel model, DateTime now)
+    {
+        if (Status == VehicleStatus.InRide)
+            throw new DomainException("Sürüşteki bir araç düzenlenemez.");
+
+        Model = model;
     }
 
     /// <summary>
