@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Scootly.Application;
 using Scootly.Infrastructure;
 using Scootly.Infrastructure.Logging;
+using Scootly.Infrastructure.Observability;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +28,7 @@ builder.Services.AddControllersWithViews();
 
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
+builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Mvc");
 builder.Services.AddScootlyPaymentGateway();
 builder.Services.AddScootlyJwtTokens();
 

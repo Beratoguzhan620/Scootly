@@ -5,6 +5,7 @@ using Scootly.Api.ErrorHandling;
 using Scootly.Api.Extensions;
 using Scootly.Api.Hubs;
 using Scootly.Infrastructure.Logging;
+using Scootly.Infrastructure.Observability;
 using Scootly.Api.Services;
 using Scootly.Api.Validators;
 using Scootly.Application;
@@ -74,6 +75,7 @@ builder.Services.AddScootlySwagger();
 
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
+builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Api");
 builder.Services.AddScootlyIdentityCore();
 builder.Services.AddScootlyJwtTokens();
 builder.Services.AddScootlyDeviceAuth();

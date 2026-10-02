@@ -2,7 +2,7 @@
 #   Yalnızca altyapı:            docker compose up -d
 #   Uygulama servisleri dahil:   docker compose --profile app up -d --build
 #   Redpanda stream deneyi:      docker compose --profile experiments up -d redpanda
-#   Gözlemlenebilirlik (Seq):    docker compose --profile observability up -d seq
+#   Gözlemlenebilirlik:          docker compose --profile observability up -d
 #
 # Tüm parolalar ve anahtarlar bu klasördeki .env dosyasından okunur (.env.example'a bakın; .env git'e girmez).
 # Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
@@ -87,6 +87,28 @@ services:
       ACCEPT_EULA: "Y"
     ports:
       - "127.0.0.1:5341:80"
+
+  jaeger:
+    profiles: ["observability"]
+    image: jaegertracing/all-in-one:1.65.0
+    container_name: scootly-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"
+
+  otel-collector:
+    profiles: ["observability"]
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: scootly-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    depends_on:
+      - jaeger
 
   # --- Uygulama servisleri (profil: app) ---
 

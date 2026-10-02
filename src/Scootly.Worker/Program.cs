@@ -1,6 +1,7 @@
 using Scootly.Application;
 using Scootly.Infrastructure;
 using Scootly.Infrastructure.Logging;
+using Scootly.Infrastructure.Observability;
 using Scootly.Worker;
 using Scootly.Worker.Jobs;
 using Serilog;
@@ -24,6 +25,7 @@ builder.Services.AddSerilog();
 
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
+builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Worker");
 builder.Services.AddScootlyPaymentGateway();
 
 builder.Services.AddOptions<WorkerOptions>()
