@@ -1,4 +1,7 @@
 ﻿(function () {
+        const mapElement = document.getElementById('map');
+    window.scootlyApiBase = mapElement.dataset.apiBase;
+    window.scootlyHubToken = mapElement.dataset.hubToken;
     const map = L.map('map').setView([41.0, 29.0], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
