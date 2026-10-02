@@ -12,6 +12,12 @@
                 </li>
                 <li class="nav-item" active-controller="Vehicles">
                     <a class="nav-link" asp-controller="Vehicles" asp-action="Index">Araçlar</a>
+                    <li class="nav-item" active-controller="FieldTasks">
+                        <a class="nav-link" asp-controller="FieldTasks" asp-action="Index">Görevler</a>
+                    </li>
+                    <li class="nav-item d-flex align-items-center ms-2">
+                        <vc:open-tasks-badge></vc:open-tasks-badge>
+                    </li>
                 </li>
             </ul>
             <ul class="navbar-nav">

@@ -48,4 +48,16 @@ public sealed class VehicleReadService : IVehicleReadService
                 v.Status.ToString(), v.Model.Brand, v.Model.RangeKm))
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<VehicleSummary>> GetLowBatteryVehiclesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Vehicles
+            .AsNoTracking()
+            .Where(v => v.Battery.Percentage < BatteryLevel.LowThresholdPercentage)
+            .OrderBy(v => v.Battery.Percentage)
+            .Select(v => new VehicleSummary(
+                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
+                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm))
+            .ToListAsync(cancellationToken);
+    }
 }

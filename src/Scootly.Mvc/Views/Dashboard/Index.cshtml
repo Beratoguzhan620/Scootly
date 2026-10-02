@@ -5,7 +5,7 @@
 <h1>Hoş geldin, @User.Identity?.Name</h1>
 <p class="lead">Scootly filo yönetim paneline hoş geldiniz.</p>
 
-<div class="row mt-4">
+<div class="row mt-4 g-3">
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
@@ -14,5 +14,11 @@
                 <a asp-controller="Vehicles" asp-action="Index" class="btn btn-primary">Araçlara Git</a>
             </div>
         </div>
+    </div>
+    <div class="col-md-4">
+        <vc:active-rides></vc:active-rides>
+    </div>
+    <div class="col-md-4">
+        <vc:low-battery-vehicles></vc:low-battery-vehicles>
     </div>
 </div>

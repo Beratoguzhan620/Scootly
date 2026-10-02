@@ -25,4 +25,5 @@ public interface IVehicleReadService
     Task<PagedList<VehicleSummary>> GetVehiclesAsync(VehicleFilter filter, CancellationToken cancellationToken = default);
 
     Task<VehicleSummary?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<VehicleSummary>> GetLowBatteryVehiclesAsync(CancellationToken cancellationToken = default);
 }
