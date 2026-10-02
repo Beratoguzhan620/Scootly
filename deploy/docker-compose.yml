@@ -2,6 +2,7 @@
 #   Yalnızca altyapı:            docker compose up -d
 #   Uygulama servisleri dahil:   docker compose --profile app up -d --build
 #   Redpanda stream deneyi:      docker compose --profile experiments up -d redpanda
+#   Gözlemlenebilirlik (Seq):    docker compose --profile observability up -d seq
 #
 # Tüm parolalar ve anahtarlar bu klasördeki .env dosyasından okunur (.env.example'a bakın; .env git'e girmez).
 # Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
@@ -77,6 +78,15 @@ services:
       - --advertise-kafka-addr=PLAINTEXT://localhost:9092
     ports:
       - "127.0.0.1:9092:9092"
+
+  seq:
+    profiles: ["observability"]
+    image: datalust/seq:2025.1
+    container_name: scootly-seq
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "127.0.0.1:5341:80"
 
   # --- Uygulama servisleri (profil: app) ---
 

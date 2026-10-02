@@ -3,8 +3,25 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Scootly.Application;
 using Scootly.Infrastructure;
+using Scootly.Infrastructure.Logging;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Service", "Scootly.Mvc")
+        .Destructure.With<SensitiveDataDestructuringPolicy>()
+        .WriteTo.Console();
+
+    var seqUrl = context.Configuration["Seq:ServerUrl"];
+
+    if (!string.IsNullOrWhiteSpace(seqUrl))
+        configuration.WriteTo.Seq(seqUrl);
+});
 
 builder.Services.AddControllersWithViews();
 
@@ -89,6 +106,9 @@ app.Use(async (context, next) =>
 app.UseStaticFiles();
 
 app.UseRouting();
+
+app.UseScootlyCorrelationId();
+app.UseSerilogRequestLogging();
 
 app.UseSession();
 

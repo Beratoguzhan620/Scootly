@@ -1,9 +1,26 @@
 using Scootly.Application;
 using Scootly.Infrastructure;
+using Scootly.Infrastructure.Logging;
 using Scootly.Worker;
 using Scootly.Worker.Jobs;
+using Serilog;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+var loggerConfiguration = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Service", "Scootly.Worker")
+    .Destructure.With<SensitiveDataDestructuringPolicy>()
+    .WriteTo.Console();
+
+var seqUrl = builder.Configuration["Seq:ServerUrl"];
+
+if (!string.IsNullOrWhiteSpace(seqUrl))
+    loggerConfiguration.WriteTo.Seq(seqUrl);
+
+Log.Logger = loggerConfiguration.CreateLogger();
+builder.Services.AddSerilog();
 
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);

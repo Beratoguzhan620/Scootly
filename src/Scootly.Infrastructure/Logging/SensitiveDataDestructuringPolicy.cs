@@ -1,15 +1,15 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Reflection;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace Scootly.Api.Logging;
+namespace Scootly.Infrastructure.Logging;
 
 /// <summary>
-/// Yapılandırılmış loglamada (<c>{@Nesne}</c>) nesnelerin hassas özelliklerini maskeler.
-/// Karar tipin adına göre değil, <b>özellik adlarına</b> göre verilir: örn. <c>LoginRequest.Password</c> maskelenir,
-/// <c>LoginRequest.Email</c> olduğu gibi yazılır.
+/// Yapılandırılmış loglamada ({@Nesne}) nesnelerin hassas özelliklerini maskeler.
+/// Karar tipin adına göre değil, özellik adlarına göre verilir: örn. LoginRequest.Password maskelenir,
+/// LoginRequest.Email olduğu gibi yazılır.
 /// </summary>
 public sealed class SensitiveDataDestructuringPolicy : IDestructuringPolicy
 {
