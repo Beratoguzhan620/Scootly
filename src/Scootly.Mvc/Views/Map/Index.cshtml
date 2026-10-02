@@ -1,0 +1,18 @@
+﻿@inject IConfiguration Configuration
+@{
+    ViewData["Title"] = "Harita";
+}
+
+<link rel="stylesheet" href="~/lib/leaflet/leaflet.css" />
+
+<h1>Araç Haritası</h1>
+
+<div id="map" style="height: 600px;"></div>
+
+@section Scripts {
+    <script src="~/lib/leaflet/leaflet.js"></script>
+    <script>
+        window.scootlyApiBase = "@Configuration["ApiBaseUrl"]";
+    </script>
+    <script src="~/js/map.js" asp-append-version="true"></script>
+}
