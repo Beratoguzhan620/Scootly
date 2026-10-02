@@ -52,6 +52,15 @@
         }
     }
 
+    // SignalR'dan gelen anlık durum değişikliklerini uygula (konum bilinmiyorsa yalnızca renk güncellenir).
+    window.scootlyUpdateVehicleStatus = function (vehicleId, status) {
+        const marker = markers[vehicleId];
+
+        if (marker) {
+            marker.setIcon(colorIcon(status));
+        }
+    };
+
     loadVehicles();
     setInterval(loadVehicles, 30000);
 })();

@@ -18,7 +18,7 @@ public sealed class JwtTokenGenerator
         _clock = clock;
     }
 
-    public string GenerateUserToken(ApplicationUser user, IEnumerable<string> roles)
+    public string GenerateUserToken(ApplicationUser user, IEnumerable<string> roles, TimeSpan? lifetime = null)
     {
         var claims = new List<Claim>
         {
@@ -34,7 +34,7 @@ public sealed class JwtTokenGenerator
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        return WriteToken(claims, TimeSpan.FromMinutes(_options.ExpiryMinutes));
+        return WriteToken(claims, lifetime ?? TimeSpan.FromMinutes(_options.ExpiryMinutes));
     }
 
     public string GenerateDeviceToken(string clientId, TimeSpan lifetime)

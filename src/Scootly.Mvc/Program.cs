@@ -10,6 +10,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
 builder.Services.AddScootlyPaymentGateway();
+builder.Services.AddScootlyJwtTokens();
 
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
@@ -57,8 +58,6 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
-
-app.UseStatusCodePagesWithReExecute("/Home/Error", "?statusCode={0}");
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

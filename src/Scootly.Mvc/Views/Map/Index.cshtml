@@ -5,14 +5,17 @@
 
 <link rel="stylesheet" href="~/lib/leaflet/leaflet.css" />
 
-<h1>Araç Haritası</h1>
+<h1>Araç Haritası <span id="connection-status" class="badge bg-secondary">Bağlanıyor...</span></h1>
 
 <div id="map" style="height: 600px;"></div>
 
 @section Scripts {
     <script src="~/lib/leaflet/leaflet.js"></script>
+    <script src="~/lib/signalr/signalr.min.js"></script>
     <script>
         window.scootlyApiBase = "@Configuration["ApiBaseUrl"]";
+        window.scootlyHubToken = "@ViewBag.HubToken";
     </script>
     <script src="~/js/map.js" asp-append-version="true"></script>
+    <script src="~/js/live-connection.js" asp-append-version="true"></script>
 }
