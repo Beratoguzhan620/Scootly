@@ -12,13 +12,22 @@
                 </li>
                 <li class="nav-item" active-controller="Vehicles">
                     <a class="nav-link" asp-controller="Vehicles" asp-action="Index">Araçlar</a>
+                </li>
+                @if (User.IsInRole("FieldOperator") || User.IsInRole("FleetManager"))
+                {
                     <li class="nav-item" active-controller="FieldTasks">
                         <a class="nav-link" asp-controller="FieldTasks" asp-action="Index">Görevler</a>
                     </li>
                     <li class="nav-item d-flex align-items-center ms-2">
                         <vc:open-tasks-badge></vc:open-tasks-badge>
                     </li>
-                </li>
+                }
+                @if (User.IsInRole("Driver"))
+                {
+                    <li class="nav-item" active-controller="Rides">
+                        <a class="nav-link" asp-controller="Rides" asp-action="Index">Sürüşlerim</a>
+                    </li>
+                }
             </ul>
             <ul class="navbar-nav">
                 @if (User.Identity?.IsAuthenticated == true)
