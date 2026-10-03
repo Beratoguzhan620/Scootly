@@ -15,6 +15,7 @@ using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Messaging;
 using Scootly.Infrastructure.Messaging.Idempotency;
 using Scootly.Infrastructure.Messaging.Outbox;
+using Scootly.Infrastructure.Observability;
 using Scootly.Infrastructure.Payments;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Persistence.Queries;
@@ -236,5 +237,6 @@ public static class InfrastructureDependencyInjection
 
         rabbitMqOptions.ValidateOnStart();
         services.AddHostedService<OutboxPublisherService>();
+        services.AddHostedService<OutboxMetricsCollector>();
     }
 }

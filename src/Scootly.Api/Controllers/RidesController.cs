@@ -12,6 +12,7 @@ using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Riding;
 using Scootly.Infrastructure.Caching;
+using Scootly.Infrastructure.Observability;
 
 namespace Scootly.Api.Controllers;
 
@@ -98,6 +99,8 @@ public sealed class RidesController : ControllerBase
 
         await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
 
+        ScootlyMetrics.RidesStarted.Add(1);
+
         return CreatedAtRoute(nameof(GetById), new { id = result.Value }, new StartRideResponse(result.Value));
     }
 
@@ -129,6 +132,8 @@ public sealed class RidesController : ControllerBase
         await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
 
         var completed = result.Value!;
+
+        ScootlyMetrics.RidesCompleted.Add(1);
 
         // Ödeme asenkron işlenir (outbox → tüketici); istemci durumu payment-status ucundan izler.
         return Accepted(

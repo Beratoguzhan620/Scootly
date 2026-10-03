@@ -82,3 +82,7 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **90. gün:** CSP'deki `connect-src`/`img-src` adresleri (`http://localhost:5016`) sabit yazılı — üretim ortamında gerçek Api adresine göre `appsettings`'ten okunacak şekilde parametrik hale getirilmeli.
 - **93. gün:** `TraceParent` sütunu eklenmeden önce yazılmış outbox satırlarında alan `null`; onların `publish` span'leri kendi başına yeni bir iz açar. Yeni satırlarda sorun yok, eski satırlar zaten işlenmiş olacağından pratik etkisi yok.
 - **93. gün:** Outbox yayını yoklama aralığıyla çalıştığı için Jaeger'da kök istek ile `publish` span'i arasında yaklaşık yarım saniyelik boşluk görünüyor. Bu bir hata değil, outbox deseninin gecikme maliyeti; gecikme hedefi sıkılaşırsa yoklama aralığı gözden geçirilebilir.
+- **94. gün:** `scootly.outbox.pending` hem Api hem Worker tarafından raporlanıyor (ikisi de aynı tabloyu sayıyor). Panolarda `sum` değil `max` kullanılmalı, aksi halde değer çift sayılır.
+- **94. gün:** Sürüş sayaçları yalnızca Api'de sayılıyor ve süreç içi bellekte tutuluyor; yeniden başlatmada sıfırlanır (Prometheus `rate()` bunu tolere eder).
+- **94. gün:** Prometheus verisi için volume tanımlı değil, container yeniden oluşturulunca geçmiş metrikler kaybolur. Yerel geliştirme için kabul edildi.
+- **94. gün:** Metrik export aralığı geliştirmede 15 sn'ye çekildi (varsayılan 60 sn); üretimde yapılandırmadan okunmalı.
