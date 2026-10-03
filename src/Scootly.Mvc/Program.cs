@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Scootly.Application;
@@ -80,6 +81,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddScootlyAuthorization();
 
+// Mvc'de Messaging:Enabled=false olduğundan yalnızca Postgres ve Redis kontrolleri kurulur.
+builder.Services.AddHealthChecks().AddScootlyHealthChecks(builder.Configuration);
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -120,5 +124,9 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Canlılık: süreç ayakta mı? Hazırlık: bağımlılıklar (veritabanı, önbellek) erişilebilir mi?
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 
 app.Run();

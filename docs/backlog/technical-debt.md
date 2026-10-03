@@ -86,3 +86,9 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **94. gün:** Sürüş sayaçları yalnızca Api'de sayılıyor ve süreç içi bellekte tutuluyor; yeniden başlatmada sıfırlanır (Prometheus `rate()` bunu tolere eder).
 - **94. gün:** Prometheus verisi için volume tanımlı değil, container yeniden oluşturulunca geçmiş metrikler kaybolur. Yerel geliştirme için kabul edildi.
 - **94. gün:** Metrik export aralığı geliştirmede 15 sn'ye çekildi (varsayılan 60 sn); üretimde yapılandırmadan okunmalı.
+- **95. gün:** Worker heartbeat yalnızca süreç canlılığını gösterir; tek tek işlerin (ödeme yeniden deneme, terk edilmiş sürüş tespiti) çalıştığını kanıtlamaz. Bir arka plan servisi sessizce takılırsa heartbeat yine yazılır.
+- **95. gün:** Compose'taki Worker healthcheck'inin yalnızca "sağlıklı" yönü doğrulandı (`healthy` görüldü). `unhealthy`'ye dönüşü gerçek bir arıza üreterek denenmedi.
+- **95. gün:** Mvc ve Api aynı `/health/ready` rotasını raporluyor; Grafana panoları `http_route` ile gruplandığı için ikisi birbirine karışıyor. Servis ayrımı için `service_name` kırılımı eklenebilir.
+- **95. gün:** Grafana anonim Viewer erişimi yalnızca yerel geliştirme içindir; ortak/üretim ortamında kapatılmalı. Pano provisioning ile geldiği için `allowUiUpdates: false`, elle yapılan değişiklikler kalıcı değil.
+- **95. gün:** Hata oranı panelinin gerçek bir 5xx artışına tepki verdiği doğrulanmadı; yalnızca sorgu sözdizimi ve etiket adları sınandı.
+- **95. gün:** Postgres kapalıyken `/health/ready` yanıt vermeden önce birkaç saniye bekliyor gibi görünüyor (p95 panelinde ~4 sn); sağlık kontrolü zaman aşımı kısaltılabilir. Ölçülmedi, panelden çıkarım.

@@ -33,6 +33,7 @@ builder.Services.AddOptions<WorkerOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddHostedService<WorkerHeartbeatService>();
 builder.Services.AddHostedService<ReservationTimeoutService>();
 builder.Services.AddHostedService<AbandonedRideDetector>();
 builder.Services.AddHostedService<BatteryThresholdScanner>();

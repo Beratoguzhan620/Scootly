@@ -3,7 +3,7 @@
 #   Uygulama servisleri dahil:   docker compose --profile app up -d --build
 #   Redpanda stream deneyi:      docker compose --profile experiments up -d redpanda
 #   Gözlemlenebilirlik:          docker compose --profile observability up -d
-#                                (Seq 5341, Jaeger 16686, Prometheus 9090)
+#                                (Seq 5341, Jaeger 16686, Prometheus 9090, Grafana 3001)
 #
 # Tüm parolalar ve anahtarlar bu klasördeki .env dosyasından okunur (.env.example'a bakın; .env git'e girmez).
 # Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
@@ -124,6 +124,23 @@ services:
     depends_on:
       - otel-collector
 
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.4.0
+    container_name: scootly-grafana
+    environment:
+      # Yalnızca yerel geliştirme: anonim erişim yönetici DEĞİL, salt okunur Viewer rolündedir.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD .env dosyasında tanımlanmalı}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+
   # --- Uygulama servisleri (profil: app) ---
 
   migrator:
@@ -180,6 +197,15 @@ services:
       dockerfile: src/Scootly.Worker/Dockerfile
     environment:
       <<: *app-secrets
+      Worker__HeartbeatPath: /tmp/scootly-worker-heartbeat
+    healthcheck:
+      # Heartbeat dosyası son 1 dakikada güncellenmediyse süreç sağlıksız sayılır.
+      # $$ Compose'un değişken yorumlamasını engeller.
+      test: ["CMD-SHELL", "test -n \"$$(find /tmp/scootly-worker-heartbeat -mmin -1 2>/dev/null)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       migrator:
         condition: service_completed_successfully
