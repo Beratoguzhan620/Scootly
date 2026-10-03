@@ -17,6 +17,7 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(m => m.CreatedAt).IsRequired();
         builder.Property(m => m.Attempts).HasDefaultValue(0);
         builder.Property(m => m.LastError).HasMaxLength(OutboxMessage.LastErrorMaxLength);
+        builder.Property(m => m.TraceParent).HasMaxLength(OutboxMessage.TraceParentMaxLength);
 
         builder.HasIndex(m => m.ProcessedAt)
             .HasDatabaseName("IX_OutboxMessages_ProcessedAt");

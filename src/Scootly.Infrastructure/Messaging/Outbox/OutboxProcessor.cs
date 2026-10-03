@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using Scootly.Application.Abstractions;
+using Scootly.Infrastructure.Observability;
 using Scootly.Infrastructure.Persistence;
 
 namespace Scootly.Infrastructure.Messaging.Outbox;
@@ -72,6 +74,15 @@ public sealed class OutboxProcessor
 
         foreach (var message in messages)
         {
+            var parentContext = ParseTraceParent(message.TraceParent);
+
+            using var activity = ScootlyActivitySource.Instance.StartActivity(
+                $"publish {message.EventType}", ActivityKind.Producer, parentContext);
+
+            activity?.SetTag("messaging.system", "rabbitmq");
+            activity?.SetTag("messaging.destination", MessagingTopology.EventsExchange);
+            activity?.SetTag("messaging.message_id", message.Id.ToString());
+
             try
             {
                 var properties = new BasicProperties
@@ -80,7 +91,10 @@ public sealed class OutboxProcessor
                     MessageId = message.Id.ToString(),
                     Type = message.EventType,
                     ContentType = "application/json",
-                    Timestamp = new AmqpTimestamp(new DateTimeOffset(message.CreatedAt, TimeSpan.Zero).ToUnixTimeSeconds())
+                    Timestamp = new AmqpTimestamp(new DateTimeOffset(message.CreatedAt, TimeSpan.Zero).ToUnixTimeSeconds()),
+                    Headers = activity is not null
+                        ? new Dictionary<string, object?> { ["traceparent"] = activity.Id }
+                        : null
                 };
 
                 // Publisher confirm etkin olduğu için bu çağrı broker onayını bekler; nack durumunda istisna fırlatır.
@@ -97,6 +111,7 @@ public sealed class OutboxProcessor
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 message.RecordFailedAttempt(ex.Message);
                 _logger.LogWarning(ex, "Outbox mesajı yayınlanamadı: {EventType} ({MessageId})", message.EventType, message.Id);
                 break;
@@ -110,5 +125,13 @@ public sealed class OutboxProcessor
             _logger.LogInformation("{Count} outbox mesajı yayınlandı.", published);
 
         return published;
+    }
+
+    private static ActivityContext ParseTraceParent(string? traceParent)
+    {
+        if (string.IsNullOrWhiteSpace(traceParent))
+            return default;
+
+        return ActivityContext.TryParse(traceParent, null, out var context) ? context : default;
     }
 }

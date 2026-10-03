@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Scootly.Infrastructure.Observability;
 
 namespace Scootly.Infrastructure.Messaging.Consumers;
 
@@ -182,6 +184,15 @@ public abstract class RabbitMqConsumerService : BackgroundService
     private async Task OnReceivedAsync(IChannel channel, string queue, BasicDeliverEventArgs args, CancellationToken stoppingToken)
     {
         var message = new ReceivedMessage(args.RoutingKey, args.BasicProperties.MessageId, Encoding.UTF8.GetString(args.Body.Span));
+        var parentContext = ParseTraceParent(args.BasicProperties.Headers);
+
+        using var activity = ScootlyActivitySource.Instance.StartActivity(
+            $"consume {message.RoutingKey}", ActivityKind.Consumer, parentContext);
+
+        activity?.SetTag("messaging.system", "rabbitmq");
+        activity?.SetTag("messaging.source", queue);
+        activity?.SetTag("messaging.message_id", message.MessageId);
+
         ConsumeResult result;
 
         try
@@ -197,6 +208,7 @@ public abstract class RabbitMqConsumerService : BackgroundService
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             Logger.LogWarning(ex, "{Consumer} mesajı işleyemedi: {RoutingKey} ({MessageId})", GetType().Name, message.RoutingKey, message.MessageId);
             result = ConsumeResult.Retry;
         }
@@ -284,6 +296,15 @@ public abstract class RabbitMqConsumerService : BackgroundService
         Logger.LogError(
             "{Consumer} mesajı ölü mektup kuyruğuna taşıdı ({Reason}): {RoutingKey} ({MessageId})",
             GetType().Name, reason, args.RoutingKey, args.BasicProperties.MessageId);
+    }
+
+    private static ActivityContext ParseTraceParent(IDictionary<string, object?>? headers)
+    {
+        if (headers is null || !headers.TryGetValue("traceparent", out var raw) || raw is not byte[] bytes)
+            return default;
+
+        var traceParent = Encoding.UTF8.GetString(bytes);
+        return ActivityContext.TryParse(traceParent, null, out var context) ? context : default;
     }
 
     private static async Task DisposeQuietlyAsync(IChannel channel)

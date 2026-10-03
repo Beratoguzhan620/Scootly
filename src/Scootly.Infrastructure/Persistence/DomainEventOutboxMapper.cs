@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Scootly.Application.IntegrationEvents;
 using Scootly.Domain.Common;
@@ -31,5 +32,5 @@ internal static class DomainEventOutboxMapper
     };
 
     private static OutboxMessage Create<T>(string eventType, DateTime occurredOn, T payload)
-        => new(Guid.NewGuid(), eventType, JsonSerializer.Serialize(payload), occurredOn);
+        => new(Guid.NewGuid(), eventType, JsonSerializer.Serialize(payload), occurredOn, Activity.Current?.Id);
 }

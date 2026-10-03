@@ -24,10 +24,11 @@ public static class TelemetryExtensions
             .WithTracing(tracing =>
             {
                 tracing
-                    .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddNpgsql()
-                    .AddOtlpExporter(otlp => otlp.Endpoint = new Uri(endpoint));
+    .AddSource(ScootlyActivitySource.Name)
+    .AddAspNetCoreInstrumentation()
+    .AddHttpClientInstrumentation()
+    .AddNpgsql()
+    .AddOtlpExporter(otlp => otlp.Endpoint = new Uri(endpoint));
             });
 
         return services;
