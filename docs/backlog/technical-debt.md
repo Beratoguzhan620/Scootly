@@ -90,5 +90,5 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **95. gün:** Compose'taki Worker healthcheck'inin yalnızca "sağlıklı" yönü doğrulandı (`healthy` görüldü). `unhealthy`'ye dönüşü gerçek bir arıza üreterek denenmedi.
 - **95. gün:** Mvc ve Api aynı `/health/ready` rotasını raporluyor; Grafana panoları `http_route` ile gruplandığı için ikisi birbirine karışıyor. Servis ayrımı için `service_name` kırılımı eklenebilir.
 - **95. gün:** Grafana anonim Viewer erişimi yalnızca yerel geliştirme içindir; ortak/üretim ortamında kapatılmalı. Pano provisioning ile geldiği için `allowUiUpdates: false`, elle yapılan değişiklikler kalıcı değil.
-- **95. gün:** Hata oranı panelinin gerçek bir 5xx artışına tepki verdiği doğrulanmadı; yalnızca sorgu sözdizimi ve etiket adları sınandı.
+  - **95. gün:** Mvc sağlık uçları ve Worker heartbeat için otomatik test yok; yalnızca elle doğrulandı (Mvc `ready` 503/200, Worker konteyneri `healthy`).
 - **95. gün:** Postgres kapalıyken `/health/ready` yanıt vermeden önce birkaç saniye bekliyor gibi görünüyor (p95 panelinde ~4 sn); sağlık kontrolü zaman aşımı kısaltılabilir. Ölçülmedi, panelden çıkarım.

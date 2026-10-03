@@ -7,6 +7,7 @@ Kabul edildi.
 - **Mvc:** Api'deki `AddScootlyHealthChecks` yeniden kullanıldı; yeni kontrol sınıfı yazılmadı. Mvc'de
   `Messaging:Enabled=false` olduğundan yalnızca Postgres ve Redis kontrolleri kurulur. `/health/live`
   yalnızca süreci, `/health/ready` bağımlılıkları sorgular. Postgres kapalıyken `live` 200, `ready` 503 verir (doğrulandı).
+    Api'de de aynı davranış doğrulandı: Postgres kapalıyken `/health/ready` 12 istekte de 503 döndü ve Grafana hata oranı paneli (5xx) yükseldi.
 - **Worker:** HTTP ucu olmadığı için dosya tabanlı heartbeat: servis 10 sn'de bir zaman damgası yazar,
   Compose healthcheck dosyanın son dakikada güncellendiğini kontrol eder.
   Bu yalnızca süreç canlılığıdır, bireysel işlerin sağlığı kanıtlanmaz (bkz. teknik borç).
