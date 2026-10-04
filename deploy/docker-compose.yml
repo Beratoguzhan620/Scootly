@@ -5,6 +5,7 @@
 #   Gözlemlenebilirlik:          docker compose --profile observability up -d
 #                                (Seq 5341, Jaeger 16686, Prometheus 9090, Grafana 3001)
 #
+# İmaj etiketi: SCOOTLY_VERSION ortam değişkeniyle ezilebilir (varsayılan 1.0.0).
 # Tüm parolalar ve anahtarlar bu klasördeki .env dosyasından okunur (.env.example'a bakın; .env git'e girmez).
 # Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
 # Proje adı klasör adından (deploy) gelir; böylece mevcut veritabanı volume'u (deploy_scootly-postgres-data) korunur.
@@ -16,6 +17,20 @@ x-app-secrets: &app-secrets
   RabbitMq__Password: ${RABBITMQ_PASSWORD}
   Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
   PaymentGateway__BaseUrl: http://payment-simulator:8080
+
+# Anonim /health/live ucu olan ASP.NET Core konteynerleri için ortak kontrol (iç port 8080).
+# CMD-SHELL kullanılmaz: imajdaki sh dash'tir ve /dev/tcp desteklemez; bash açıkça çağrılır.
+# Bu yöntem imajdaki bash, head, grep araçlarına bağlıdır (curl/wget imajda varsayılmaz).
+x-http-healthcheck: &http-healthcheck
+  test:
+    - CMD
+    - bash
+    - -c
+    - exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/live HTTP/1.0\r\n\r\n' >&3 && head -n1 <&3 | grep -q ' 200 '
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
 
 services:
   postgres:
@@ -145,6 +160,7 @@ services:
 
   migrator:
     profiles: ["app"]
+    image: scootly-migrator:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Api/Dockerfile
@@ -157,17 +173,20 @@ services:
 
   payment-simulator:
     profiles: ["app"]
+    image: scootly-payment-simulator:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.PaymentSimulator/Dockerfile
     environment:
       Webhook__CallbackUrl: http://api:8080/api/webhooks/payment-callback
       Webhook__Secret: ${PAYMENT_WEBHOOK_SECRET:?PAYMENT_WEBHOOK_SECRET .env dosyasında tanımlanmalı}
+    healthcheck: *http-healthcheck
     ports:
       - "127.0.0.1:5094:8080"
 
   api:
     profiles: ["app"]
+    image: scootly-api:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Api/Dockerfile
@@ -178,6 +197,7 @@ services:
       PaymentWebhook__Secret: ${PAYMENT_WEBHOOK_SECRET}
       Bootstrap__FleetManagerEmail: ${BOOTSTRAP_FLEET_MANAGER_EMAIL:-}
       Bootstrap__FleetManagerPassword: ${BOOTSTRAP_FLEET_MANAGER_PASSWORD:-}
+    healthcheck: *http-healthcheck
     ports:
       - "127.0.0.1:5016:8080"
     depends_on:
@@ -188,9 +208,11 @@ services:
       rabbitmq:
         condition: service_healthy
       payment-simulator:
-        condition: service_started
+        condition: service_healthy
+
   mvc:
     profiles: ["app"]
+    image: scootly-mvc:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Mvc/Dockerfile
@@ -203,22 +225,18 @@ services:
       Jwt__Issuer: Scootly.Api
       Jwt__Audience: Scootly.Clients
       ApiBaseUrl: http://localhost:5016
+    healthcheck: *http-healthcheck
     ports:
       - "127.0.0.1:5096:8080"
-    healthcheck:
-      # CMD-SHELL imajda dash çalıştırır ve /dev/tcp'yi desteklemez; bash açıkça çağrılır.
-      # Imajda curl/wget olmadığı varsayıldı (doğrulanmadı); bash'in /dev/tcp'si ek araç gerektirmez.
-      test:
-        - CMD
-        - bash
-        - -c
-        - exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/live HTTP/1.0\r\n\r\n' >&3 && head -n1 <&3 | grep -q ' 200 '
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   worker:
     profiles: ["app"]
+    image: scootly-worker:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Worker/Dockerfile

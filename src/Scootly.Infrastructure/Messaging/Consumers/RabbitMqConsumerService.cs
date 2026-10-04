@@ -203,6 +203,9 @@ public abstract class RabbitMqConsumerService : BackgroundService
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Kapanış: mesaj deneme sayılmadan kuyruğa geri bırakılır.
+            Logger.LogInformation(
+    "{Consumer} kapanış sırasında mesajı kuyruğa geri bıraktı: {RoutingKey} ({MessageId})",
+    GetType().Name, message.RoutingKey, message.MessageId);
             await channel.BasicNackAsync(args.DeliveryTag, multiple: false, requeue: true, CancellationToken.None);
             return;
         }
