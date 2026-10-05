@@ -100,12 +100,13 @@ public sealed class MessagingTests
         await consumer.StartAsync(CancellationToken.None);
 
         // Kuyruk ve bağlamalar oluşana kadar bekle.
+        // Kuyrukta kayıtlı tüketici görünüyorsa bağlama da tamamdır (BasicConsume, topoloji kurulumundan sonra çağrılır).
         await WaitUntilAsync(async () =>
         {
             try
             {
-                await MessageCountAsync(queue);
-                return true;
+                await using var channel = await OpenChannelAsync();
+                return await channel.ConsumerCountAsync(queue) > 0;
             }
             catch
             {
