@@ -1,0 +1,92 @@
+# Üretim override'ı: temel dosyayı (docker-compose.yml) genişletir, yerine geçmez.
+#   docker compose -p scootly-prod --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml --profile app up -d
+#
+# Eklenenler: yeniden başlatma politikası, kaynak sınırları, log rotasyonu, Production ortamı, AllowedHosts.
+# Postgres/Redis/RabbitMQ/PaymentSimulator portları ana makineye kapatılır. Api ve Mvc portları,
+# Nginx devreye girene kadar (99. gün) 127.0.0.1'de açık kalır.
+# Kaynak sınırları İLK TAHMİNDİR; docker stats ile ölçülüp ayarlanmalı.
+# Docker "unhealthy" konteyneri kendiliğinden yeniden başlatmaz; restart yalnızca süreç çıkışında devreye girer.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    restart: unless-stopped
+    ports: !reset []
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+
+  redis:
+    restart: unless-stopped
+    ports: !reset []
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+
+  rabbitmq:
+    restart: unless-stopped
+    ports: !reset []
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768m
+
+  payment-simulator:
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 192m
+
+  api:
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AllowedHosts: ${ALLOWED_HOSTS:?ALLOWED_HOSTS .env.prod dosyasında tanımlanmalı}
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
+
+  mvc:
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AllowedHosts: ${ALLOWED_HOSTS:?ALLOWED_HOSTS .env.prod dosyasında tanımlanmalı}
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384m
+
+  worker:
+    restart: unless-stopped
+    environment:
+      DOTNET_ENVIRONMENT: Production
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384m

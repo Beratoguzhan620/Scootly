@@ -11,3 +11,7 @@ tests/
 deploy/.env
 **/*.user
 **/.env
+
+**/.env.prod
+
+**/.env.prod

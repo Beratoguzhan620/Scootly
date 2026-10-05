@@ -22,3 +22,9 @@ deploy/.env
 
 # Kök dizindeki geçici SQL denemeleri (örn. explain.sql); migration veya script klasörlerini etkilemez
 /*.sql
+
+.env.prod
+deploy/.env.prod
+
+.env.prod
+deploy/.env.prod
