@@ -13,7 +13,7 @@ var loggerConfiguration = new LoggerConfiguration()
     .Enrich.FromLogContext()
     .Enrich.WithProperty("Service", "Scootly.Worker")
     .Destructure.With<SensitiveDataDestructuringPolicy>()
-    .WriteTo.Console();
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
 
 var seqUrl = builder.Configuration["Seq:ServerUrl"];
 

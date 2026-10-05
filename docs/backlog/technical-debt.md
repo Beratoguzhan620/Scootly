@@ -113,3 +113,7 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **99. gün:** İlk dağıtımda iki Api kopyası aynı anda `IdentityBootstrapper`'ı çalıştırdığı için biri `UserNameIndex` benzersizlik hatası alıp `ERR` logluyor (uygulama çökmüyor, `restarts=0`); yarış zararsız ama gürültülü.
 - **99. gün:** Üretimde Api loglarında `access_token` sızıntısı olmadığı ölçülmedi; yalnızca `Microsoft.AspNetCore` günlüğünün Information olmaması nedeniyle yazılmadığı düşünülüyor.
 - **99. gün:** `X-Forwarded-*` güveninin (`KnownProxies`) çalıştığı ve Mvc'nin `UseForwardedHeaders` değişikliği geliştirme ortamında (CSP `connect-src` yeni üretimle, `http://localhost:5016`) denenmedi.
+- **100. gün:** Kayıt ucu dışındaki hız sınırı politikalarının değerleri okunmadı; 103. günde (k6) giriş ucunun IP başına ve kullanıcı başına yazma sınırlarının yükü nasıl etkilediği önce dosyadan doğrulanmalı.
+- **100. gün:** Konsol şablonu (`{Properties:j}`) yalnızca Api'de doğrulandı; Mvc ve Worker için yeniden derleyip korelasyon aramasıyla denenmedi. Mvc'nin istek özetinde CorrelationId alanı olup olmadığı bilinmiyor.
+- **100. gün:** `{Properties:j}` log satırlarını uzatıyor; JSON biçimi (Serilog.Formatting.Compact) daha temiz bir alternatif, karar verilmedi.
+- **100. gün:** 500 araçlık yükte tek bir turda iki parti arası 8 sn geçti (diğerlerinde 5 sn); nedeni bulunmadı. Yük testi (103. gün) bu sapmanın tekrarlanıp tekrarlanmadığına bakmalı.

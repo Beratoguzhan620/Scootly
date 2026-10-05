@@ -22,7 +22,7 @@ builder.Host.UseSerilog((context, configuration) =>
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Service", "Scootly.Api")
         .Destructure.With<SensitiveDataDestructuringPolicy>()
-        .WriteTo.Console();
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
 
     var seqUrl = context.Configuration["Seq:ServerUrl"];
 
