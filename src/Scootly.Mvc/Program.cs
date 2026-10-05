@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Scootly.Application;
 using Scootly.Infrastructure;
@@ -32,6 +33,15 @@ builder.Services.AddScootlyInfrastructure(builder.Configuration);
 builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Mvc");
 builder.Services.AddScootlyPaymentGateway();
 builder.Services.AddScootlyJwtTokens();
+
+// Ters vekil (Nginx) arkasında gerçek şema/istemci IP'si yalnızca tanımlı vekillerden kabul edilir.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+    foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+        options.KnownProxies.Add(System.Net.IPAddress.Parse(proxy));
+});
 
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
@@ -84,7 +94,11 @@ builder.Services.AddScootlyAuthorization();
 // Mvc'de Messaging:Enabled=false olduğundan yalnızca Postgres ve Redis kontrolleri kurulur.
 builder.Services.AddHealthChecks().AddScootlyHealthChecks(builder.Configuration);
 
+var connectSrc = BuildConnectSrc(builder.Configuration["ApiBaseUrl"]);
+
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -104,7 +118,7 @@ app.Use(async (context, next) =>
         "script-src 'self'; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data: https://*.tile.openstreetmap.org; " +
-        "connect-src 'self' http://localhost:5016 ws://localhost:5016;");
+        $"connect-src {connectSrc};");
 
     await next();
 });
@@ -130,3 +144,18 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 
 app.Run();
+
+// Tarayıcıdaki JS'in Api'ye (fetch ve SignalR/WebSocket) bağlanabilmesi için ApiBaseUrl'in kökenini izin listesine ekler.
+// Geliştirmede http://localhost:5016 verilirse çıktı eski sabit değerle aynıdır.
+static string BuildConnectSrc(string? apiBaseUrl)
+{
+    var sources = new List<string> { "'self'" };
+
+    if (Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var uri))
+    {
+        sources.Add(uri.GetLeftPart(UriPartial.Authority));
+        sources.Add((uri.Scheme == Uri.UriSchemeHttps ? "wss://" : "ws://") + uri.Authority);
+    }
+
+    return string.Join(' ', sources);
+}

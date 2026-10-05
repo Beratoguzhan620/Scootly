@@ -106,3 +106,10 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **98. gün:** `restart: unless-stopped` yapılandırmada görüldü ancak süreç çökmesinde gerçekten yeniden başladığı denenmedi; log rotasyonu da (10 MB x 3) tetiklenmedi.
 - **98. gün:** Temel dosyadaki sabit `container_name` yüzünden geliştirme ve üretim yığınları aynı anda çalıştırılamaz.
 - **98. gün:** `.env.prod` temel `.env` değişkenlerinin tümünü içermek zorunda (`--env-file` varsayılan `.env`'i okumaz); Grafana parolası üretimde kullanılmasa da gerekli.
+- **99. gün:** `ip_hash` ile `/hubs/` dağılımı Docker Desktop'ta tek kaynak IP olduğu için gösterilemedi; iki Api kopyası arasında canlı araç güncellemesi de (SignalR) sınanmadı.
+- **99. gün:** Hız sınırlayıcı kopya başına bellekte; Api 2 kopyada iken sınır kopyalar arasında bölünür. Dağıtık sayaç gerekir.
+- **99. gün:** Nginx upstream adreslerini açılışta çözer; bir Api kopyası yeniden başlayıp IP'si değişirse Nginx yeniden başlatılmalı ya da `resolver` ile dinamik çözümleme kurulmalı.
+- **99. gün:** Kendinden imzalı sertifika tarayıcı uyarısı verir; üretimde gerçek bir otorite (ör. Let's Encrypt) ve yenileme otomasyonu gerekir.
+- **99. gün:** İlk dağıtımda iki Api kopyası aynı anda `IdentityBootstrapper`'ı çalıştırdığı için biri `UserNameIndex` benzersizlik hatası alıp `ERR` logluyor (uygulama çökmüyor, `restarts=0`); yarış zararsız ama gürültülü.
+- **99. gün:** Üretimde Api loglarında `access_token` sızıntısı olmadığı ölçülmedi; yalnızca `Microsoft.AspNetCore` günlüğünün Information olmaması nedeniyle yazılmadığı düşünülüyor.
+- **99. gün:** `X-Forwarded-*` güveninin (`KnownProxies`) çalıştığı ve Mvc'nin `UseForwardedHeaders` değişikliği geliştirme ortamında (CSP `connect-src` yeni üretimle, `http://localhost:5016`) denenmedi.
