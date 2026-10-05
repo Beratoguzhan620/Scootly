@@ -31,3 +31,6 @@ deploy/.env.prod
 
 deploy/nginx/certs/*
 !deploy/nginx/certs/.gitkeep
+
+TestResults/
+CoverageReport/

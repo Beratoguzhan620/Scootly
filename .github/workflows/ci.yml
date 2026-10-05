@@ -2,15 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [main, berat]
+    branches: [main, berat, 'feature/**']
   pull_request:
 
 permissions:
   contents: read
 
+# Aynı dala art arda push gelirse eski çalıştırma iptal edilir.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -19,6 +24,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      # Anahtar paket sürümlerini (Directory.Packages.props) ve proje dosyalarını kapsar.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore
         run: dotnet restore Scootly.slnx
@@ -33,6 +47,7 @@ jobs:
           dotnet test Scootly.slnx --configuration Release --no-build
           --filter "Category!=Measurement&Category!=Experiment"
           --logger trx --results-directory TestResults
+          --collect "XPlat Code Coverage"
 
       - name: Upload test results
         if: always()
@@ -40,6 +55,30 @@ jobs:
         with:
           name: test-results
           path: TestResults/**/*.trx
+
+      - name: Install ReportGenerator
+        if: always()
+        run: dotnet tool install --tool-path "$RUNNER_TEMP/reportgenerator" dotnet-reportgenerator-globaltool --version 5.5.11
+
+      # EF migration'ları üretilmiş koddur, oranı yapay olarak düşürür; test assembly'leri de hariç tutulur.
+      - name: Generate coverage report
+        if: always()
+        run: |
+          "$RUNNER_TEMP/reportgenerator/reportgenerator" \
+            "-reports:TestResults/**/coverage.cobertura.xml" \
+            "-targetdir:CoverageReport" \
+            "-reporttypes:Html;TextSummary" \
+            "-assemblyfilters:+Scootly.*;-Scootly.*Tests*;-Scootly.Testing" \
+            "-classfilters:-Scootly.Infrastructure.Migrations.*"
+          { echo '## Kapsam raporu'; echo '```'; cat CoverageReport/Summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: CoverageReport/
+          if-no-files-found: ignore
 
       - name: Check vulnerable packages
         run: |
@@ -50,7 +89,7 @@ jobs:
           fi
 
   docker-images:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-and-test
     timeout-minutes: 30
 
@@ -63,3 +102,8 @@ jobs:
           docker build -f src/Scootly.Api/Dockerfile --target migrator -t scootly-migrator .
           docker build -f src/Scootly.Worker/Dockerfile -t scootly-worker .
           docker build -f src/Scootly.PaymentSimulator/Dockerfile -t scootly-payment-simulator .
+          docker build -f src/Scootly.Mvc/Dockerfile -t scootly-mvc .
+
+      # Temiz checkout'tan derlenen Mvc imajında Leaflet ve SignalR istemcisi bulunmalı (yerelde git'e girmemiş dosya riskine karşı).
+      - name: Verify Mvc static assets
+        run: docker run --rm --entrypoint sh scootly-mvc -c "test -s /app/wwwroot/lib/leaflet/leaflet.js && test -s /app/wwwroot/lib/signalr/signalr.min.js"
