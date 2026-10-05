@@ -19,9 +19,11 @@ Kabul edildi.
   `docker logs | grep <id>` bos donuyordu. Konsol sablonuna `{Properties:j}` eklenince Api logunda
   `{"CorrelationId": "...", ...}` goruldu.
 
+- Hiz siniri politikalari dosyadan okundu (RateLimiting.cs, appsettings.json): hepsi sabit pencere, 1 dk, QueueLimit 0.
+  Anonymous 60, Auth 10, User 30, Device 600, Webhook 300 istek/dk. Anahtarlar: Anonymous/Auth/Webhook IP,
+  User ve Device kimlik (yoksa IP). Kayit ucu disindaki politikalar yuk altinda sinanmadi.
+
 ## Olculmeyenler
-- Kayit ucu disindaki hiz siniri politikalarinin degerleri (Auth, Anonymous, Device) bu gun okunmadi; k6 testinden
-  once dosyadan dogrulanmali.
 - Mvc ve Worker'a ayni konsol sablonu uygulandi ama yeniden derlenip denenmedi. Mvc'de `UseSerilogRequestLogging`
   CorrelationId'yi istek ozetine ekleyip eklemedigi bilinmiyor.
 - Bir turda iki parti arasi 8 sn gecti (digerleri 5 sn); nedeni bulunmadi.
