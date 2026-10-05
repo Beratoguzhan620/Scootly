@@ -9,7 +9,10 @@ Bu belge yalnizca denenen adimlari "Denendi" olarak isaretler. Denenmeyenler "De
 - Imajlar: `scootly-api`, `scootly-migrator`, `scootly-worker`, `scootly-payment-simulator`, `scootly-mvc`.
 - Etiket yalnizca surum numarasidir; `latest` yayinlanmaz, geri alma her zaman tam bir surumu adlandirir.
 - Onsurum (adinda `-` olan) GitHub'da "pre-release" olarak isaretlenir.
-- Is akisinin sozdizimi `actionlint` ile denetlendi (0 hata). Gercek bir yayin henuz yapilmadi.
+- Is akisinin sozdizimi `actionlint` ile denetlendi (0 hata). `v0.1.0-rc.1` ile ilk yayin yapildi (commit be423d4): CI kapisi,
+  CHANGELOG bolumu cikarma, bes imajin GHCR'a itilmesi ve pre-release olusturma calisti. `scootly-api` imaji cekildi; digest
+  Summary tablosuyla ve etiketler (revision, source, version) etiketlenen commit ile eslesti, kullanici uid=1654. Bes paketin
+  tamami bos Docker yapilandirmasiyla (kayitli giris olmadan) `manifest inspect` ile erisilebildi, yani herkese aciktir.
 
 ## 2. Mevcut dagitim (yerel Compose)
 - Uretim komutu (deploy/ klasorunden):
@@ -55,6 +58,6 @@ cascade ile silip silmedigi, `xmin` sutununu dusurmenin Npgsql'de ne yaptigi. Ur
 ## 7. Denenmedi
 - Yedegin asil veritabaninin uzerine geri yuklenmesi ve uygulamanin geri yuklenen veritabaniyla acilmasi.
 - `Down` migration'inin calistirilmasi.
-- GHCR imajlarini `docker pull` ile cekmek (ilk yayindan sonra dogrulanacak). Ilk yayinlanan paket varsayilan olarak ozel
-  olabilir; gorunurlugu GitHub'da paket ayarlarindan kontrol edin (bu bilgi dokumandan; denenmedi).
+- Yayinlanan imajlarla uygulamanin bir veritabaniyla acilmasi. Yalnizca `scootly-api` imaji cekilip incelendi; diger dort imajin
+  icerigi incelenmedi (yalnizca manifestlerine erisilebildigi dogrulandi).
 - Compose'un GHCR imajlarini kullanmasi: `image:` satirlari su an yerel adlara isaret eder.
