@@ -123,3 +123,6 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **101. gün:** Actions Node 20 uyarısı (`cache`, `checkout`, `setup-dotnet`, `upload-artifact`): hangi yeni ana sürümler olduğu kontrol edilmeden yükseltme yapılmadı.
 - **101. gün:** Runner `ubuntu-24.04`'e sabit; `ubuntu-latest` 19 Ekim 2026'dan sonra Ubuntu 26 olacak. Sabit etiketi güncellemek ayrı, bilinçli bir karar olmalı (Docker/Testcontainers davranışı değişebilir).
 - **101. gün:** NuGet önbelleği (~361 MB, dal başına) süre kazandırmadı (ölçüm gürültülü); birkaç çalıştırma sonra faydası yeniden değerlendirilmeli.
+- **102. gün:** `release.yml` yalnızca `actionlint` ile denetlendi, gerçek bir yayın yok; `gh run list --commit` bayrağı, GHCR'a itme ve GitHub Release oluşturma ilk etiketle sınanacak. CHANGELOG bölümü boş satırlardan oluşsa da `-s` kontrolünü geçer (yalnızca başlık bulunması denetleniyor).
+- **102. gün:** Yedek yalnızca ayrı bir veritabanına geri yüklendi; asıl veritabanının üzerine yükleme, uygulamanın geri yüklenen veritabanıyla açılması ve `Down` migration'ı hiç çalıştırılmadı (runbook bölüm 7).
+- **102. gün:** Compose `image:` adları yerel (`scootly-api:${SCOOTLY_VERSION:-1.0.0}`); GHCR'dan çekme yolu için `image:` satırları ayrıca ele alınmalı. Aynı sürüm etiketiyle yeniden derleme yerel imajın üstüne yazar.
