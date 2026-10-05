@@ -1,0 +1,97 @@
+# Release pipeline: a vMAJOR.MINOR.PATCH[-prerelease] tag builds the five images, pushes them to GHCR
+# and creates a GitHub Release whose notes come from the matching CHANGELOG.md section.
+# Images are tagged with the version only (no "latest"), so a rollback always names an exact version.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the GitHub Release
+  packages: write   # push to ghcr.io
+  actions: read     # read CI run status for the tagged commit
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Tag ${GITHUB_REF_NAME} is not a semantic version (vMAJOR.MINOR.PATCH[-prerelease])."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      # Refuse to publish a commit that has not passed CI.
+      - name: Require a successful CI run for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          COUNT=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq 'length')
+          echo "Successful CI runs for $GITHUB_SHA: $COUNT"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "::error::No successful CI run for commit $GITHUB_SHA. Wait for CI to pass on this commit, then tag it."
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no non-empty '## [$VERSION]' section."
+            exit 1
+          fi
+          cat release-notes.md
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and push images
+        run: |
+          set -euo pipefail
+          REGISTRY="ghcr.io/${OWNER}"
+          printf '| Image | Digest |\n|---|---|\n' > digests.md
+
+          build_and_push() {
+            local name="$1" dockerfile="$2" target="${3:-}"
+            local ref="${REGISTRY}/${name}:${VERSION}"
+            local args=(-f "$dockerfile" -t "$ref"
+              --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}"
+              --label "org.opencontainers.image.revision=${GITHUB_SHA}"
+              --label "org.opencontainers.image.version=${VERSION}")
+            if [ -n "$target" ]; then args+=(--target "$target"); fi
+            docker build "${args[@]}" .
+            docker push "$ref"
+            local digest
+            digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$ref" 2>/dev/null || echo "unavailable")
+            echo "| ${name} | ${digest} |" >> digests.md
+          }
+
+          build_and_push scootly-api src/Scootly.Api/Dockerfile
+          build_and_push scootly-migrator src/Scootly.Api/Dockerfile migrator
+          build_and_push scootly-worker src/Scootly.Worker/Dockerfile
+          build_and_push scootly-payment-simulator src/Scootly.PaymentSimulator/Dockerfile
+          build_and_push scootly-mvc src/Scootly.Mvc/Dockerfile
+
+          cat digests.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          { echo; echo "## Images"; echo; cat digests.md; } >> release-notes.md
+          FLAGS=()
+          case "$VERSION" in *-*) FLAGS+=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md "${FLAGS[@]}"
