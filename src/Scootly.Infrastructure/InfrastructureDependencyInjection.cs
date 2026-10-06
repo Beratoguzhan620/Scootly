@@ -20,6 +20,7 @@ using Scootly.Infrastructure.Payments;
 using Scootly.Infrastructure.Persistence;
 using Scootly.Infrastructure.Persistence.Queries;
 using Scootly.Infrastructure.Persistence.Repositories;
+using Scootly.Infrastructure.Storage;
 using Scootly.Infrastructure.Time;
 using StackExchange.Redis;
 
@@ -56,6 +57,8 @@ public static class InfrastructureDependencyInjection
             .ValidateOnStart();
 
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ScootlyDbContext>());
+
+        services.AddScootlyFileStorage();
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ScootlyDbContext>());
 
         services.AddScoped<IVehicleRepository, VehicleRepository>();

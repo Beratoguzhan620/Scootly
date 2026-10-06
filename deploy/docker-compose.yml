@@ -79,6 +79,36 @@ services:
       timeout: 5s
       retries: 20
 
+  # Opsiyonel nesne depolama (S3 uyumlu). Yalnizca "--profile storage" ile baslar; Mvc'de STORAGE_ENABLED=true gerekir.
+  # MinIO topluluk surumu Nisan 2026'da arsivlendi ve resmi imajlari kaldirildi; bu yuzden SeaweedFS kullanilir.
+  # Imaj (cekildiginde olculen): chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+  seaweedfs:
+    profiles: ["storage"]
+    image: chrislusf/seaweedfs:4.48
+    container_name: scootly-seaweedfs
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ -z "$$AWS_ACCESS_KEY_ID" ] || [ -z "$$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "STORAGE_ACCESS_KEY ve STORAGE_SECRET_KEY .env dosyasinda tanimlanmali" >&2
+          exit 1
+        fi
+        exec /entrypoint.sh server -s3 -dir=/data
+    environment:
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:-}
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - scootly-seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   redpanda:
     profiles: ["experiments"]
     image: docker.redpanda.com/redpandadata/redpanda:v26.2.3
@@ -225,6 +255,11 @@ services:
       Jwt__Issuer: Scootly.Api
       Jwt__Audience: Scootly.Clients
       ApiBaseUrl: http://localhost:5016
+      Storage__Enabled: ${STORAGE_ENABLED:-false}
+      Storage__Endpoint: http://seaweedfs:8333
+      Storage__PublicEndpoint: http://127.0.0.1:8333
+      Storage__AccessKey: ${STORAGE_ACCESS_KEY:-}
+      Storage__SecretKey: ${STORAGE_SECRET_KEY:-}
     healthcheck: *http-healthcheck
     ports:
       - "127.0.0.1:5096:8080"
@@ -261,3 +296,4 @@ services:
 
 volumes:
   scootly-postgres-data:
+  scootly-seaweedfs-data:

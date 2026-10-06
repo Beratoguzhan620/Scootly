@@ -11,7 +11,7 @@ public class FieldTaskHandlerTests
     {
         var unitOfWork = new FakeUnitOfWork();
         var fieldTasks = new InMemoryFieldTaskRepository();
-        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock());
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
 
         var vehicleId = Guid.NewGuid();
         var result = await handler.Handle(new CreateFieldTaskCommand(vehicleId, FieldTaskType.BatteryReplacement));
@@ -31,7 +31,7 @@ public class FieldTaskHandlerTests
 
         fieldTasks.Store(new FieldTask(Guid.NewGuid(), vehicleId, FieldTaskType.BatteryReplacement, TestClock.Now));
 
-        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock());
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
         var result = await handler.Handle(new CreateFieldTaskCommand(vehicleId, FieldTaskType.BatteryReplacement));
 
         Assert.True(result.IsSuccess);
@@ -45,7 +45,7 @@ public class FieldTaskHandlerTests
         var fieldTasks = new InMemoryFieldTaskRepository();
         var task = fieldTasks.Store(new FieldTask(Guid.NewGuid(), Guid.NewGuid(), FieldTaskType.Inspection, TestClock.Now));
 
-        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock());
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
         var operatorId = Guid.NewGuid();
         var result = await handler.Handle(new AssignFieldTaskCommand(task.Id, operatorId));
 
@@ -63,7 +63,7 @@ public class FieldTaskHandlerTests
         var task = fieldTasks.Store(new FieldTask(Guid.NewGuid(), Guid.NewGuid(), FieldTaskType.Inspection, TestClock.Now));
         task.Assign(operatorId, TestClock.Now);
 
-        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock());
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
         var result = await handler.Handle(new CompleteFieldTaskCommand(task.Id, operatorId, "Kontrol edildi."));
 
         Assert.True(result.IsSuccess);
@@ -75,7 +75,7 @@ public class FieldTaskHandlerTests
     {
         var unitOfWork = new FakeUnitOfWork();
         var fieldTasks = new InMemoryFieldTaskRepository();
-        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock());
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
 
         var result = await handler.Handle(new AssignFieldTaskCommand(Guid.NewGuid(), Guid.NewGuid()));
 

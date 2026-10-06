@@ -17,6 +17,7 @@ public sealed class FieldTask : AggregateRoot
     public DateTime? AssignedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public string? Note { get; private set; }
+    public string? PhotoObjectKey { get; private set; }
 
     private FieldTask() { }
 
@@ -49,7 +50,7 @@ public sealed class FieldTask : AggregateRoot
         AddDomainEvent(new FieldTaskAssignedEvent(Id, operatorId, now));
     }
 
-    public void Complete(Guid operatorId, DateTime now, string? note)
+    public void Complete(Guid operatorId, DateTime now, string? note, string? photoObjectKey = null)
     {
         if (Status != FieldTaskStatus.Assigned)
             throw new DomainException("Yalnızca üstlenilmiş bir görev tamamlanabilir.");
@@ -60,6 +61,7 @@ public sealed class FieldTask : AggregateRoot
         Status = FieldTaskStatus.Completed;
         CompletedAt = now;
         Note = note;
+        PhotoObjectKey = photoObjectKey;
 
         AddDomainEvent(new FieldTaskCompletedEvent(Id, operatorId, now));
     }
