@@ -34,3 +34,5 @@ deploy/nginx/certs/*
 
 TestResults/
 CoverageReport/
+
+tests/Scootly.LoadTests/results/
