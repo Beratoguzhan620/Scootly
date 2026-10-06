@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -47,6 +48,16 @@ var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
 if (!string.IsNullOrWhiteSpace(redisConnectionString))
 {
+    // Birden fazla Mvc kopyasi ayni anahtar halkasini kullanmali; aksi halde bir kopyanin urettigi cookie ve
+    // antiforgery token'i digerinde cozulemez (105. gun olcumu: 10 denemede 10 kez 400).
+    var redisOptions = StackExchange.Redis.ConfigurationOptions.Parse(redisConnectionString);
+    redisOptions.AbortOnConnectFail = false;
+    var redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisOptions);
+
+    builder.Services.AddDataProtection()
+        .SetApplicationName("Scootly.Mvc")
+        .PersistKeysToStackExchangeRedis(redisMultiplexer, "Scootly:Mvc:DataProtection-Keys");
+
     builder.Services.AddStackExchangeRedisCache(options =>
     {
         options.Configuration = redisConnectionString;
