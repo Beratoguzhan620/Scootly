@@ -24,6 +24,11 @@ Kabul edildi.
 - Green'in `depends_on` degerlerini `extends` ile miras aldigi `docker compose config` ile gorundu (onceki "tasimaz" varsayimi yanlisti).
 - `Scootly.Api.dll` SHA-256'si 1.0.0, 1.0.1 ve calisan blue konteynerde ayni.
 
+## Olculenler (odeme tuketicisi deneyleri)
+- Deney A (onay, prod yigini, Worker durdurulmus): 30 `Pending` surus, her biri icin ayni `RideCompleted` mesaji 2 kez es zamanli yayinlandi (`rabbitmqadmin`, MessageId'siz): 30/30 `Paid`, `PaymentAttempts = 1`, Api gunlugunde 30 farkli surus icin 30 "Odeme alindi", "ucretlendirilemedi" ve [WRN]/[ERR] 0, kuyruk ve DLQ bos.
+- Deney B (ret; simulator gecici olarak Development'ta, ret orani %100, Worker durdurulmus): ayni duzen: 30/30 `Pending`, `PaymentAttempts = 2`, 60 "Odeme reddedildi" satiri (her surus icin 2), "ucretlendirilemedi" ve [WRN]/[ERR] 0 (devre kesici 60 ret sirasinda hata uretmedi), kuyruk ve DLQ bos. Yani ayni mesajin cift teslimi, reddedilmis bir odemede 5 deneme hakkindan 2'sini tuketiyor (ikinci kopya `attempt-2` anahtariyla saglayiciya yeni istek gonderir); `Paid` durumunda bu olmaz.
+- Her iki deneyde de deney satirlari silindi, Worker yeniden baslatildi, simulator Production'a geri alindi.
+
 ## Olculmeyenler
 - Giris (kimlik) cookie'sinin gecis sirasinda surmesi, uzun omurlu baglantilar (SignalR/WebSocket) ve yazma isteklerinin gecis sirasinda calismasi. Antiforgery cookie+token blue->green gecisinde gecerli kaldi (olculdu).
 - Api'de yeni kod: provada api imaji yeniden uretilmedi (22 saatlik eski imaj); `Scootly.Api.dll` SHA-256'si 1.0.0, 1.0.1 ve calisan blue konteynerde ayni.
