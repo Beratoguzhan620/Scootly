@@ -108,7 +108,8 @@ Scootly/
 │   ├── Scootly.Infrastructure.Tests/    # Gerçek PostgreSQL + RabbitMQ ile altyapı testleri
 │   ├── Scootly.Api.IntegrationTests/
 │   ├── Scootly.Concurrency.Tests/       # Eşzamanlılık testleri + ölçümler/deneyler
-│   └── Scootly.Architecture.Tests/
+│   ├── Scootly.Architecture.Tests/
+│   └── Scootly.E2E.Tests/               # Playwright ile tarayici testleri (Gun 104)
 ├── deploy/
 │   ├── docker-compose.yml         # PostgreSQL, Redis, RabbitMQ (+ app ve experiments profilleri)
 │   └── .env.example               # Parola şablonu (.env git'e girmez)
@@ -202,6 +203,7 @@ Redpanda stream deneyi için: `docker compose --profile experiments up -d redpan
 
 ```
 dotnet test                                                        # tümü
+dotnet test --filter "Category=E2E"                                       # yalnizca tarayici testleri (Docker + Chromium gerekir)
 dotnet test --filter "Category!=Measurement&Category!=Experiment&Category!=E2E"  # CI'daki hızlı set
 ```
 
@@ -210,6 +212,7 @@ dotnet test --filter "Category!=Measurement&Category!=Experiment&Category!=E2E" 
 - **Infrastructure.Tests** — gerçek PostgreSQL ve RabbitMQ container'larıyla: outbox yayını, retry → DLQ akışı, kısıt ve eşzamanlılık istisnaları, webhook imzası, ödeme istemcisi.
 - **Api.IntegrationTests** — gerçek PostgreSQL üzerinde uçtan uca HTTP akışları ve güvenlik regresyonları (IDOR, token ayrımı, kilitleme, rate limit, webhook sahteciliği).
 - **Concurrency.Tests** — eşzamanlı rezervasyon, izolasyon seviyesi, deadlock, N+1; `Category=Measurement` testleri yalnızca süre raporlar.
+- **E2E.Tests** - Playwright (Chromium) ile tarayicidan giris, arac duzenleme ve saha gorevi ustlenme akislari. Gecici bir PostgreSQL ile gercek bir Scootly.Mvc sureci baslatir (Development ortami, http). Ilk kullanimdan once derleyip bir kez tarayici kurmak gerekir: `dotnet build tests/Scootly.E2E.Tests` ardindan `powershell -File tests/Scootly.E2E.Tests/bin/Debug/net10.0/playwright.ps1 install chromium` (CI'da `pwsh ... install --with-deps chromium`). `dotnet test` filtresiz calistirildiginda bu testleri de calistirir; CI'da ayri bir `e2e` isidir.
 - **Architecture.Tests** — katman bağımlılık kuralları.
 
 Integration, Infrastructure ve Concurrency testleri Docker gerektirir; geliştiricinin user-secrets'ına veya çalışan Redis/RabbitMQ'suna ihtiyaç duymaz (sırlar test başına üretilir).
