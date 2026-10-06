@@ -61,3 +61,6 @@ cascade ile silip silmedigi, `xmin` sutununu dusurmenin Npgsql'de ne yaptigi. Ur
 - Yayinlanan imajlarla uygulamanin bir veritabaniyla acilmasi. Yalnizca `scootly-api` imaji cekilip incelendi; diger dort imajin
   icerigi incelenmedi (yalnizca manifestlerine erisilebildigi dogrulandi).
 - Compose'un GHCR imajlarini kullanmasi: `image:` satirlari su an yerel adlara isaret eder.
+- 103. gunde yuk testi oncesi yedek `pg_dump -Fc` ile konteyner icinde alinip `docker cp` ile ana makineye kopyalandi (1.490.087 bayt), depo disinda saklandi.
+  Yedekten geri yukleme yine yalnizca ayri bir veritabanina denendi (102. gun); asil veritabaninin uzerine yukleme bu yedekle de yapilmadi.
+  Yuk testi verisi gelistirme veritabaninda birakildi (bkz. technical-debt.md, 103. gun).
