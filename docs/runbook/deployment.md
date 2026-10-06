@@ -64,11 +64,10 @@ cascade ile silip silmedigi, `xmin` sutununu dusurmenin Npgsql'de ne yaptigi. Ur
 - 103. gunde yuk testi oncesi yedek `pg_dump -Fc` ile konteyner icinde alinip `docker cp` ile ana makineye kopyalandi (1.490.087 bayt), depo disinda saklandi.
   Yedekten geri yukleme yine yalnizca ayri bir veritabanina denendi (102. gun); asil veritabaninin uzerine yukleme bu yedekle de yapilmadi.
   Yuk testi verisi gelistirme veritabaninda birakildi (bkz. technical-debt.md, 103. gun).
-- Blue-green gecisinde acik oturumlu bir kullanicinin oturumunun surup surmedigi (Redis anahtar halkasi paylasildigi icin beklenir, denenmedi).
-- Nginx reload sirasinda ucusta olan isteklerin kesilip kesilmedigi (prova sirali, tek tek istek gonderdi).
+- Giris yapmis kullanicinin kimlik cookie'sinin blue-green gecisinden sonra gecerli kalmasi: yalnizca antiforgery cookie ve tokeni gecis boyunca gecerli kaldi (8.7); giris cookie'si denenmedi (test hesabi gerekir).
+- Uzun omurlu baglantilarin (SignalR/WebSocket) ve uzun suren isteklerin reload sirasinda kesilip kesilmedigi: yalnizca kisa GET istekleri denendi (8.7).
 - Yazma islemleri (POST) ve kimlik dogrulamali yollarin gecis sirasinda denenmesi: prova yalnizca anonim GET ile yapildi.
-- Altyapi (postgres, redis, rabbitmq, migrator) kapaliyken green'in acilip acilmayacagi: `extends` `depends_on` tasimaz; green'in blue/altyapi ayaktayken acildigi olculdu, kapaliyken denenmedi.
-- Etkin `active.conf` ile green durdurulmus bir yiginin nginx tarafindan nasil karsilandigi (cozulemeyen `-green` adlariyla reload'un reddedilip reddedilmedigi denenmedi).
+- Altyapi (postgres, redis, rabbitmq, migrator) kapaliyken green'in acilmasi: `docker compose config` green'in `depends_on` degerlerini (migrator, payment-simulator, rabbitmq, redis ...) miras aldigini gosterdi; altyapi kapaliyken `up`'in bunlari baslatip beklemesi beklenir ama denenmedi.
 - Worker'in surum gecisinde ne yaptigi: Worker cogaltilmadi ve blue-green'e dahil degil.
 - Gecis sirasinda iki surumun ayni veritabanina yazmasinin sema uyumu (expand/contract disiplini kurali yazildi, bir senaryoyla denenmedi).
 
@@ -82,7 +81,7 @@ cascade ile silip silmedigi, `xmin` sutununu dusurmenin Npgsql'de ne yaptigi. Ur
 
 ### 8.2 Onkosullar
 - `deploy/` klasorunden calistirilir; `deploy/.env.prod` vardir.
-- Blue yigini ve altyapi (postgres, redis, rabbitmq, migrator) ayakta olmalidir. Yeni surumun imaji `scootly-api:<GREEN_VERSION>` / `scootly-mvc:<GREEN_VERSION>` adlariyla `--build` ile uretilir veya hazirdir.
+- Blue yigini canli olmalidir (trafik oradan akar). Altyapi servisleri green'in `depends_on` tanimiyla gelir (8.7); provada altyapi zaten ayaktaydi.
 - Gelistirme yigini (`deploy` projesi) ile prod yigini ayni anda calismaz: sabit `container_name`ler cakisir. Prod'u calistirmadan once gelistirme yigini durdurulur (`-v` kullanilmaz, hacimler korunur).
 - Prod komutlarinda proje adi `scootly-prod`'dur. Her yeni PowerShell penceresinde `$f` ve `$env:GREEN_VERSION` yeniden tanimlanmalidir (oturumlar arasinda kalmaz).
 
@@ -108,7 +107,7 @@ Gecisten sonra nginx gunlugundeki `upstream=` degerleri hangi kopyalarin istek a
 - `active.conf` <- `green.conf`, `nginx -t` basarili, `reload`: 10'ar istek tumu 200; trafik yalnizca green IP'lerine (her biri 5).
 - `active.conf` <- `blue.conf`, `nginx -t` basarili, `reload`: 10'ar istek tumu 200; trafik yeniden yalnizca blue IP'lerine.
 - Provadan sonra green durduruldu, blue yigini saglikli kaldi; `git status` `active.conf` icin fark gostermedi (blue'ya donmustu).
-- Bu prova trafik gecisini olcer. Api tarafinda `scootly-api:1.0.1` imaji o gun yeniden uretilmedi (22 saat once uretilmis, onbellekten); yani yeni api kodu denenmedi. Mvc'de DataProtection degisikligi nedeniyle 1.0.1 yeni koddur.
+- Bu prova trafik gecisini olcer. Api tarafinda `scootly-api:1.0.1` imaji o gun yeniden uretilmedi (22 saat once uretilmis); yani yeni api kodu denenmedi. `Scootly.Api.dll` SHA-256'si 1.0.0, 1.0.1 ve calisan blue konteynerde ayni cikti (8.7). Mvc'de DataProtection degisikligi nedeniyle 1.0.1 yeni koddur.
 
 ### 8.5 Cok kopyali calistirmada bulunan ve giderilen kusurlar (105. gun, her biri olculerek)
 - Nginx icin sabit IP (10.231.0.10), kopya konteynerleriyle cakisiyordu ("Address already in use"): agin `ip_range` degeri `10.231.0.128/25` yapildi.
@@ -121,12 +120,20 @@ Gecisten sonra nginx gunlugundeki `upstream=` degerleri hangi kopyalarin istek a
 - Worker blue-green'e dahil degildir ve cogaltilmaz.
 - Redis anahtar halkasi icin kalicilik (AOF/hacim) yok: Redis sifirlanirsa yeni anahtarlar uretilir ve acik oturumlar/antiforgery belirtecleri gecersiz kalir (beklenen, olculmedi).
 
+### 8.7 Ek olcumler (105. gun, ikinci tur)
+- Antiforgery: giris sayfasindan alinan cookie+token ile blue'ya 4 POST 200 x4, bozulmus tokenla 2 POST 400 x2 (kontrol). `active.conf` green'e alininca ayni cookie+token ile 4 POST 200 x4, bozuk token 400 x2. Antiforgery anahtar halkasi blue->green gecisinde paylasiliyor (giris cookie'si denenmedi).
+- Yuk altinda gecis: 400 sirali GET `/Account/Login` (aralarinda yaklasik 25 ms) sirasinda 4 reload (green, blue, green, blue): 400/400 yanit 200; nginx `[error]/[emerg]/[alert]/[crit]` satiri 0; trafik blue 377 (.133: 189, .134: 188), green 23 (.139: 12, .141: 11). Uzun omurlu baglanti denenmedi.
+- Hatali reload: green durdurulmus ve `active.conf`=green iken `nginx -t` "host not found in upstream mvc-green:8080" ile basarisiz oldu; `nginx -s reload` ayni hatayi dondurdu; sonraki 10 istek 200 ve yalnizca blue IP'lerinden geldi (eski yapilandirma calismaya devam etti). `blue.conf` geri yazilip reload edilince 200 (Mvc ve Api) devam etti.
+- `docker compose config`: `api-green` icin `depends_on` miras alinmis (migrator `service_completed_successfully`; payment-simulator, rabbitmq, redis `service_healthy`; cikti 10 satirda kesildi, tam liste okunmadi).
+- Imaj: `Scootly.Api.dll` SHA-256'si calisan blue api-1, `scootly-api:1.0.0` ve `scootly-api:1.0.1` icin ayni (`e2df6141...e6740`). Imaj kimligi farki (`0a78...` / `ea4a...`) icin tam kimlikle `docker image inspect` "No such image" verdi; neden belirlenmedi, yalnizca bu tek dosya karsilastirildi.
+- Production istek: `/Account/Login` 302 (Location okunmadi), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`; HSTS yok (`localhost` icin varsayilan istisna, kanit degil). Api'ye nginx konteynerinden dogrudan `/swagger/index.html` 401, `/health/live` 200.
+
 ## 9. Ortam yonetimi (Development / Production; 105. gunde dosyalardan okundu)
 Testing ortami icin ayri bir `appsettings` dosyasi yoktur; testler (`ScootlyApiFactory`, E2E) ortam degiskenleriyle yapilandirilir.
 
 | Konu | Development | Production |
 |---|---|---|
-| Api Swagger | Acik (`UseScootlySwagger`) | Kapali (koddan; calisan prod'da `/swagger` istenmedi) |
+| Api Swagger | Acik (`UseScootlySwagger`) | Kapali (koddan); calisan prod'da `/swagger/index.html` anonim istekte 401 dondu (404 degil; nedeni bakilmadi) |
 | Api HSTS | Yok | Var |
 | Mvc HSTS + `/Home/Error` | Yok | Var |
 | Mvc oturum ve kimlik cookie'si `SecurePolicy` | `SameAsRequest` | `Always` |
@@ -141,4 +148,4 @@ Testing ortami icin ayri bir `appsettings` dosyasi yoktur; testler (`ScootlyApiF
 Notlar:
 - `ASPNETCORE_ENVIRONMENT: Production` prod override'inda payment-simulator, api ve mvc icin acikca verilir.
 - user-secrets'in yalnizca Development'ta yuklenmesi ASP.NET'in varsayilan davranisidir; burada ayrica olculmedi. E2E'de Mvc `Development` ortaminda acilir, bu yuzden o ortamda bu makinenin user-secrets'i okunabilir (ADR 0040).
-- Production davranislari (HSTS, Secure cookie, Swagger kapali) otomatik testle kapsanmiyor; yalnizca koddan okundu.
+- Production davranislari (HSTS, Secure cookie, Swagger kapali) otomatik testle kapsanmiyor. HSTS basligi `localhost` icin varsayilan olarak gonderilmedigi icin istekle dogrulanamadi; Secure cookie yalnizca koddan okundu; Swagger icin yalnizca anonim istek (401) olculdu.

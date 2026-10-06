@@ -17,12 +17,19 @@ Kabul edildi.
 - `extends` ve `!reset` calisma zamaninda beklendigi gibi calisti.
 - CI (1ab438d): `build-and-test`, `docker-images`, `e2e` yesil; kapsam raporu satir %73,7, dal %60,6, Worker %0.
 
+## Olculenler (ikinci tur)
+- Antiforgery cookie+token blue->green gecisinde gecerli kaldi (200 x4); bozuk token 400 x2 (kontrol).
+- Reload altinda yuk: 4 reload boyunca 400 sirali GET'in 400'u 200; nginx'te `[error]` satiri 0.
+- Hatali reload (green durdurulmus, `active.conf`=green): `nginx -t` ve `reload` "host not found in upstream" ile reddedildi; eski yapilandirma calismaya devam etti (10/10 istek 200, blue).
+- Green'in `depends_on` degerlerini `extends` ile miras aldigi `docker compose config` ile gorundu (onceki "tasimaz" varsayimi yanlisti).
+- `Scootly.Api.dll` SHA-256'si 1.0.0, 1.0.1 ve calisan blue konteynerde ayni.
+
 ## Olculmeyenler
-- Oturum surekliligi, ucusta istek davranisi ve yazma isteklerinin gecis sirasinda calismasi.
-- Api'de yeni kod: provada api imaji yeniden uretilmedi (eski 22 saatlik imaj).
-- Calisan blue api imajinin kimligi (`sha256:0a78...`), `scootly-api:1.0.0` etiketinin kimligiyle (`ea4a6dd7...`) eslesmiyor; Docker Desktop containerd deposu kullaniyor, neden belirlenmedi. Etikete dayali geri alma api icin dogrulanmadi.
+- Giris (kimlik) cookie'sinin gecis sirasinda surmesi, uzun omurlu baglantilar (SignalR/WebSocket) ve yazma isteklerinin gecis sirasinda calismasi. Antiforgery cookie+token blue->green gecisinde gecerli kaldi (olculdu).
+- Api'de yeni kod: provada api imaji yeniden uretilmedi (22 saatlik eski imaj); `Scootly.Api.dll` SHA-256'si 1.0.0, 1.0.1 ve calisan blue konteynerde ayni.
+- Calisan blue api imajinin kimligi (`sha256:0a78...`) `scootly-api:1.0.0` etiketinin kimligiyle (`ea4a6dd7...`) eslesmiyor; tam kimlikle `docker image inspect` "No such image" verdi (Docker Desktop containerd deposu); nedeni belirlenmedi. `Scootly.Api.dll` SHA-256'si ise ayni; bu tek dosyaya dayanir, tum imaj karsilastirilmadi.
 - Redis kesintisinde Mvc davranisi; anahtar halkasi kalici degil.
-- Altyapi kapaliyken green'in acilmasi (`extends` `depends_on` tasimaz).
+- Altyapi kapaliyken green'in acilmasi: `depends_on`'in `extends` ile miras alindigi `compose config` ile gorundu, bu yuzden `up`'in altyapiyi baslatip beklemesi beklenir; denenmedi.
 
 ## Kisitlar
 - `docker-compose.green.yml` prod override'indaki ortam degiskenlerini ve kaynak limitlerini elle kopyalar; ikisi birbirinden uzaklasabilir.
