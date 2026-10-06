@@ -45,7 +45,7 @@ jobs:
       - name: Test
         run: >
           dotnet test Scootly.slnx --configuration Release --no-build
-          --filter "Category!=Measurement&Category!=Experiment"
+          --filter "Category!=Measurement&Category!=Experiment&Category!=E2E"
           --logger trx --results-directory TestResults
           --collect "XPlat Code Coverage"
 
@@ -107,3 +107,52 @@ jobs:
       # Temiz checkout'tan derlenen Mvc imajında Leaflet ve SignalR istemcisi bulunmalı (yerelde git'e girmemiş dosya riskine karşı).
       - name: Verify Mvc static assets
         run: docker run --rm --entrypoint sh scootly-mvc -c "test -s /app/wwwroot/lib/leaflet/leaflet.js && test -s /app/wwwroot/lib/signalr/signalr.min.js"
+
+  # Tarayici testleri ayri bir istir: kirmizi olursa unit/integration isini bloklamaz, onu beklemez de.
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    env:
+      E2E_ARTIFACTS_DIR: ${{ github.workspace }}/e2e-artifacts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', 'Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore tests/Scootly.E2E.Tests
+
+      # E2E projesi Mvc'yi de derler; test sureci Mvc'yi bin/Release altindan ayri surec olarak baslatir.
+      - name: Build
+        run: dotnet build tests/Scootly.E2E.Tests --configuration Release --no-restore
+
+      - name: Install Playwright browser
+        run: pwsh tests/Scootly.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: E2E tests
+        run: >
+          dotnet test tests/Scootly.E2E.Tests --configuration Release --no-build
+          --filter "Category=E2E"
+          --logger trx --results-directory E2EResults
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            e2e-artifacts/
+            E2EResults/**/*.trx
+          if-no-files-found: ignore

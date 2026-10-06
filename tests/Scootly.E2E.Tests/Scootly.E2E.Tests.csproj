@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Playwright ile uctan uca (tarayici) testleri. Gercek Mvc sureci + gecici Postgres.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scootly.Testing\Scootly.Testing.csproj" />
+    <!-- Mvc yalnizca derlenir; test sureci onu ayri bir surec olarak calistirir. -->
+    <ProjectReference Include="..\..\src\Scootly.Mvc\Scootly.Mvc.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

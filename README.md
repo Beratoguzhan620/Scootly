@@ -202,7 +202,7 @@ Redpanda stream deneyi için: `docker compose --profile experiments up -d redpan
 
 ```
 dotnet test                                                        # tümü
-dotnet test --filter "Category!=Measurement&Category!=Experiment"  # CI'daki hızlı set
+dotnet test --filter "Category!=Measurement&Category!=Experiment&Category!=E2E"  # CI'daki hızlı set
 ```
 
 - **Domain.UnitTests** — iş kuralları ve durum makineleri, dış bağımlılık yok.
