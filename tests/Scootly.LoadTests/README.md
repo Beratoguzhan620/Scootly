@@ -19,9 +19,15 @@ Hepsinde `BASE_URL` (varsayilan `http://host.docker.internal:5016`).
 3. Test hesaplari `lt-user-N@scootly.test` (parola `LoadTest1234`) ilk calistirmada olusturulur ve veritabaninda kalir.
 4. Telemetri senaryosu cihaz sirrini ortam degiskeninden alir; komuta yazmayin: `-e DEVICE_CLIENT_SECRET` (degersiz) ile gecirin.
 
-## Calistirmadocker run --rm -e BASE_URL=http://host.docker.internal:5016 -e VUS=10 -e DURATION=30s `
--v "${PWD}\tests\Scootly.LoadTests:/scripts" grafana/k6:latest run /scripts/start-ride.js`k6-helpers.ps1` kok dizinden calistirilir ve `Invoke-K6`, `Get-Rows` tanimlar (konteyner adlari `deploy-api-1` vb. sabit). Yuklemek icin:
-`. ([scriptblock]::Create([System.IO.File]::ReadAllText("$PWD\tests\Scootly.LoadTests\k6-helpers.ps1")))`
+## Calistirma
+Ornek (PowerShell, depo kokunden):
+
+    docker run --rm -e BASE_URL=http://host.docker.internal:5016 -e VUS=10 -e DURATION=30s `
+      -v "${PWD}\tests\Scootly.LoadTests:/scripts" grafana/k6:latest run /scripts/start-ride.js
+
+`k6-helpers.ps1` `Invoke-K6` ve `Get-Rows` fonksiyonlarini tanimlar (konteyner adlari `deploy-api-1` vb. sabit). Yuklemek icin (depo kokunden):
+
+    . ([scriptblock]::Create([System.IO.File]::ReadAllText("$PWD\tests\Scootly.LoadTests\k6-helpers.ps1")))
 
 ## Notlar
 - Esik (threshold) tanimlanmamistir; hedef sayilar olculmeden belirlenmez. `p(95)>=0` esikleri yalnizca alt metrikleri gostermek icindir.
