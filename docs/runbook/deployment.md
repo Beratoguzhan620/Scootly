@@ -21,15 +21,26 @@ Bu belge yalnizca denenen adimlari "Denendi" olarak isaretler. Denenmeyenler "De
   Ayni `SCOOTLY_VERSION` ile yeniden derleyince etiket ustune yazilir (derleme ciktisinda `naming to ...scootly-api:1.0.0` goruldu);
   bu yuzden yerel derlemeyle "onceki surume donmek" icin eski imajin ayri bir etiketle saklanmis olmasi gerekir.
 - `migrator` servisi her `up`'ta calisir ve cikis yapar (`Exited` gozlendi); EF Core migration paketi bekleyen migration'lari uygular.
+- `api` ve `mvc` ikiser kopya calisir (`deploy.replicas: 2`); Nginx istekleri `deploy/nginx/upstreams/active.conf` ile secilen upstream'e dagitir (mavi-yesil gecis ve olcumler icin bkz. bolum 8).
+- Gelistirme yigini (proje `deploy`) ile prod yigini sabit `container_name`ler yuzunden ayni anda calismaz; birini baslatmadan once digeri durdurulur (bkz. 8.2).
+- Green yigini icin `GREEN_VERSION` ayri bir imaj etiketi uretir (ornek `scootly-api:1.0.1`); provada `Scootly.Api.dll` SHA-256'si `1.0.0` ve `1.0.1` etiketlerinde ayni cikti (bkz. 8.7).
 
 ## 3. Veritabani yedegi (Denendi)
-Gelistirme kapsayicisinda:docker exec scootly-postgres pg_dump -U postgres -d scootly -Fc -f /tmp/yedek.dump
-docker cp scootly-postgres:/tmp/yedek.dump .Uretimde kullanici ve veritabani adlari `.env.prod` degerleriyle ayni olmalidir (kontrol edilmedi).
+Gelistirme kapsayicisinda:
+
+    docker exec scootly-postgres pg_dump -U postgres -d scootly -Fc -f /tmp/yedek.dump
+    docker cp scootly-postgres:/tmp/yedek.dump .
+
+Uretimde kullanici ve veritabani adlari `.env.prod` degerleriyle ayni olmalidir (kontrol edilmedi).
 Her migration'dan ONCE yedek alin.
 
-## 4. Yedekten geri yukleme provasi (Denendi, ayri veritabanina)docker exec scootly-postgres createdb -U postgres scootly_restore_test
-docker exec scootly-postgres pg_restore -U postgres -d scootly_restore_test /tmp/yedek.dump
-docker exec scootly-postgres dropdb -U postgres scootly_restore_testSonuc: yedek 1.490.087 bayt; geri yuklenen kopyada 500 arac, 22 surus, 3 kullanici, 77 outbox kaydi ve son migration
+## 4. Yedekten geri yukleme provasi (Denendi, ayri veritabanina)
+
+    docker exec scootly-postgres createdb -U postgres scootly_restore_test
+    docker exec scootly-postgres pg_restore -U postgres -d scootly_restore_test /tmp/yedek.dump
+    docker exec scootly-postgres dropdb -U postgres scootly_restore_test
+
+Sonuc: yedek 1.490.087 bayt; geri yuklenen kopyada 500 arac, 22 surus, 3 kullanici, 77 outbox kaydi ve son migration
 `AddOutboxTraceParent` asil veritabaniyla ayniydi, `pg_restore` hata yazmadi. Bu yalnizca yedegin ayri bir veritabanina
 geri yuklenebildigini gosterir.
 
