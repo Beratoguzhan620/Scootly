@@ -20,6 +20,8 @@ networks:
     ipam:
       config:
         - subnet: 10.231.0.0/24
+          # Dinamik adresler yalnizca ust yariden (.128-.255) verilir; alt yari sabit adresler icindir (Nginx .10).
+          ip_range: 10.231.0.128/25
 
 services:
   postgres:
