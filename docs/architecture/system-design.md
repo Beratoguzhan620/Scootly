@@ -16,7 +16,7 @@ Bu tablo yon gosterir. Hicbir bulut hesabinda kurulum yapilmadi; maliyet, gecis 
 | Seq / Jaeger / Prometheus / Grafana / OTel collector | Yonetilen gozlemlenebilirlik (OTLP kabul eden) | ADR 0030: uygulama OTLP ile collector'a yazar; arka uc degisimi esas olarak collector yapilandirmasidir. Prod yiginda observability profili yok, Prometheus alarm kurali yok (teknik borc, 107. gun). |
 | api / mvc / worker konteynerleri | Konteyner calistirma (orkestrasyon) | Worker saglik kontrolu heartbeat dosyasi; worker bugun tek ornek. Replika/otomatik yeniden baslatma ayarlari olculmedi. |
 | .env.prod dosyasi | Gizli yonetim servisi | 27.09.2026 olayi (postmortems/2026-09-27-sizmis-sirlar.md) ve rotasyon proseduru (incident-response.md bolum 6, denenmedi) bu gecisin gerekcesi. |
-| MinIO (108b'de eklenecek) | Nesne depolama (S3 uyumlu) | Henuz yok. Kod S3 API ile yazilirsa gecis esas olarak yapilandirma olur. |
+| SeaweedFS (S3 uyumlu, AWSSDK.S3) | Nesne depolama (S3 uyumlu) | Gelistirmede var (compose profili `storage`, ADR 0043). Prod'a baglanmadi (technical-debt.md, 108b). Kod S3 API ile yazildi, buluta gecisin esas olarak yapilandirma olmasi beklenir; bulutta olculmedi. |
 
 ## 2. Olculmeyenler
 

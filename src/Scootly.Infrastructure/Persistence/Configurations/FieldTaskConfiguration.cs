@@ -23,6 +23,9 @@ public sealed class FieldTaskConfiguration : IEntityTypeConfiguration<FieldTask>
         builder.Property(t => t.Note)
             .HasMaxLength(500);
 
+        builder.Property(t => t.PhotoObjectKey)
+            .HasMaxLength(200);
+
         builder.Property(t => t.CreatedAt);
 
         builder.HasIndex(t => t.VehicleId)

@@ -173,3 +173,12 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **107. gun:** Sir rotasyon adimlari (PostgreSQL, RabbitMQ, Redis parola degisikligi, `--force-recreate`) 27.09.2026'da kayda gecmedi; `incident-response.md` bolum 6 denenmedi.
 - **107. gun:** Sizan sirlarin her birinin Git gecmisinde ilk gectigi commit belirlenmedi; sizinti suresi yalnizca ust sinirla biliniyor (en fazla 38 gun, 2026-08-20 ile 2026-09-27). Kotu kullanim aramasinin yontemi ve kapsami kayitli degil, "iz bulunmadi" kanitlanmis bir "kullanilmadi" degildir.
 - **107. gun:** Postmortem'de "depo ilk bastan beri public" ve "kotu kullanim izi yok" ifadeleri proje sahibinin beyanidir, bagimsiz olarak dogrulanmadi.
+
+## Gun 108b: nesne depolama (fotograf yukleme)
+
+- Nesne deposu prod'a baglanmadi: nginx `client_max_body_size` yok (1 MB, buyuk foto 413), `storage` profili prod'da baslamiyor, on-imzali URL ana makinesi dis dunyadan erisilemez. Durum: acik, prod'a baglanirken yapilacak.
+- Uygulama kimligi bucket olusturabiliyor (tembel olusturma). En az yetkili kimlik ve onceden hazirlanmis bucket gerekli. Durum: acik.
+- SaveChanges sonrasi hata ve silme hatasi birlikte olursa yetim nesne kalabilir; temizleyici is yok. Durum: bilincli birakildi (olasilik dusuk, etkisi depolama maliyeti).
+- Fotograf icin goruntu cozumleme, kotu amacli yazilim taramasi ve EXIF (konum) temizleme yok. Durum: acik, prod'dan once degerlendirilmeli.
+- 6 MB'i asan isteklerin tarayicida gorunumu olculmedi. Durum: olculmedi.
+- Gelistirmede uygulama cerezi ayni makinede farkli portta calisan depoya gidebilir (cerezler port bazli yalitilmaz). Etkisi olculmedi. Durum: olculmedi.
