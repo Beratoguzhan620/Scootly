@@ -133,6 +133,21 @@ public sealed class E2EFixture : IAsyncLifetime
         startInfo.Environment["Messaging__Enabled"] = "false";
         startInfo.Environment["Redis__ConnectionString"] = string.Empty;
 
+        // Canli S3 uyumlu depo tanimliysa fotograf testleri icin depolama acik baslatilir; yoksa varsayilan (kapali) kalir.
+        var liveEndpoint = Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_ENDPOINT");
+        var liveAccessKey = Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_ACCESS_KEY");
+        var liveSecretKey = Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_SECRET_KEY");
+
+        if (!string.IsNullOrWhiteSpace(liveEndpoint) && !string.IsNullOrWhiteSpace(liveAccessKey) && !string.IsNullOrWhiteSpace(liveSecretKey))
+        {
+            startInfo.Environment["Storage__Enabled"] = "true";
+            startInfo.Environment["Storage__Endpoint"] = liveEndpoint;
+            startInfo.Environment["Storage__PublicEndpoint"] = liveEndpoint;
+            startInfo.Environment["Storage__Bucket"] = "scootly-e2e-photos";
+            startInfo.Environment["Storage__AccessKey"] = liveAccessKey;
+            startInfo.Environment["Storage__SecretKey"] = liveSecretKey;
+        }
+
         _mvc = new Process { StartInfo = startInfo };
         _mvc.OutputDataReceived += (_, e) => AppendOutput(e.Data);
         _mvc.ErrorDataReceived += (_, e) => AppendOutput(e.Data);
