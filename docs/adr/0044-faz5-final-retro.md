@@ -1,6 +1,6 @@
 # ADR 0044: Faz 5 ve proje final retrosu
 
-Durum: taslak (110. gun). "Kanita dayali" bolumler repo kayitlarindan; "Kisisel" bolumler proje sahibi tarafindan doldurulur ve Claude tarafindan doldurulmamistir.
+Durum: kabul edildi (110. gun). Bu retro yalnizca repo kayitlarina ve olculen sonuclara dayanir; kisisel degerlendirme icermez.
 
 ## Kanita dayali: ne calisti
 
@@ -19,10 +19,3 @@ Durum: taslak (110. gun). "Kanita dayali" bolumler repo kayitlarindan; "Kisisel"
 ## Acik kalanlar
 
 `technical-debt.md` "Gun 109: son durum" ve `system-design.md` bolum 3 (risk listesi).
-
-## Kisisel (proje sahibi doldurur)
-
-- Bu 22 haftada en cok ogrendigim 3 sey:
-- En zor anim ve nasil ciktim:
-- Bugun farkli yapacagim bir karar:
-- Sonraki ogrenme hedefim:
