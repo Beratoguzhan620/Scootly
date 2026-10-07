@@ -3,6 +3,45 @@
 Bu dosya, bilinçli olarak şimdi düzeltilmeyen ama fark edilen eksiklikleri kaydeder. Kapatılan maddeler silinmez;
 nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 
+## Gun 109: son durum (6 Ekim 2026)
+
+### Kapatilan ya da ilerleyenler
+
+- FieldOps baglami: kapandi. Saha gorevi artik `FieldTask` aggregate'i ile yurutuluyor (ADR 0025, fotograf icin ADR 0043). Eski "Acik borclar" satiri kaldirildi.
+- RabbitMQ yeniden baglanma hatasi: kapandi (106. gun maddesine bakin; olculenler ve olculmeyenler orada).
+- Secret taramasi: KISMEN. GitHub Secret Protection ve Push protection acik (ekran goruntusunde "Disable" dugmesi gorunuyor); sizinti denemesiyle sinanmadi. CI'da gitleaks yok.
+- Domain kapsami: coverlet ile yalnizca `Scootly.Domain` ve yalnizca `Scootly.Domain.UnitTests` icin olculdu: satir %78,8 -> %90,9, dal %73,7 -> %91,7 (hedef >= %80). CI birlesik raporu bu gun yeniden okunmadi.
+
+### Bilincli birakildi
+
+| Konu | Gerekce |
+|---|---|
+| Git gecmisindeki eski sirlar | Hepsi 27.09.2026'da yenilendi; gecmisi yeniden yazmak paylasilan dallari bozar (ADR 0021). |
+| Arac basina cihaz kimligi | Gercek cihaz filosu yok; provizyon ve sir dagitimi gerektirir (ADR 0021). |
+| Rota surumleme (`/api/...`) | Mevcut istemcileri kirar; bir sonraki kirici surumde birlikte yapilacak. |
+| Park yasagi / hizmet bolgesi kurali | Bolge verisi (poligonlar) tanimli degil. |
+| Wallet / Billing | Gercek karmasiklik birikene kadar ayri context gereksiz (ADR 0019). |
+| Surec ici telemetri kuyrugu | Kalici kuyruk ihtiyaci dogmadi (ADR 0012). |
+| Denetci (Auditor) rolu | Ilgili raporlama ozellikleri yazilmadi. |
+| Bos migration | Uygulanmis migration silinmez; zararsiz. |
+
+"DLQ izleme / alarm" bilincli birakildi DEGIL, acik kaliyor: eski gerekce ("gozlemlenebilirlik altyapisi yok") artik gecerli degil; alarm kurali ve DLQ'dan yeniden surme mekanizmasi yok.
+
+### Acik kalanlar (Gun 110 risk listesine girecek)
+
+- DLQ izleme / alarm kurallari ve DLQ'dan yeniden surme yok.
+- Redis kapaliyken (yeniden) baslayan Mvc replikasi 500 veriyor.
+- Docker healthcheck yalnizca `/health/live`; bagimlilik kesintisinde konteyner `healthy` kaliyor.
+- Ayni `RideCompleted` mesajinin tekrar tesliminde retry hakki tukeniyor.
+- Prod'da gozlemlenebilirlik (Seq, Jaeger, Prometheus, Grafana) yok.
+- 108b nesne deposu prod'a bagli degil; en az yetkili kimlik ve icerik taramasi yok.
+- Mvc yerel (`dotnet run`) sirlari README'de belgelenmedi.
+
+### 81-108b arasi "olculmedi / denenmedi" notlari
+
+Bu notlar topluca "bilincli birakildi" sayilir. Gerekce: proje bir ogrenme/portfoy calismasi; cogu madde yerel ortamda olculemiyor. Bu siniflandirma proje sahibinin onayina tabidir.
+
+
 ## Açık borçlar
 
 | Konu | Açıklama | Neden ertelendi |
@@ -12,7 +51,6 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 | DLQ izleme / alarm | Ölü mektup kuyruklarına düşen mesajlar yalnızca RabbitMQ yönetim arayüzünden görülebiliyor. | Gözlemlenebilirlik altyapısı (metrik, alarm) henüz yok. |
 | Sürüm tutarlılığı | `RidesController`, `AuthController`, `DeviceAuthController`, `TelemetryController`, `WebhooksController` sürümsüz rotalarda (`/api/...`). | Rota değişikliği mevcut istemcileri (simülatörler, mobil) kırar; bir sonraki kırıcı sürümde birlikte yapılmalı. |
 | Park yasağı / hizmet bölgesi kuralları | `GeofenceEvaluator` canlı bildirim bölgeleri için kullanılıyor, ancak sürüş bitirirken "hizmet bölgesi dışında / park yasağı bölgesinde bırakılamaz" kuralı yok. | Bölge verisi (poligonlar) henüz tanımlanmadı. |
-| FieldOps bağlamı | Batarya düşük ve terk edilmiş araç olayları yalnızca log ile "saha görevi" üretiyor. | `FieldTask` aggregate'i ve saha operatörü akışı yazılmadı. |
 | Wallet / Billing | Ödeme bilgisi hâlâ `Ride` içinde; fatura, vergi, farklı ödeme yöntemleri yok. | ADR 0019: gerçek karmaşıklık birikene kadar ayrı context gereksiz. |
 | Telemetri kuyruğu | Süreç içi `Channel`: API yeniden başlarsa kuyrukta bekleyen okumalar kaybolabilir; yatay ölçeklemede her instance kendi kuyruğunu işler. | ADR 0012; kalıcı kuyruk ihtiyacı henüz doğmadı. |
 | Denetçi (Auditor) rolü | Planlanan aktörlerden biri; henüz hiçbir uç kullanmıyor. | İlgili raporlama özellikleri yazılmadı. |
@@ -158,7 +196,7 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - **105. gun:** Ayni `RideCompleted` mesajinin cift teslimi reddedilmis bir odemede 5 deneme hakkindan 2'sini tuketiyor (olculdu: 30 surus, `Pending|2|30`, 60 ret satiri); onay yolunda zararsiz (30/30 `Paid`, deneme 1). `RideChargeConsumer` `MessageId`'yi yalnizca gunluge yazar, tekrar kontrolu yapmaz (koddan okundu); deney mesajlarinda MessageId yoktu. Gercek yayinlarda (outbox) cift teslimin ne siklikla oldugu olculmedi; cozum (tuketici tekrar kontrolu veya deneme sayacini mesaja gore sinirlama) secilmedi.
 - **105. gun:** Odeme tuketicisi deneylerinde (A ve B) eszamanli cift teslimde yarisin (iki kopyanin ayni anda ayni surusu okumasi) gercekten yasandigi dogrulanamadi: sonuc tutarli ama yarisin kendisi gozlenmedi. Simulator Production'da istek gunlugu tutmadigi icin saglayiciya giden istek sayisi da olculmedi.
 - **105. gun:** Odeme simulatorunun `/api/failure-rate` ucu yalnizca `Development`'ta var; prod yiginda ret/kesinti deneyi icin simulatoru gecici bir override (`ASPNETCORE_ENVIRONMENT=Development`) ile yeniden olusturmak gerekti. 106. gun plani da bu ucu kullaniyor.
-- **106. gun:** RabbitMQ kesintisinden sonra tuketiciler her kosulda yeniden baglanmiyor: kesintide outbox satiri varken ya da `/health/ready` cagrildiginda 240 sn icinde 0 tuketici kaldi (`ride-charges`, `battery-low`, `VehicleStatusChanged` abonelikleri); hic dokunulmadiginda 13 sn'de dondu. Gecici cozum: Worker ve Api restart + nginx reload. Hipotez (dogrudan gozlenmedi): `RabbitMqConnectionProvider.GetConnectionAsync` kurtarilan baglantiyi dispose ediyor, `RabbitMqConsumerService` eski baglantida kaliyor. Duzeltilmedi.
+- **106. gun:** RabbitMQ kesintisinden sonra tuketiciler her kosulda yeniden baglanmiyor: kesintide outbox satiri varken ya da `/health/ready` cagrildiginda 240 sn icinde 0 tuketici kaldi (`ride-charges`, `battery-low`, `VehicleStatusChanged` abonelikleri); hic dokunulmadiginda 13 sn'de dondu. Gecici cozum: Worker ve Api restart + nginx reload. Hipotez (dogrudan gozlenmedi): `RabbitMqConnectionProvider.GetConnectionAsync` kurtarilan baglantiyi dispose ediyor, `RabbitMqConsumerService` eski baglantida kaliyor. **Gun 109: KAPANDI.** Hipotez testle dogrulandi ve duzeltildi (`RabbitMqConnectionProvider`: kurtarilmakta olan baglanti dispose edilmiyor; `RabbitMqRecoveryTests`). Olculen: duzeltme oncesi kesintide saglayiciya dokunulan senaryo kirmizi (60 sn icinde tuketici mesaj almadi), dokunulmayan kontrol senaryosu yesil; duzeltme sonrasi ikisi de yesil. Olculmedi: Compose/Nginx uzerindeki 106. gun provasi tekrarlanmadi; `RabbitMqHealthCheck`in yeni `InvalidOperationException` karsisindaki davranisi okunmadi; kesintide `/health/ready` davranisi olculmedi.
 - **106. gun:** Docker healthcheck'i `/health/live` kullaniyor; Postgres, RabbitMQ ya da Redis kesintisinde konteynerler `healthy` kaliyor. Bagimlilik durumunu izleyen bir sey yok (readiness yalnizca elle sorgulaniyor); ayrica `/health/ready` cagrisi RabbitMQ kesintisinde baglantiya dokunuyor (yukaridaki madde).
 - **106. gun:** Redis kapaliyken yeniden baslatilan ya da yeni acilan Mvc replikasi 500 veriyor (DataProtection key ring Redis'ten okunamiyor); mevcut replikalar calismaya devam etti. Redis donunce 7 sn'de toparlandi. Kesintide rolling deploy yapilmamali. Nginx'in 500 donen replikaya trafik yollayip yollamadigi olculmedi.
 - **106. gun:** Odeme gateway kesintisinde taze surusler retry kuyrugundan ~31 sn'de DLQ'ya dusuyor ve DLQ'dan yeniden suren bir mekanizma yok; satirlar uzlastirma esigine kadar `Pending` kaliyor. Uzlastirma servisi eski `Pending` satirlari gateway donunce tahsil etti (<=30 sn). Esik degerleri (`neverAttemptedBefore`, `retryBefore`) ve DLQ mesajlarinin akibeti olculmedi; DLQ izleme maddesiyle iliskili.
