@@ -10,10 +10,14 @@ namespace Scootly.Domain.Fleet;
 /// Available → Reserved → InRide → Available;
 /// Reserved → Available (iptal / süre dolumu);
 /// InRide → Maintenance (terk edilmiş sürüş);
-/// Available/Reserved/Lost → Maintenance → Available.
+/// Available/Reserved/Lost → Maintenance → Available;
+/// Available/Reserved/Maintenance → Lost → Available (bulunduğunda).
 /// </summary>
 public sealed class Vehicle : AggregateRoot
 {
+    /// <summary>Cihazın bildirdiği konum bu süreden yeniyse, sürüş bitişinde istemcinin bildirdiği konuma tercih edilir.</summary>
+    public static readonly TimeSpan TelemetryFreshness = TimeSpan.FromMinutes(2);
+
     public VehicleModel Model { get; private set; }
     public VehicleStatus Status { get; private set; }
     public BatteryLevel Battery { get; private set; }
@@ -46,6 +50,9 @@ public sealed class Vehicle : AggregateRoot
             throw new DomainException("Rezervasyon için sürücü kimliği gerekli.");
 
         EnsureStatusIs(VehicleStatus.Available, "Araç müsait değil, rezerve edilemez.");
+
+        if (!Battery.IsRentable)
+            throw new DomainException($"Aracın bataryası kiralama için çok düşük (en az %{BatteryLevel.MinimumRentablePercentage}).");
 
         ReservedBy = driverId;
         ReservedAt = now;
@@ -85,13 +92,24 @@ public sealed class Vehicle : AggregateRoot
         ChangeStatus(VehicleStatus.InRide, now);
     }
 
-    public void CompleteRide(GeoPoint parkedAt, DateTime now)
+    /// <summary>
+    /// Sürüşü kapatır ve aracın park konumunu döndürür. Konumun yetkili kaynağı cihazdır: telemetri tazeyse
+    /// araç son bildirdiği yerde kalır, istemcinin bildirdiği konum yalnızca cihaz susmuşsa kullanılır.
+    /// </summary>
+    public GeoPoint CompleteRide(GeoPoint reportedLocation, DateTime now)
     {
         EnsureStatusIs(VehicleStatus.InRide, "Araç sürüşte değil, sürüş tamamlanamaz.");
 
-        Location = parkedAt;
+        if (!HasFreshTelemetry(now))
+            Location = reportedLocation;
+
         ChangeStatus(VehicleStatus.Available, now);
+
+        return Location;
     }
+
+    public bool HasFreshTelemetry(DateTime now)
+        => LastTelemetryAt is { } lastTelemetryAt && now - lastTelemetryAt <= TelemetryFreshness;
 
     /// <summary>Terk edilmiş bir sürüşten sonra araç, saha ekibi kontrol edene kadar bakıma alınır.</summary>
     public void EndAbandonedRide(DateTime now)
@@ -115,6 +133,21 @@ public sealed class Vehicle : AggregateRoot
         ChangeStatus(VehicleStatus.Maintenance, now);
     }
 
+    /// <summary>Bulunamayan (sinyal vermeyen, çalınmış) araç kiralamadan çekilir; bulununca hizmete döndürülür.</summary>
+    public void MarkLost(DateTime now)
+    {
+        switch (Status)
+        {
+            case VehicleStatus.InRide:
+                throw new DomainException("Sürüşteki bir araç kayıp olarak işaretlenemez; önce sürüş sonlanmalı.");
+            case VehicleStatus.Lost:
+                throw new DomainException("Araç zaten kayıp olarak işaretli.");
+        }
+
+        ClearReservation();
+        ChangeStatus(VehicleStatus.Lost, now);
+    }
+
     public void ReturnToService(DateTime now)
     {
         if (Status is not (VehicleStatus.Maintenance or VehicleStatus.Lost))
@@ -124,7 +157,7 @@ public sealed class Vehicle : AggregateRoot
     }
 
     /// <summary>Marka/menzil bilgisini günceller. Sürüşteki bir araç düzenlenemez.</summary>
-    public void UpdateModel(VehicleModel model, DateTime now)
+    public void UpdateModel(VehicleModel model)
     {
         if (Status == VehicleStatus.InRide)
             throw new DomainException("Sürüşteki bir araç düzenlenemez.");

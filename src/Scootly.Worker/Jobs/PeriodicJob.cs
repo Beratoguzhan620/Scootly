@@ -18,7 +18,7 @@ public abstract class PeriodicJob : BackgroundService
 
     protected abstract TimeSpan Interval { get; }
 
-    protected abstract Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken);
+    protected internal abstract Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

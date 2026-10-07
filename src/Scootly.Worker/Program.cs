@@ -26,6 +26,7 @@ builder.Services.AddSerilog();
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
 builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Worker");
+builder.Services.AddScootlyPayments();
 builder.Services.AddScootlyPaymentGateway();
 
 builder.Services.AddOptions<WorkerOptions>()

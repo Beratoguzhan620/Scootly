@@ -1,31 +1,51 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scootly.Application.Abstractions;
 using Scootly.Application.Fleet.Commands;
+using Scootly.Domain.Common;
 using Scootly.Infrastructure.Authorization;
+using Scootly.Infrastructure.Caching;
 using Scootly.Mvc.ViewModels;
 
 namespace Scootly.Mvc.Controllers;
 
-[Authorize]
+/// <summary>
+/// Filo listesi ve araç işlemleri (yalnızca filo ekibi). Liste tüm araçların konumunu ve durumunu gösterdiği için
+/// sürücülere açık değildir; düzenleme ve kayıt ayrıca filo yöneticisi ister.
+/// </summary>
+[Authorize(Policy = PolicyNames.FleetOperations)]
 public sealed class VehiclesController : Controller
 {
+    public const int DefaultPageSize = 20;
+    public const int MaxPageSize = 100;
+    public const int MaxPageNumber = 10_000;
+
     private readonly IVehicleReadService _readService;
     private readonly RegisterVehicleCommandHandler _registerHandler;
     private readonly UpdateVehicleDetailsCommandHandler _updateHandler;
+    private readonly VehicleMaintenanceCommandHandler _maintenanceHandler;
+    private readonly NearbyVehicleCache _publicListCache;
 
     public VehiclesController(
         IVehicleReadService readService,
         RegisterVehicleCommandHandler registerHandler,
-        UpdateVehicleDetailsCommandHandler updateHandler)
+        UpdateVehicleDetailsCommandHandler updateHandler,
+        VehicleMaintenanceCommandHandler maintenanceHandler,
+        NearbyVehicleCache publicListCache)
     {
         _readService = readService;
         _registerHandler = registerHandler;
         _updateHandler = updateHandler;
+        _maintenanceHandler = maintenanceHandler;
+        _publicListCache = publicListCache;
     }
 
-    public async Task<IActionResult> Index(int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Index(int pageNumber = 1, int pageSize = DefaultPageSize, CancellationToken cancellationToken = default)
     {
+        // Elle yazılmış ya da bozuk sayfa parametreleri hata sayfası yerine en yakın geçerli değere çekilir.
+        pageNumber = Math.Clamp(pageNumber, 1, MaxPageNumber);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
         var filter = new VehicleFilter(null, null, null, null, false, pageNumber, pageSize);
         var page = await _readService.GetVehiclesAsync(filter, cancellationToken);
 
@@ -64,9 +84,11 @@ public sealed class VehiclesController : Controller
 
         if (!result.IsSuccess)
         {
-            ModelState.AddModelError(string.Empty, result.Error ?? "Araç kaydedilemedi.");
+            ModelState.AddModelError(string.Empty, result.Error);
             return View(model);
         }
+
+        await _publicListCache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
 
         TempData["SuccessMessage"] = "Araç başarıyla kaydedildi.";
         return RedirectToAction(nameof(Index));
@@ -108,11 +130,59 @@ public sealed class VehiclesController : Controller
 
         if (!result.IsSuccess)
         {
-            ModelState.AddModelError(string.Empty, result.Error ?? "Araç güncellenemedi.");
+            ModelState.AddModelError(string.Empty, result.Error);
             return View(model);
         }
 
         TempData["SuccessMessage"] = "Araç başarıyla güncellendi.";
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Aracı kiralamadan çekip bakıma alır (örn. saha kontrolü gerektiğinde).</summary>
+    [Authorize(Policy = PolicyNames.FleetOperations)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> SendToMaintenance(Guid id, int pageNumber = 1, CancellationToken cancellationToken = default)
+        => ChangeStatusAsync(token => _maintenanceHandler.Handle(new SendVehicleToMaintenanceCommand(id), token),
+            "Araç bakıma alındı.", pageNumber, cancellationToken);
+
+    /// <summary>Bulunamayan aracı kayıp olarak işaretler; bulununca "Hizmete döndür" ile geri gelir.</summary>
+    [Authorize(Policy = PolicyNames.FleetOperations)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> MarkLost(Guid id, int pageNumber = 1, CancellationToken cancellationToken = default)
+        => ChangeStatusAsync(token => _maintenanceHandler.Handle(new MarkVehicleLostCommand(id), token),
+            "Araç kayıp olarak işaretlendi.", pageNumber, cancellationToken);
+
+    /// <summary>
+    /// Bakımdaki veya kayıp aracı yeniden kiralanabilir yapar. Terk edilen sürüşlerden sonra bakıma alınan araçlar
+    /// denetim görevi tamamlandıktan sonra buradan hizmete döndürülür.
+    /// </summary>
+    [Authorize(Policy = PolicyNames.FleetOperations)]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> ReturnToService(Guid id, int pageNumber = 1, CancellationToken cancellationToken = default)
+        => ChangeStatusAsync(token => _maintenanceHandler.Handle(new ReturnVehicleToServiceCommand(id), token),
+            "Araç hizmete döndürüldü.", pageNumber, cancellationToken);
+
+    private async Task<IActionResult> ChangeStatusAsync(
+        Func<CancellationToken, Task<Result>> change,
+        string successMessage,
+        int pageNumber,
+        CancellationToken cancellationToken)
+    {
+        var result = await change(cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            await _publicListCache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
+            TempData["SuccessMessage"] = successMessage;
+        }
+        else
+        {
+            TempData["ErrorMessage"] = result.Error;
+        }
+
+        return RedirectToAction(nameof(Index), new { pageNumber = Math.Clamp(pageNumber, 1, MaxPageNumber) });
     }
 }

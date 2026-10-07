@@ -14,8 +14,9 @@ public sealed class FieldTasksController : Controller
     private readonly IFieldTaskReadService _readService;
     private readonly FieldTaskCommandHandler _handler;
     private const int RecentCompletedCount = 20;
+    private const int OpenTaskLimit = 200;
 
-    // Fotograf siniri + form alanlari icin 1 MB pay.
+    // Fotoğraf sınırı + form alanları için 1 MB pay.
     private const int MaxRequestBytes = FieldTaskPhotoRules.MaxBytes + (1024 * 1024);
 
     private static readonly TimeSpan PhotoLinkLifetime = TimeSpan.FromSeconds(60);
@@ -37,7 +38,7 @@ public sealed class FieldTasksController : Controller
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        var open = await _readService.GetOpenTasksAsync(cancellationToken);
+        var open = await _readService.GetOpenTasksAsync(OpenTaskLimit, cancellationToken);
         var completed = await _readService.GetRecentCompletedTasksAsync(RecentCompletedCount, cancellationToken);
 
         return View(new FieldTasksIndexViewModel(open, completed, _fileStorage.IsEnabled));
@@ -49,9 +50,10 @@ public sealed class FieldTasksController : Controller
     {
         var result = await _handler.Handle(new AssignFieldTaskCommand(id, _currentUser.UserId), cancellationToken);
 
-        TempData["SuccessMessage"] = result.IsSuccess
-            ? "Görev üstlenildi."
-            : result.Error;
+        if (result.IsSuccess)
+            TempData["SuccessMessage"] = "Görev üstlenildi.";
+        else
+            TempData["ErrorMessage"] = result.Error;
 
         return RedirectToAction(nameof(Index));
     }
@@ -67,7 +69,7 @@ public sealed class FieldTasksController : Controller
         {
             if (photo.Length > FieldTaskPhotoRules.MaxBytes)
             {
-                TempData["SuccessMessage"] = "Foto\u011fraf 5 MB'dan b\u00fcy\u00fck olamaz.";
+                TempData["ErrorMessage"] = "Foto\u011fraf 5 MB'dan b\u00fcy\u00fck olamaz.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -78,9 +80,10 @@ public sealed class FieldTasksController : Controller
 
         var result = await _handler.Handle(new CompleteFieldTaskCommand(id, _currentUser.UserId, note, photoContent), cancellationToken);
 
-        TempData["SuccessMessage"] = result.IsSuccess
-            ? "Görev tamamlandı."
-            : result.Error;
+        if (result.IsSuccess)
+            TempData["SuccessMessage"] = "Görev tamamlandı. Araç bakımdaysa kontrol sonrası Araçlar sayfasından hizmete döndürün.";
+        else
+            TempData["ErrorMessage"] = result.Error;
 
         return RedirectToAction(nameof(Index));
     }
@@ -98,7 +101,7 @@ public sealed class FieldTasksController : Controller
 
         Response.Headers.CacheControl = "no-store";
 
-        // Kisa omurlu on-imzali adres: tarayici fotografi dogrudan depodan alir, uygulama araci olmaz.
+        // Kısa ömürlü ön-imzalı adres: tarayıcı fotoğrafı doğrudan depodan alır, uygulama aracı olmaz.
         return Redirect(_fileStorage.CreateDownloadUrl(objectKey, PhotoLinkLifetime));
     }
 }

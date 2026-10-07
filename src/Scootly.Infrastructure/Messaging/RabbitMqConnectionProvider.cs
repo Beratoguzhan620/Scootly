@@ -44,11 +44,11 @@ public sealed class RabbitMqConnectionProvider : IAsyncDisposable
             if (_connection is { IsOpen: true })
                 return _connection;
 
-            // Baglanti kapali ama kutuphane onu kurtarmaya calisiyorsa (ag/broker kesintisi), burada dispose
-            // etmek kurtarmayi oldurur ve baglantiyi tutan tuketicileri olu kanalda birakir (106. gun bulgusu).
-            // Yalnizca uygulamanin kendi kapattigi baglanti yeniden kurulur.
+            // Bağlantı kapalı ama kütüphane onu kurtarmaya çalışıyorsa (ağ/broker kesintisi), burada dispose
+            // etmek kurtarmayı öldürür ve bağlantıyı tutan tüketicileri ölü kanalda bırakır (106. gün bulgusu).
+            // Yalnızca uygulamanın kendi kapattığı bağlantı yeniden kurulur.
             if (_connection is not null && IsRecovering(_connection))
-                throw new InvalidOperationException("RabbitMQ baglantisi kesildi; otomatik kurtarma suruyor.");
+                throw new InvalidOperationException("RabbitMQ bağlantısı kesildi; otomatik kurtarma sürüyor.");
 
             if (_connection is not null)
                 await _connection.DisposeAsync();

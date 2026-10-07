@@ -7,6 +7,7 @@ namespace Scootly.Testing;
 public static class TestSecrets
 {
     public static readonly string JwtKey = RandomSecret();
+    public static readonly string HubKey = RandomSecret();
     public static readonly string DeviceClientSecret = RandomSecret();
     public static readonly string WebhookSecret = RandomSecret();
 

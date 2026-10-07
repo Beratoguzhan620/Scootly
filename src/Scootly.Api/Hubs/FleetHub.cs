@@ -1,14 +1,16 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Scootly.Api.Extensions;
 using Scootly.Application.Abstractions;
 
 namespace Scootly.Api.Hubs;
 
 /// <summary>
 /// Canlı araç durumu bildirimleri. Yalnızca oturum açmış istemciler bağlanabilir ve
-/// yalnızca var olan hizmet bölgelerinin gruplarına katılabilir.
+/// yalnızca var olan hizmet bölgelerinin gruplarına katılabilir. Normal API token'ının yanında Mvc'nin
+/// yalnızca hub için ürettiği token da kabul edilir (bkz. <see cref="SecurityExtensions.HubScheme"/>).
 /// </summary>
-[Authorize]
+[Authorize(AuthenticationSchemes = SecurityExtensions.HubSchemes)]
 public sealed class FleetHub : Hub
 {
     public const int RegionNameMaxLength = 200;

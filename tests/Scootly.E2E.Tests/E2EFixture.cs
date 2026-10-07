@@ -8,8 +8,8 @@ using Scootly.Testing;
 namespace Scootly.E2E.Tests;
 
 /// <summary>
-/// Gecici Postgres (ScootlyApiFactory) + gercek bir Scootly.Mvc sureci + Chromium.
-/// Fabrikanin Api sunucusu yalnizca veritabani hazirlama ve veri tohumlama araci olarak kullanilir.
+/// Geçici Postgres (ScootlyApiFactory) + gerçek bir Scootly.Mvc süreci + Chromium.
+/// Fabrikanın Api sunucusu yalnızca veritabanı hazırlama ve veri tohumlama aracı olarak kullanılır.
 /// </summary>
 public sealed class E2EFixture : IAsyncLifetime
 {
@@ -49,8 +49,8 @@ public sealed class E2EFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Yeni bir sayfa acar ve govdeyi calistirir. Govde hata firlatirsa ekran goruntusu, sayfa HTML'i ve
-    /// Mvc surec ciktisini kaydeder, sonra hatayi aynen tekrar firlatir.
+    /// Yeni bir sayfa açar ve gövdeyi çalıştırır. Gövde hata fırlatırsa ekran görüntüsü, sayfa HTML'i ve
+    /// Mvc süreç çıktısını kaydeder, sonra hatayı aynen tekrar fırlatır.
     /// </summary>
     public async Task RunAsync(string testName, Func<IPage, Task> body)
     {
@@ -83,7 +83,7 @@ public sealed class E2EFixture : IAsyncLifetime
         }
         catch (Exception)
         {
-            // Kanit toplama basarisiz olursa asil test hatasi gizlenmemeli.
+            // Kanıt toplama başarısız olursa asıl test hatası gizlenmemeli.
         }
     }
 
@@ -112,7 +112,7 @@ public sealed class E2EFixture : IAsyncLifetime
         var mvcDll = Path.Combine(mvcDirectory, "bin", Configuration, "net10.0", "Scootly.Mvc.dll");
 
         if (!File.Exists(mvcDll))
-            throw new FileNotFoundException($"Mvc derlemesi bulunamadi (once derleyin): {mvcDll}");
+            throw new FileNotFoundException($"Mvc derlemesi bulunamadı (önce derleyin): {mvcDll}");
 
         var port = GetFreePort();
         BaseUrl = $"http://127.0.0.1:{port}";
@@ -129,11 +129,11 @@ public sealed class E2EFixture : IAsyncLifetime
         startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         startInfo.Environment["ASPNETCORE_URLS"] = BaseUrl;
         startInfo.Environment["ConnectionStrings__DefaultConnection"] = Factory.ConnectionString;
-        startInfo.Environment["Jwt__Key"] = TestSecrets.JwtKey;
+        startInfo.Environment["Jwt__HubKey"] = TestSecrets.HubKey;
         startInfo.Environment["Messaging__Enabled"] = "false";
         startInfo.Environment["Redis__ConnectionString"] = string.Empty;
 
-        // Canli S3 uyumlu depo tanimliysa fotograf testleri icin depolama acik baslatilir; yoksa varsayilan (kapali) kalir.
+        // Canlı S3 uyumlu depo tanımlıysa fotoğraf testleri için depolama açık başlatılır; yoksa varsayılan (kapalı) kalır.
         var liveEndpoint = Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_ENDPOINT");
         var liveAccessKey = Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_ACCESS_KEY");
         var liveSecretKey = Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_SECRET_KEY");
@@ -164,7 +164,7 @@ public sealed class E2EFixture : IAsyncLifetime
         while (DateTime.UtcNow < deadline)
         {
             if (_mvc!.HasExited)
-                throw new InvalidOperationException($"Mvc sureci kapandi (cikis kodu {_mvc.ExitCode}). Cikti:{Environment.NewLine}{ReadOutput()}");
+                throw new InvalidOperationException($"Mvc süreci kapandı (çıkış kodu {_mvc.ExitCode}). Çıktı:{Environment.NewLine}{ReadOutput()}");
 
             try
             {
@@ -182,7 +182,7 @@ public sealed class E2EFixture : IAsyncLifetime
             await Task.Delay(500);
         }
 
-        throw new TimeoutException($"Mvc 60 sn icinde hazir olmadi. Cikti:{Environment.NewLine}{ReadOutput()}");
+        throw new TimeoutException($"Mvc 60 sn içinde hazır olmadı. Çıktı:{Environment.NewLine}{ReadOutput()}");
     }
 
     private void AppendOutput(string? line)
@@ -216,7 +216,7 @@ public sealed class E2EFixture : IAsyncLifetime
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Directory.Packages.props")))
             directory = directory.Parent;
 
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Repo koku bulunamadi.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Repo kökü bulunamadı.");
     }
 }
 

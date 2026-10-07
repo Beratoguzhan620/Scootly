@@ -5,6 +5,9 @@ namespace Scootly.Mvc.ViewComponents;
 
 public sealed class LowBatteryVehiclesViewComponent : ViewComponent
 {
+    /// <summary>Panel kartı en fazla bu kadar kaydı sayar (daha fazlası "100+" olarak gösterilir).</summary>
+    public const int ListLimit = 100;
+
     private readonly IVehicleReadService _vehicleReadService;
 
     public LowBatteryVehiclesViewComponent(IVehicleReadService vehicleReadService)
@@ -14,7 +17,7 @@ public sealed class LowBatteryVehiclesViewComponent : ViewComponent
 
     public async Task<IViewComponentResult> InvokeAsync()
     {
-        var vehicles = await _vehicleReadService.GetLowBatteryVehiclesAsync();
+        var vehicles = await _vehicleReadService.GetLowBatteryVehiclesAsync(ListLimit);
         return View(vehicles);
     }
 }

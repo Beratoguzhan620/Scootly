@@ -1,24 +1,38 @@
-﻿@{
+@{
     ViewData["Title"] = "Panel";
+    var isFleetOperations = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.FleetOperations)).Succeeded;
 }
 
 <h1>Hoş geldin, @User.Identity?.Name</h1>
-<p class="lead">Scootly filo yönetim paneline hoş geldiniz.</p>
 
-<div class="row mt-4 g-3">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Araçlar</h5>
-                <p class="card-text">Filodaki tüm araçları görüntüle ve yönet.</p>
-                <a asp-controller="Vehicles" asp-action="Index" class="btn btn-primary">Araçlara Git</a>
+@if (isFleetOperations)
+{
+    <p class="lead">Scootly filo yönetim paneline hoş geldiniz.</p>
+
+    <div class="row mt-4 g-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Araçlar</h5>
+                    <p class="card-text">Filodaki tüm araçları görüntüle ve yönet.</p>
+                    <a asp-controller="Vehicles" asp-action="Index" class="btn btn-primary">Araçlara Git</a>
+                </div>
             </div>
         </div>
+        <div class="col-md-4">
+            <vc:active-rides></vc:active-rides>
+        </div>
+        <div class="col-md-4">
+            <vc:low-battery-vehicles></vc:low-battery-vehicles>
+        </div>
     </div>
-    <div class="col-md-4">
-        <vc:active-rides></vc:active-rides>
+}
+else
+{
+    <p class="lead">Müsait araçları haritada görebilir, aktif sürüşlerinizi takip edebilirsiniz.</p>
+
+    <div class="d-flex gap-2 mt-3">
+        <a asp-controller="Map" asp-action="Index" class="btn btn-primary">Haritayı aç</a>
+        <a asp-controller="Rides" asp-action="Index" class="btn btn-outline-primary">Sürüşlerim</a>
     </div>
-    <div class="col-md-4">
-        <vc:low-battery-vehicles></vc:low-battery-vehicles>
-    </div>
-</div>
+}

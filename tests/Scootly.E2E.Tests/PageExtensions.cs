@@ -5,7 +5,7 @@ namespace Scootly.E2E.Tests;
 
 internal static class PageExtensions
 {
-    /// <summary>Giris formunu doldurur ve oturumun acildigini ("Cikis Yap" butonu) dogrular.</summary>
+    /// <summary>Giriş formunu doldurur ve oturumun açıldığını ("Çıkış Yap" butonu) doğrular.</summary>
     public static async Task LoginAsync(this IPage page, string email)
     {
         await page.GotoAsync("/Account/Login");

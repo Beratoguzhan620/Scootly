@@ -5,8 +5,8 @@ namespace Scootly.Application.FieldOps;
 public sealed record FieldTaskPhotoInfo(string ContentType, string Extension);
 
 /// <summary>
-/// Saha gorevi fotografi kurallari. Tur, istemcinin bildirdigi Content-Type'a ve dosya adina degil,
-/// icerigin ilk baytlarina (imza) gore belirlenir. Goruntu cozumlenmez ve zararli yazilim taramasi yapilmaz.
+/// Saha görevi fotoğrafı kuralları. Tür, istemcinin bildirdiği Content-Type'a ve dosya adına değil,
+/// içeriğin ilk baytlarına (imza) göre belirlenir. Görüntü çözümlenmez ve zararlı yazılım taraması yapılmaz.
 /// </summary>
 public static class FieldTaskPhotoRules
 {
@@ -18,10 +18,10 @@ public static class FieldTaskPhotoRules
     public static Result<FieldTaskPhotoInfo> Inspect(byte[] content)
     {
         if (content.Length == 0)
-            return Result<FieldTaskPhotoInfo>.Validation("Foto\u011fraf bo\u015f.");
+            return Result<FieldTaskPhotoInfo>.Validation("Fotoğraf boş.");
 
         if (content.Length > MaxBytes)
-            return Result<FieldTaskPhotoInfo>.Validation("Foto\u011fraf 5 MB'dan b\u00fcy\u00fck olamaz.");
+            return Result<FieldTaskPhotoInfo>.Validation("Fotoğraf 5 MB'dan büyük olamaz.");
 
         if (content.AsSpan().StartsWith(JpegSignature))
             return Result<FieldTaskPhotoInfo>.Success(new FieldTaskPhotoInfo("image/jpeg", ".jpg"));
@@ -29,6 +29,6 @@ public static class FieldTaskPhotoRules
         if (content.AsSpan().StartsWith(PngSignature))
             return Result<FieldTaskPhotoInfo>.Success(new FieldTaskPhotoInfo("image/png", ".png"));
 
-        return Result<FieldTaskPhotoInfo>.Validation("Yaln\u0131zca JPEG veya PNG foto\u011fraf y\u00fcklenebilir.");
+        return Result<FieldTaskPhotoInfo>.Validation("Yalnızca JPEG veya PNG fotoğraf yüklenebilir.");
     }
 }

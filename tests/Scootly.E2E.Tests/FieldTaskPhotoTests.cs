@@ -8,14 +8,14 @@ using Scootly.Testing;
 namespace Scootly.E2E.Tests;
 
 /// <summary>
-/// Saha gorevi fotografi uctan uca: gercek Mvc sureci + gecici Postgres + canli S3 uyumlu depo.
-/// SCOOTLY_LIVE_STORAGE_ENDPOINT / _ACCESS_KEY / _SECRET_KEY tanimli degilse atlanir.
+/// Saha görevi fotoğrafı uçtan uca: gerçek Mvc süreci + geçici Postgres + canlı S3 uyumlu depo.
+/// SCOOTLY_LIVE_STORAGE_ENDPOINT / _ACCESS_KEY / _SECRET_KEY tanımlı değilse atlanır.
 /// </summary>
 [Collection(E2ECollection.Name)]
 [Trait("Category", "E2E")]
 public sealed class FieldTaskPhotoTests(E2EFixture fixture)
 {
-    private const string SkipReason = "Canli depo ortam degiskenleri tanimli degil.";
+    private const string SkipReason = "Canlı depo ortam değişkenleri tanımlı değil.";
 
     private static bool StorageConfigured() =>
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SCOOTLY_LIVE_STORAGE_ENDPOINT"))

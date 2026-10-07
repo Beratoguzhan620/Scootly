@@ -31,13 +31,17 @@ public sealed class RideChargeConsumer : RabbitMqConsumerService
     protected override IReadOnlyCollection<string> RoutingKeys =>
         [IntegrationEventNames.RideCompleted, IntegrationEventNames.RideAbandoned];
 
-    protected override async Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+    protected override Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+        => ProcessAsync(message, services, Logger, cancellationToken);
+
+    /// <summary>Mesaj işleme mantığı; broker olmadan test edilebilsin diye tüketici altyapısından ayrıdır.</summary>
+    internal static async Task<ConsumeResult> ProcessAsync(ReceivedMessage message, IServiceProvider services, ILogger logger, CancellationToken cancellationToken)
     {
         var rideId = TryReadRideId(message.Body);
 
         if (rideId is null)
         {
-            Logger.LogError("Ödeme mesajı ayrıştırılamadı ({MessageId}).", message.MessageId);
+            logger.LogError("Ödeme mesajı ayrıştırılamadı ({MessageId}).", message.MessageId);
             return ConsumeResult.DeadLetter;
         }
 
@@ -48,23 +52,23 @@ public sealed class RideChargeConsumer : RabbitMqConsumerService
         {
             if (result.ErrorType == ErrorType.NotFound)
             {
-                Logger.LogError("Ücretlendirilecek sürüş bulunamadı: {RideId}", rideId);
+                logger.LogError("Ücretlendirilecek sürüş bulunamadı: {RideId}", rideId);
                 return ConsumeResult.DeadLetter;
             }
 
-            Logger.LogWarning("Sürüş ücretlendirilemedi ({RideId}): {Error}", rideId, result.Error);
+            logger.LogWarning("Sürüş ücretlendirilemedi ({RideId}): {Error}", rideId, result.Error);
             return ConsumeResult.Retry;
         }
 
         switch (result.Value)
         {
             case ChargeOutcome.Approved:
-                Logger.LogInformation("Ödeme alındı: {RideId}", rideId);
+                logger.LogInformation("Ödeme alındı: {RideId}", rideId);
                 return ConsumeResult.Ack;
 
             case ChargeOutcome.Declined:
                 // Ret bir deneme olarak kaydedildi; sonraki denemeleri Worker'daki bekleyen ödeme servisi yapar.
-                Logger.LogWarning("Ödeme reddedildi, sürüş ödeme bekliyor: {RideId}", rideId);
+                logger.LogWarning("Ödeme reddedildi, sürüş ödeme bekliyor: {RideId}", rideId);
                 return ConsumeResult.Ack;
 
             case ChargeOutcome.GatewayUnavailable:

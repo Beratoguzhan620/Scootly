@@ -5,7 +5,7 @@ using Xunit;
 namespace Scootly.Infrastructure.Tests;
 
 /// <summary>
-/// Canli S3 uyumlu depoya karsi olcum. SCOOTLY_LIVE_STORAGE_ENDPOINT / _ACCESS_KEY / _SECRET_KEY tanimli degilse atlanir.
+/// Canlı S3 uyumlu depoya karşı ölçüm. SCOOTLY_LIVE_STORAGE_ENDPOINT / _ACCESS_KEY / _SECRET_KEY tanımlı değilse atlanır.
 /// SCOOTLY_LIVE_STORAGE_REPORT tanimliysa gozlemler bu dosyaya yazilir (gizli bilgi icermez).
 /// </summary>
 public class StorageLiveTests
@@ -34,7 +34,7 @@ public class StorageLiveTests
     public async Task Canli_Depo_Yukleme_Imzali_Indirme_Sure_Sonu_Ve_Silme()
     {
         var options = LiveOptions();
-        Assert.SkipUnless(options is not null, "Canli depo ortam degiskenleri tanimli degil.");
+        Assert.SkipUnless(options is not null, "Canlı depo ortam değişkenleri tanımlı değil.");
 
         using var storage = new S3FileStorage(options!);
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(20) };
@@ -64,15 +64,15 @@ public class StorageLiveTests
 
         using (var ok = await http.GetAsync(url))
         {
-            Check("gecerli imzali url", ok.StatusCode, HttpStatusCode.OK);
+            Check("geçerli imzalı url", ok.StatusCode, HttpStatusCode.OK);
 
             var body = await ok.Content.ReadAsByteArrayAsync();
             var sameBody = body.AsSpan().SequenceEqual(content);
             var mediaType = ok.Content.Headers.ContentType?.MediaType;
-            observed.Add($"govde ayni: {sameBody}; content-type: {mediaType}");
+            observed.Add($"gövde aynı: {sameBody}; content-type: {mediaType}");
 
             if (!sameBody || mediaType != "image/jpeg")
-                failures.Add("govde/icerik turu");
+                failures.Add("gövde/içerik türü");
         }
 
         var bare = url[..url.IndexOf('?')];
@@ -89,7 +89,7 @@ public class StorageLiveTests
         await Task.Delay(TimeSpan.FromSeconds(4));
 
         using (var expired = await http.GetAsync(shortLived))
-            Check("suresi dolmus url (2 sn omurlu, 4 sn sonra)", expired.StatusCode, HttpStatusCode.Forbidden);
+            Check("süresi dolmuş url (2 sn ömürlü, 4 sn sonra)", expired.StatusCode, HttpStatusCode.Forbidden);
 
         await storage.DeleteAsync(key);
 

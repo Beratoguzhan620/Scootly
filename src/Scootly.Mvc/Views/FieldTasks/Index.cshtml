@@ -44,7 +44,7 @@ else
                             <form asp-action="Complete" asp-route-id="@task.Id" method="post" enctype="multipart/form-data" class="d-inline">
                                 @if (Model.PhotoUploadEnabled)
                                 {
-                                    <input type="file" name="photo" accept="image/jpeg,image/png" class="form-control form-control-sm d-inline-block w-auto" aria-label="Foto&#287;raf" />
+                                    <input type="file" name="photo" accept="image/jpeg,image/png" class="form-control form-control-sm d-inline-block w-auto" aria-label="Fotoğraf" />
                                 }
                                 <input type="hidden" name="note" value="Tamamlandı." />
                                 <button type="submit" class="btn btn-sm btn-success">Tamamla</button>
@@ -61,18 +61,18 @@ else
 
 @if (Model.Completed.Count == 0)
 {
-    <p class="text-muted">Hen&#252;z tamamlanan g&#246;rev yok.</p>
+    <p class="text-muted">Henüz tamamlanan görev yok.</p>
 }
 else
 {
     <table class="table table-sm">
         <thead>
             <tr>
-                <th>K&#305;sa Kimlik</th>
-                <th>Ara&#231;</th>
-                <th>T&#252;r</th>
+                <th>Kısa Kimlik</th>
+                <th>Araç</th>
+                <th>Tür</th>
                 <th>Tamamlanma</th>
-                <th>Foto&#287;raf</th>
+                <th>Fotoğraf</th>
             </tr>
         </thead>
         <tbody>
@@ -86,11 +86,11 @@ else
                     <td>
                         @if (done.HasPhoto && Model.PhotoUploadEnabled)
                         {
-                            <a asp-action="Photo" asp-route-id="@done.Id" target="_blank" rel="noopener noreferrer">A&#231;</a>
+                            <a asp-action="Photo" asp-route-id="@done.Id" target="_blank" rel="noopener noreferrer">Aç</a>
                         }
                         else if (done.HasPhoto)
                         {
-                            <span class="text-muted">Depolama kapal&#305;</span>
+                            <span class="text-muted">Depolama kapalı</span>
                         }
                         else
                         {

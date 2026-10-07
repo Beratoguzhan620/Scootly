@@ -1,4 +1,4 @@
-﻿namespace Scootly.Application.Abstractions;
+namespace Scootly.Application.Abstractions;
 
 public sealed record FieldTaskSummary(
     Guid Id,
@@ -19,7 +19,8 @@ public interface IFieldTaskReadService
 {
     Task<int> GetOpenTaskCountAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<FieldTaskSummary>> GetOpenTasksAsync(CancellationToken cancellationToken = default);
+    /// <summary>En eski açık görevler (en fazla <paramref name="take"/> adet).</summary>
+    Task<IReadOnlyList<FieldTaskSummary>> GetOpenTasksAsync(int take, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<CompletedFieldTaskSummary>> GetRecentCompletedTasksAsync(int take, CancellationToken cancellationToken = default);
 

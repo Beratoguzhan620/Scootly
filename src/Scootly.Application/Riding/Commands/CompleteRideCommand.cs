@@ -45,10 +45,11 @@ public sealed class CompleteRideCommandHandler
                 return Result<CompletedRide>.NotFound("Araç bulunamadı.");
 
             var now = _clock.UtcNow;
-            var endLocation = new GeoPoint(command.EndLatitude, command.EndLongitude);
+            var reportedLocation = new GeoPoint(command.EndLatitude, command.EndLongitude);
 
-            ride.Complete(endLocation, now, Tariff.Standard);
-            vehicle.CompleteRide(endLocation.Copy(), now);
+            // Park konumuna araç karar verir (taze telemetri varsa cihazın konumu); sürüş aynı noktayla kapanır.
+            var parkedAt = vehicle.CompleteRide(reportedLocation, now);
+            ride.Complete(parkedAt.Copy(), now, Tariff.Standard);
 
             await _unitOfWork.SaveChangesAsync(token);
 

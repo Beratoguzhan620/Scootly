@@ -1,7 +1,10 @@
-﻿namespace Scootly.Infrastructure.Authorization;
+namespace Scootly.Infrastructure.Authorization;
 
 public static class PolicyNames
 {
+    /// <summary>Herhangi bir rolde, kullanıcı token'ı taşıyan istekler (cihaz token'ları hariç). Ör. hesap işlemleri.</summary>
+    public const string UserOnly = "UserOnly";
+
     /// <summary>Sürücü rolüne sahip, kullanıcı token'ı taşıyan istekler (cihaz token'ları hariç).</summary>
     public const string DriverOnly = "DriverOnly";
 

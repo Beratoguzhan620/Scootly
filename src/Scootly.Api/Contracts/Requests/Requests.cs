@@ -39,3 +39,8 @@ public sealed record PaymentWebhookRequest(
 public sealed record BoundaryPointRequest(double Latitude, double Longitude);
 
 public sealed record CreateServiceAreaRequest(string Name, IReadOnlyList<BoundaryPointRequest> Boundary);
+
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+/// <summary>Hesap silme, yanlışlıkla ya da çalınmış bir token'la yapılmasın diye parolayla onaylanır.</summary>
+public sealed record DeleteAccountRequest(string Password);

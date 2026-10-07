@@ -124,7 +124,7 @@ public class FieldTaskPhotoHandlerTests
         var result = await s.Handler.Handle(new CompleteFieldTaskCommand(s.Entity.Id, Guid.NewGuid(), null, JpegBytes));
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(ErrorType.Validation, result.ErrorType);
+        Assert.Equal(ErrorType.Forbidden, result.ErrorType);
         Assert.Empty(s.Storage.Puts);
     }
 

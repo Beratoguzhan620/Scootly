@@ -1,5 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Scootly.Application.Common;
 using Scootly.Domain.FieldOps;
 
 namespace Scootly.Infrastructure.Persistence.Configurations;
@@ -33,7 +34,7 @@ public sealed class FieldTaskConfiguration : IEntityTypeConfiguration<FieldTask>
 
         // Dokümanın istediği kural: araç + tür başına aynı anda yalnızca bir açık (Open ya da Assigned) görev olabilir.
         builder.HasIndex(t => new { t.VehicleId, t.Type })
-            .HasDatabaseName("IX_FieldTasks_OneOpenTaskPerVehicleAndType")
+            .HasDatabaseName(ConstraintNames.OneOpenFieldTaskPerVehicleAndType)
             .IsUnique()
             .HasFilter("\"Status\" <> 'Completed'");
 

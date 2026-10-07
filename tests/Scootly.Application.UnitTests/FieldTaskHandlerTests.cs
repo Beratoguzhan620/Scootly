@@ -1,4 +1,6 @@
-﻿using Scootly.Application.FieldOps.Commands;
+using Scootly.Application.Common;
+using Scootly.Application.FieldOps.Commands;
+using Scootly.Domain.Common;
 using Scootly.Domain.FieldOps;
 using Xunit;
 
@@ -17,7 +19,7 @@ public class FieldTaskHandlerTests
         var result = await handler.Handle(new CreateFieldTaskCommand(vehicleId, FieldTaskType.BatteryReplacement));
 
         Assert.True(result.IsSuccess);
-        Assert.NotEqual(Guid.Empty, result.Value);
+        Assert.NotNull(result.Value);
         Assert.Single(fieldTasks.Added);
         Assert.Equal(vehicleId, fieldTasks.Added[0].VehicleId);
     }
@@ -36,6 +38,7 @@ public class FieldTaskHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Empty(fieldTasks.Added);
+        Assert.Null(result.Value);
     }
 
     [Fact]
@@ -80,6 +83,50 @@ public class FieldTaskHandlerTests
         var result = await handler.Handle(new AssignFieldTaskCommand(Guid.NewGuid(), Guid.NewGuid()));
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(Domain.Common.ErrorType.NotFound, result.ErrorType);
+        Assert.Equal(ErrorType.NotFound, result.ErrorType);
+    }
+}
+public class FieldTaskConcurrencyAndOwnershipTests
+{
+    [Fact]
+    public async Task Ayni_Anda_Acilan_Gorev_Benzersizlik_Ihlali_Basarili_Sayilmali()
+    {
+        var unitOfWork = new FakeUnitOfWork { UniqueViolationToThrow = ConstraintNames.OneOpenFieldTaskPerVehicleAndType };
+        var handler = new FieldTaskCommandHandler(new InMemoryFieldTaskRepository(), unitOfWork, new FakeClock(), new FakeFileStorage());
+
+        var result = await handler.Handle(new CreateFieldTaskCommand(Guid.NewGuid(), FieldTaskType.BatteryReplacement));
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public async Task Zaten_Ustlenilmis_Gorev_Tekrar_Ustlenilemez_Cakisma_Donmeli()
+    {
+        var unitOfWork = new FakeUnitOfWork();
+        var fieldTasks = new InMemoryFieldTaskRepository();
+        var task = fieldTasks.Store(new FieldTask(Guid.NewGuid(), Guid.NewGuid(), FieldTaskType.Inspection, TestClock.Now));
+        task.Assign(Guid.NewGuid(), TestClock.Now);
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
+
+        var result = await handler.Handle(new AssignFieldTaskCommand(task.Id, Guid.NewGuid()));
+
+        Assert.Equal(ErrorType.Conflict, result.ErrorType);
+        Assert.Equal(0, unitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task Baskasina_Atanmis_Gorev_Tamamlanamaz_Yetkisiz_Donmeli()
+    {
+        var unitOfWork = new FakeUnitOfWork();
+        var fieldTasks = new InMemoryFieldTaskRepository();
+        var task = fieldTasks.Store(new FieldTask(Guid.NewGuid(), Guid.NewGuid(), FieldTaskType.Inspection, TestClock.Now));
+        task.Assign(Guid.NewGuid(), TestClock.Now);
+        var handler = new FieldTaskCommandHandler(fieldTasks, unitOfWork, new FakeClock(), new FakeFileStorage());
+
+        var result = await handler.Handle(new CompleteFieldTaskCommand(task.Id, Guid.NewGuid(), null));
+
+        Assert.Equal(ErrorType.Forbidden, result.ErrorType);
+        Assert.Equal(FieldTaskStatus.Assigned, task.Status);
     }
 }

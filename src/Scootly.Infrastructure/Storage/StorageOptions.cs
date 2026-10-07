@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace Scootly.Infrastructure.Storage;
 
 /// <summary>
-/// Nesne depolama ayarlari. Enabled=false iken (varsayilan) baska hicbir alan zorunlu degildir.
-/// Endpoint: uygulamanin depoya eristigi adres. PublicEndpoint: tarayicinin eristigi adres
-/// (on-imzali URL bu adrese gore imzalanir; imza Host'u kapsar).
+/// Nesne depolama ayarları. Enabled=false iken (varsayılan) başka hiçbir alan zorunlu değildir.
+/// Endpoint: uygulamanın depoya eriştiği adres. PublicEndpoint: tarayıcının eriştiği adres
+/// (ön-imzalı URL bu adrese göre imzalanır; imza Host'u kapsar).
 /// </summary>
 public sealed partial class StorageOptions
 {

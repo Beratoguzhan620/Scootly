@@ -1,6 +1,6 @@
 namespace Scootly.Application.Abstractions;
 
-/// <summary>Nesne depolama (S3 uyumlu). Kapaliyken IsEnabled false doner ve yukleme yapilmaz.</summary>
+/// <summary>Nesne depolama (S3 uyumlu). Kapalıyken IsEnabled false döner ve yükleme yapılmaz.</summary>
 public interface IFileStorage
 {
     bool IsEnabled { get; }
@@ -9,6 +9,6 @@ public interface IFileStorage
 
     Task DeleteAsync(string objectKey, CancellationToken cancellationToken = default);
 
-    /// <summary>Kisa omurlu on-imzali indirme adresi uretir (ag cagrisi yapmaz).</summary>
+    /// <summary>Kısa ömürlü ön-imzalı indirme adresi üretir (ağ çağrısı yapmaz).</summary>
     string CreateDownloadUrl(string objectKey, TimeSpan lifetime);
 }

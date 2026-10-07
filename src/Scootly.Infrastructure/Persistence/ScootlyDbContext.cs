@@ -30,8 +30,8 @@ public sealed class ScootlyDbContext
 
     IQueryable<Vehicle> IApplicationDbContext.Vehicles => Vehicles;
     IQueryable<Ride> IApplicationDbContext.Rides => Rides;
-    IQueryable<TelemetryReading> IApplicationDbContext.TelemetryReadings => TelemetryReadings;
     IQueryable<ServiceArea> IApplicationDbContext.ServiceAreas => ServiceAreas;
+    IQueryable<FieldTask> IApplicationDbContext.FieldTasks => FieldTasks;
 
     /// <summary>
     /// Kaydetmeden önce aggregate'lerin domain olaylarını aynı transaction içinde outbox'a yazar

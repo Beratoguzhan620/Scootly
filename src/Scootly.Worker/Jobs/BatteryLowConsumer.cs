@@ -24,7 +24,11 @@ public sealed class BatteryLowConsumer : RabbitMqConsumerService
 
     protected override IReadOnlyCollection<string> RoutingKeys => [IntegrationEventNames.VehicleBatteryLow];
 
-    protected override async Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+    protected override Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+        => ProcessAsync(message, services, Logger, cancellationToken);
+
+    /// <summary>Mesaj işleme mantığı; broker olmadan test edilebilsin diye tüketici altyapısından ayrıdır.</summary>
+    internal static async Task<ConsumeResult> ProcessAsync(ReceivedMessage message, IServiceProvider services, ILogger logger, CancellationToken cancellationToken)
     {
         VehicleBatteryLowIntegrationEvent? integrationEvent;
 
@@ -48,16 +52,23 @@ public sealed class BatteryLowConsumer : RabbitMqConsumerService
 
         if (!result.IsSuccess)
         {
-            Logger.LogError(
+            logger.LogError(
                 "Saha görevi oluşturulamadı: Vehicle={VehicleId}, Hata={Error}",
                 integrationEvent.VehicleId, result.Error);
 
             return ConsumeResult.DeadLetter;
         }
 
-        Logger.LogInformation(
-            "Saha görevi (batarya değişimi) işlendi: Vehicle={VehicleId}, %{BatteryPercentage}",
-            integrationEvent.VehicleId, integrationEvent.BatteryPercentage);
+        if (result.Value is { } fieldTaskId)
+        {
+            logger.LogInformation(
+                "Saha görevi (batarya değişimi) açıldı: Task={FieldTaskId}, Vehicle={VehicleId}, %{BatteryPercentage}",
+                fieldTaskId, integrationEvent.VehicleId, integrationEvent.BatteryPercentage);
+        }
+        else
+        {
+            logger.LogInformation("Araç için zaten açık bir batarya görevi var: Vehicle={VehicleId}", integrationEvent.VehicleId);
+        }
 
         return ConsumeResult.Ack;
     }

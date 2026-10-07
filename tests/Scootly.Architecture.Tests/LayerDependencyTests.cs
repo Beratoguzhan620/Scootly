@@ -11,12 +11,14 @@ public sealed class LayerDependencyTests
     private const string InfrastructureNamespace = "Scootly.Infrastructure";
     private const string ApiNamespace = "Scootly.Api";
     private const string WorkerNamespace = "Scootly.Worker";
+    private const string MvcNamespace = "Scootly.Mvc";
 
     private static readonly Assembly DomainAssembly = typeof(Scootly.Domain.Fleet.Vehicle).Assembly;
     private static readonly Assembly ApplicationAssembly = typeof(Scootly.Application.Riding.Commands.ReserveVehicleCommand).Assembly;
     private static readonly Assembly InfrastructureAssembly = typeof(Scootly.Infrastructure.Persistence.ScootlyDbContext).Assembly;
     private static readonly Assembly ApiAssembly = typeof(Scootly.Api.Controllers.VehiclesController).Assembly;
     private static readonly Assembly WorkerAssembly = typeof(Scootly.Worker.WorkerOptions).Assembly;
+    private static readonly Assembly MvcAssembly = typeof(Scootly.Mvc.Controllers.VehiclesController).Assembly;
 
     [Fact]
     public void Domain_Hicbir_Katmana_Bagimli_Olmamali()
@@ -45,7 +47,7 @@ public sealed class LayerDependencyTests
     {
         var result = Types.InAssembly(ApplicationAssembly)
             .Should()
-            .NotHaveDependencyOnAny(InfrastructureNamespace, ApiNamespace, WorkerNamespace)
+            .NotHaveDependencyOnAny(InfrastructureNamespace, ApiNamespace, WorkerNamespace, MvcNamespace)
             .GetResult();
 
         AssertSuccessful(result, "Application katmanı dış katmanlara bağımlı olmamalı");
@@ -72,10 +74,31 @@ public sealed class LayerDependencyTests
     {
         var result = Types.InAssembly(InfrastructureAssembly)
             .Should()
-            .NotHaveDependencyOnAny(ApiNamespace, WorkerNamespace)
+            .NotHaveDependencyOnAny(ApiNamespace, WorkerNamespace, MvcNamespace)
             .GetResult();
 
-        AssertSuccessful(result, "Infrastructure, Api veya Worker'a bağımlı olmamalı");
+        AssertSuccessful(result, "Infrastructure, Api, Worker veya Mvc'ye bağımlı olmamalı");
+    }
+
+    [Fact]
+    public void Mvc_Api_Ve_Workera_Bagimli_Olmamali()
+    {
+        var result = Types.InAssembly(MvcAssembly).Should().NotHaveDependencyOnAny(ApiNamespace, WorkerNamespace).GetResult();
+
+        AssertSuccessful(result, "Mvc, Api veya Worker'a bağımlı olmamalı (ayrı dağıtılır; yalnızca Application ve Infrastructure'ı kullanır)");
+    }
+
+    [Fact]
+    public void Mvc_Controllerlari_DbContext_Somut_Tipine_Bagimli_Olmamali()
+    {
+        var result = Types.InAssembly(MvcAssembly)
+            .That()
+            .ResideInNamespace("Scootly.Mvc.Controllers")
+            .Should()
+            .NotHaveDependencyOn("Scootly.Infrastructure.Persistence")
+            .GetResult();
+
+        AssertSuccessful(result, "Mvc controller'ları da okuma servislerini ve Application soyutlamalarını kullanmalı");
     }
 
     [Fact]

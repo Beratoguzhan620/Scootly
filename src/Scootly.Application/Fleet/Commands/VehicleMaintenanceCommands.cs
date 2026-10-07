@@ -8,7 +8,9 @@ public sealed record SendVehicleToMaintenanceCommand(Guid VehicleId);
 
 public sealed record ReturnVehicleToServiceCommand(Guid VehicleId);
 
-/// <summary>Filo operasyonu: aracı bakıma alma ve bakımdan hizmete döndürme.</summary>
+public sealed record MarkVehicleLostCommand(Guid VehicleId);
+
+/// <summary>Filo operasyonu: aracı bakıma alma, kayıp işaretleme ve hizmete döndürme.</summary>
 public sealed class VehicleMaintenanceCommandHandler
 {
     private readonly IVehicleRepository _vehicleRepository;
@@ -27,6 +29,9 @@ public sealed class VehicleMaintenanceCommandHandler
 
     public Task<Result> Handle(ReturnVehicleToServiceCommand command, CancellationToken cancellationToken = default)
         => ChangeAsync(command.VehicleId, (vehicle, now) => vehicle.ReturnToService(now), cancellationToken);
+
+    public Task<Result> Handle(MarkVehicleLostCommand command, CancellationToken cancellationToken = default)
+        => ChangeAsync(command.VehicleId, (vehicle, now) => vehicle.MarkLost(now), cancellationToken);
 
     private Task<Result> ChangeAsync(
         Guid vehicleId,

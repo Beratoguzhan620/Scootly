@@ -6,9 +6,9 @@ using Scootly.Application.Abstractions;
 namespace Scootly.Infrastructure.Storage;
 
 /// <summary>
-/// S3 uyumlu depo (yerelde SeaweedFS). Yol tarzi adresleme kullanilir. Saglama toplami yalnizca gerekli
-/// oldugunda hesaplanir: uyumlu depolarin bir kismi SDK'nin varsayilan akisli saglama toplamini desteklemez.
-/// On-imzali URL, tarayicinin eristigi PublicEndpoint'e gore yerel olarak imzalanir (ag cagrisi yapmaz).
+/// S3 uyumlu depo (yerelde SeaweedFS). Yol tarzı adresleme kullanılır. Sağlama toplamı yalnızca gerekli
+/// olduğunda hesaplanır: uyumlu depoların bir kısmı SDK'nın varsayılan akışlı sağlama toplamını desteklemez.
+/// Ön-imzalı URL, tarayıcının eriştiği PublicEndpoint'e göre yerel olarak imzalanır (ağ çağrısı yapmaz).
 /// </summary>
 public sealed class S3FileStorage : IFileStorage, IDisposable
 {

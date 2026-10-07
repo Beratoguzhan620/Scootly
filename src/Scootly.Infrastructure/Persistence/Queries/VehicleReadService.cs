@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Domain.Fleet;
 
@@ -23,11 +23,7 @@ public sealed class VehicleReadService : IVehicleReadService
         if (filter.MaxLongitude is { } maxLongitude) baseQuery = baseQuery.Where(v => v.Location.Longitude <= maxLongitude);
         if (filter.OnlyAvailable) baseQuery = baseQuery.Where(v => v.Status == VehicleStatus.Available);
 
-        var query = baseQuery
-            .OrderBy(v => v.Id)
-            .Select(v => new VehicleSummary(
-                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
-                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm));
+        var query = ToSummaries(baseQuery.OrderBy(v => v.Id));
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
@@ -40,24 +36,34 @@ public sealed class VehicleReadService : IVehicleReadService
 
     public async Task<VehicleSummary?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Vehicles
-            .AsNoTracking()
-            .Where(v => v.Id == id)
-            .Select(v => new VehicleSummary(
-                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
-                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm))
+        return await ToSummaries(_dbContext.Vehicles.AsNoTracking().Where(v => v.Id == id))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<VehicleSummary>> GetLowBatteryVehiclesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<VehicleSummary>> GetLowBatteryVehiclesAsync(int take, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Vehicles
-            .AsNoTracking()
-            .Where(v => v.Battery.Percentage < BatteryLevel.LowThresholdPercentage)
-            .OrderBy(v => v.Battery.Percentage)
-            .Select(v => new VehicleSummary(
-                v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
-                v.Status.ToString(), v.Model.Brand, v.Model.RangeKm))
+        return await ToSummaries(_dbContext.Vehicles
+                .AsNoTracking()
+                .Where(v => v.Battery.Percentage < BatteryLevel.LowThresholdPercentage)
+                .OrderBy(v => v.Battery.Percentage))
+            .Take(take)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<VehicleSummary>> GetForMapAsync(bool onlyAvailable, int limit, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Vehicles.AsNoTracking();
+
+        if (onlyAvailable)
+            query = query.Where(v => v.Status == VehicleStatus.Available);
+
+        return await ToSummaries(query.OrderBy(v => v.Id))
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
+
+    private static IQueryable<VehicleSummary> ToSummaries(IQueryable<Vehicle> query)
+        => query.Select(v => new VehicleSummary(
+            v.Id, v.Location.Latitude, v.Location.Longitude, v.Battery.Percentage,
+            v.Status.ToString(), v.Model.Brand, v.Model.RangeKm));
 }

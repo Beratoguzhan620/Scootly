@@ -415,9 +415,6 @@ namespace Scootly.Infrastructure.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("HomeRegion")
-                        .HasColumnType("text");
-
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -660,28 +657,24 @@ namespace Scootly.Infrastructure.Migrations
                 {
                     b.OwnsMany("Scootly.Domain.Geo.GeoPoint", "Boundary", b1 =>
                         {
-                            b1.Property<int>("Id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
+                            b1.Property<Guid>("ServiceAreaId");
 
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
 
                             b1.Property<double>("Latitude")
-                                .HasColumnType("double precision")
-                                .HasColumnName("Latitude");
+                                .HasJsonPropertyName("Latitude");
 
                             b1.Property<double>("Longitude")
-                                .HasColumnType("double precision")
-                                .HasColumnName("Longitude");
+                                .HasJsonPropertyName("Longitude");
 
-                            b1.Property<Guid>("ServiceAreaId")
-                                .HasColumnType("uuid");
+                            b1.HasKey("ServiceAreaId", "__synthesizedOrdinal");
 
-                            b1.HasKey("Id");
+                            b1.ToTable("ServiceAreas");
 
-                            b1.HasIndex("ServiceAreaId");
-
-                            b1.ToTable("ServiceAreaBoundaryPoints", (string)null);
+                            b1
+                                .ToJson("Boundary")
+                                .HasColumnType("jsonb");
 
                             b1.WithOwner()
                                 .HasForeignKey("ServiceAreaId");

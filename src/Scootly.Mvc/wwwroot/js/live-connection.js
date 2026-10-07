@@ -29,11 +29,21 @@
     connection.onreconnected(() => setStatus('Bağlı', 'bg-success'));
     connection.onclose(() => setStatus('Bağlantı kesildi', 'bg-danger'));
 
+    // Bildirimler aracın bulunduğu hizmet bölgesinin grubuna gider: harita bilinen tüm bölgeleri dinler.
+    // Sayfa açıldıktan sonra eklenen bir bölge, sayfa yenilenince dinlenmeye başlar.
+    async function joinRegions() {
+        for (const region of window.scootlyRegions || ['default-region']) {
+            await connection.invoke('JoinRegion', region);
+        }
+    }
+
+    connection.onreconnected(() => joinRegions().catch(err => console.error('Bölgelere yeniden katılınamadı:', err)));
+
     async function start() {
         try {
             await connection.start();
             setStatus('Bağlı', 'bg-success');
-            await connection.invoke('JoinRegion', 'default-region');
+            await joinRegions();
         } catch (err) {
             console.error('SignalR bağlantı hatası:', err);
             setStatus('Bağlanamadı', 'bg-danger');

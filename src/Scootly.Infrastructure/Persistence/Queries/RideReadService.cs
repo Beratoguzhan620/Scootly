@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Domain.Riding;
 
@@ -13,12 +13,13 @@ public sealed class RideReadService : IRideReadService
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<ActiveRideSummary>> GetActiveRidesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ActiveRideSummary>> GetActiveRidesAsync(int take, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Rides
             .AsNoTracking()
             .Where(r => r.Status == RideStatus.Active)
             .OrderByDescending(r => r.StartedAt)
+            .Take(take)
             .Select(r => new ActiveRideSummary(r.Id, r.DriverId, r.VehicleId, r.StartedAt))
             .ToListAsync(cancellationToken);
     }

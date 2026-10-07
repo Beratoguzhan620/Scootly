@@ -1,4 +1,7 @@
-﻿@using Scootly.Mvc
+@using Microsoft.AspNetCore.Authorization
+@using Scootly.Infrastructure.Authorization
+@using Scootly.Mvc
 @using Scootly.Mvc.Models
+@inject IAuthorizationService AuthorizationService
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @addTagHelper *, Scootly.Mvc

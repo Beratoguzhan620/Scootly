@@ -10,6 +10,7 @@
     <ProjectReference Include="..\..\src\Scootly.Infrastructure\Scootly.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Scootly.Api\Scootly.Api.csproj" />
     <ProjectReference Include="..\..\src\Scootly.Worker\Scootly.Worker.csproj" />
+    <ProjectReference Include="..\..\src\Scootly.Mvc\Scootly.Mvc.csproj" />
   </ItemGroup>
 
 </Project>

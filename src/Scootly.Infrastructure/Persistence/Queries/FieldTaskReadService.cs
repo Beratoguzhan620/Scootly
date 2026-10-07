@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Scootly.Application.Abstractions;
 using Scootly.Domain.FieldOps;
 
@@ -20,12 +20,13 @@ public sealed class FieldTaskReadService : IFieldTaskReadService
             .CountAsync(t => t.Status != FieldTaskStatus.Completed, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<FieldTaskSummary>> GetOpenTasksAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<FieldTaskSummary>> GetOpenTasksAsync(int take, CancellationToken cancellationToken = default)
     {
         return await _dbContext.FieldTasks
             .AsNoTracking()
             .Where(t => t.Status != FieldTaskStatus.Completed)
             .OrderBy(t => t.CreatedAt)
+            .Take(take)
             .Select(t => new FieldTaskSummary(t.Id, t.VehicleId, t.Type.ToString(), t.Status.ToString(), t.AssignedTo, t.CreatedAt))
             .ToListAsync(cancellationToken);
     }

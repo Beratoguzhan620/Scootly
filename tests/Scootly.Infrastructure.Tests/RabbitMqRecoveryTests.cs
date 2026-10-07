@@ -141,10 +141,10 @@ public sealed class RabbitMqRecoveryTests : IAsyncLifetime
 
         try
         {
-            // 1) Kesintiden once akis calisiyor mu? (basarisizlik, kesintiye yorulabilsin diye olculur)
+            // 1) Kesintiden önce akış çalışıyor mu? (başarısızlık kesintiye yorulabilsin diye ölçülür)
             Assert.True(
                 await PublishUntilDeliveredAsync(monitorFactory, consumer, routingKey, TimeSpan.FromSeconds(30)),
-                "Kesintiden ONCE mesaj teslim edilemedi; test duzenegi hatali.");
+                "Kesintiden ÖNCE mesaj teslim edilemedi; test düzeneği hatalı.");
 
             // 2) Kesinti + baglanti saglayiciya dokunan cagrilar (outbox/saglik kontrolu taklidi)
             await _rabbitMq.StopAsync();
@@ -172,12 +172,12 @@ public sealed class RabbitMqRecoveryTests : IAsyncLifetime
                 await Task.Delay(500);
             }
 
-            // 3) Broker geri geldi: tuketici kendiliginden toparlanip yeni mesaj almali.
+            // 3) Broker geri geldi: tüketici kendiliğinden toparlanıp yeni mesaj almalı.
             await _rabbitMq.StartAsync();
 
             Assert.True(
                 await PublishUntilDeliveredAsync(monitorFactory, consumer, routingKey, TimeSpan.FromSeconds(60)),
-                "Kesinti sonrasi 60 sn icinde tuketici mesaj almadi (tuketici kurtarilamadi).");
+                "Kesinti sonrası 60 sn içinde tüketici mesaj almadı (tüketici kurtarılamadı).");
         }
         finally
         {

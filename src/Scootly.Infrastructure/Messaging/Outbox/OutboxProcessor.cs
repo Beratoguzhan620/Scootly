@@ -15,11 +15,16 @@ namespace Scootly.Infrastructure.Messaging.Outbox;
 /// <list type="bullet">
 /// <item>Satırlar <c>FOR UPDATE SKIP LOCKED</c> ile kilitlenir: birden fazla süreç aynı mesajı yayınlamaz.</item>
 /// <item>Mesajlar kalıcı (persistent) işaretlenir ve publisher confirm beklenir: broker onaylamadan "işlendi" sayılmaz.</item>
-/// <item>Bir mesaj yayınlanamazsa sıra korunarak parti orada kesilir ve hata mesajın üzerine yazılır.</item>
+/// <item>Bir mesaj yayınlanamazsa sıra korunarak parti orada kesilir, hata mesajın üzerine yazılır ve
+/// <see cref="OutboxPublishException"/> fırlatılır; böylece yayıncı servisi artan beklemeyle tekrar dener.</item>
+/// <item>Aynı mesaj <see cref="StuckMessageAlertThreshold"/> kez başarısız olursa her denemede Error seviyesinde
+/// loglanır. Mesaj karantinaya alınmaz: uzun bir broker kesintisinde olayları atmak, sırayı korumaktan daha pahalıdır.</item>
 /// </list>
 /// </summary>
 public sealed class OutboxProcessor
 {
+    public const int StuckMessageAlertThreshold = 10;
+
     private readonly ScootlyDbContext _dbContext;
     private readonly RabbitMqConnectionProvider _connectionProvider;
     private readonly IClock _clock;
@@ -71,6 +76,8 @@ public sealed class OutboxProcessor
         await channel.ExchangeDeclareAsync(MessagingTopology.EventsExchange, ExchangeType.Topic, durable: true, cancellationToken: cancellationToken);
 
         var published = 0;
+        Exception? failure = null;
+        OutboxMessage? failedMessage = null;
 
         foreach (var message in messages)
         {
@@ -113,7 +120,8 @@ public sealed class OutboxProcessor
             {
                 activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 message.RecordFailedAttempt(ex.Message);
-                _logger.LogWarning(ex, "Outbox mesajı yayınlanamadı: {EventType} ({MessageId})", message.EventType, message.Id);
+                failure = ex;
+                failedMessage = message;
                 break;
             }
         }
@@ -123,6 +131,18 @@ public sealed class OutboxProcessor
 
         if (published > 0)
             _logger.LogInformation("{Count} outbox mesajı yayınlandı.", published);
+
+        if (failure is not null && failedMessage is not null)
+        {
+            if (failedMessage.Attempts >= StuckMessageAlertThreshold)
+            {
+                _logger.LogError(
+                    "Outbox mesajı {Attempts} denemedir yayınlanamıyor, arkasındaki mesajlar bekliyor: {EventType} ({MessageId})",
+                    failedMessage.Attempts, failedMessage.EventType, failedMessage.Id);
+            }
+
+            throw new OutboxPublishException(failedMessage.Id, published, failure);
+        }
 
         return published;
     }

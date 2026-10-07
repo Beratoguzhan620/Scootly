@@ -18,7 +18,7 @@ public sealed class JwtTokenGenerator
         _clock = clock;
     }
 
-    public string GenerateUserToken(ApplicationUser user, IEnumerable<string> roles, TimeSpan? lifetime = null)
+    public string GenerateUserToken(ApplicationUser user, IEnumerable<string> roles)
     {
         var claims = new List<Claim>
         {
@@ -26,15 +26,14 @@ public sealed class JwtTokenGenerator
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+            new(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient),
+            new(ScootlyClaimTypes.SecurityStamp, user.SecurityStamp ?? string.Empty)
         };
-
-        if (!string.IsNullOrEmpty(user.HomeRegion))
-            claims.Add(new Claim("homeRegion", user.HomeRegion));
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        return WriteToken(claims, lifetime ?? TimeSpan.FromMinutes(_options.ExpiryMinutes));
+        return JwtTokenWriter.Write(
+            claims, _options.Issuer, _options.Audience, _options.Key, _clock.UtcNow, TimeSpan.FromMinutes(_options.ExpiryMinutes));
     }
 
     public string GenerateDeviceToken(string clientId, TimeSpan lifetime)
@@ -48,18 +47,47 @@ public sealed class JwtTokenGenerator
             new(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.DeviceClient)
         };
 
-        return WriteToken(claims, lifetime);
+        return JwtTokenWriter.Write(claims, _options.Issuer, _options.Audience, _options.Key, _clock.UtcNow, lifetime);
+    }
+}
+
+/// <summary>Yalnızca SignalR hub'ında geçerli token üretir (bkz. <see cref="HubTokenOptions"/>). Rol taşımaz.</summary>
+public sealed class HubTokenGenerator
+{
+    private readonly HubTokenOptions _options;
+    private readonly IClock _clock;
+
+    public HubTokenGenerator(IOptions<HubTokenOptions> options, IClock clock)
+    {
+        _options = options.Value;
+        _clock = clock;
     }
 
-    private string WriteToken(IEnumerable<Claim> claims, TimeSpan lifetime)
+    public string Generate(ApplicationUser user)
     {
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key));
-        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-        var now = _clock.UtcNow;
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient),
+            new(ScootlyClaimTypes.SecurityStamp, user.SecurityStamp ?? string.Empty)
+        };
+
+        return JwtTokenWriter.Write(
+            claims, _options.Issuer, _options.HubAudience, _options.HubKey, _clock.UtcNow, TimeSpan.FromMinutes(_options.HubTokenMinutes));
+    }
+}
+
+internal static class JwtTokenWriter
+{
+    public static string Write(IEnumerable<Claim> claims, string issuer, string audience, string key, DateTime now, TimeSpan lifetime)
+    {
+        var credentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)), SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: _options.Issuer,
-            audience: _options.Audience,
+            issuer: issuer,
+            audience: audience,
             claims: claims,
             notBefore: now,
             expires: now.Add(lifetime),

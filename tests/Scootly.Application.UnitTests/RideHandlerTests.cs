@@ -2,6 +2,7 @@ using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Common;
 using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
+using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
 using Xunit;
 
@@ -110,6 +111,24 @@ public sealed class CompleteRideCommandHandlerTests
         Assert.Equal(VehicleStatus.Available, vehicle.Status);
         Assert.Equal(25.00m, result.Value!.Fare);
         Assert.Equal(PaymentStatus.Pending, result.Value.PaymentStatus);
+    }
+
+    [Fact]
+    public async Task Taze_Telemetri_Varsa_Surus_Aracin_Bildirdigi_Konumda_Bitmeli()
+    {
+        var driverId = Guid.NewGuid();
+        var (vehicle, ride) = Build.ActiveRide(driverId, TestClock.Now.AddMinutes(-10));
+        var deviceLocation = new GeoPoint(41.0500, 29.0500);
+        vehicle.ReportTelemetry(deviceLocation, new BatteryLevel(60), TestClock.Now.AddSeconds(-20));
+        _vehicles.Store(vehicle);
+        _rides.Store(ride);
+
+        var result = await _handler.Handle(new CompleteRideCommand(ride.Id, driverId, 40.0, 28.0));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(deviceLocation, ride.EndLocation);
+        Assert.Equal(deviceLocation, vehicle.Location);
+        Assert.NotSame(vehicle.Location, ride.EndLocation);
     }
 
     [Fact]

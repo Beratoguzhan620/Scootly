@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Worker'daki periyodik işlerin ve tüketicinin gerçek PostgreSQL (Testcontainers) üzerinde testleri.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scootly.Testing\Scootly.Testing.csproj" />
+    <ProjectReference Include="..\..\src\Scootly.Worker\Scootly.Worker.csproj" />
+  </ItemGroup>
+
+</Project>

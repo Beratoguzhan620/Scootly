@@ -12,8 +12,8 @@ public static class StorageDependencyInjection
             .BindConfiguration(StorageOptions.SectionName)
             .Validate(
                 StorageOptions.IsValid,
-                "Storage yapilandirmasi gecersiz: Enabled=true iken Endpoint ve PublicEndpoint (mutlak http/https adresleri), " +
-                "Bucket (S3 adlandirma kurali), AccessKey ve en az 16 karakterlik SecretKey gerekli.")
+                "Storage yapılandırması geçersiz: Enabled=true iken Endpoint ve PublicEndpoint (mutlak http/https adresleri), " +
+                "Bucket (S3 adlandırma kuralı), AccessKey ve en az 16 karakterlik SecretKey gerekli.")
             .ValidateOnStart();
 
         services.AddSingleton<IFileStorage>(provider =>

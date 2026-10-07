@@ -21,6 +21,8 @@
     <Project Path="tests/Scootly.Domain.UnitTests/Scootly.Domain.UnitTests.csproj" />
     <Project Path="tests/Scootly.E2E.Tests/Scootly.E2E.Tests.csproj" />
     <Project Path="tests/Scootly.Infrastructure.Tests/Scootly.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Scootly.Mvc.IntegrationTests/Scootly.Mvc.IntegrationTests.csproj" />
     <Project Path="tests/Scootly.Testing/Scootly.Testing.csproj" />
+    <Project Path="tests/Scootly.Worker.Tests/Scootly.Worker.Tests.csproj" />
   </Folder>
 </Solution>

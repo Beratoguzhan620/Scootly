@@ -38,6 +38,34 @@ public sealed class RidesController : ControllerBase
         _cache = cache;
     }
 
+    /// <summary>Sürücünün kendi sürüş geçmişi, en yeniden eskiye.</summary>
+    [HttpGet]
+    [ProducesResponseType<PagedResult<RideResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = Paging.Validate(pageNumber, pageSize);
+
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
+
+        var driverId = _currentUser.UserId;
+        var rides = _dbContext.Rides.AsNoTracking().Where(r => r.DriverId == driverId);
+
+        var totalCount = await rides.CountAsync(cancellationToken);
+        var items = await rides
+            .OrderByDescending(r => r.StartedAt)
+            .ThenBy(r => r.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new PagedResult<RideResponse>(items.Select(ToResponse).ToList(), pageNumber, pageSize, totalCount));
+    }
+
     [HttpGet("{id:guid}", Name = nameof(GetById))]
     [ProducesResponseType<RideResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

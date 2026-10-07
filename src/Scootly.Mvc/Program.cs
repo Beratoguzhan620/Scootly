@@ -32,8 +32,9 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
 builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Mvc");
-builder.Services.AddScootlyPaymentGateway();
-builder.Services.AddScootlyJwtTokens();
+// Mvc ödeme akışını kullanmaz (ödeme handler'ları ve sağlayıcı istemcisi yalnızca Api ve Worker'da kayıtlı).
+// Harita sayfası yalnızca hub token'ı üretir; ana API imza anahtarını bilmez.
+builder.Services.AddScootlyHubTokens();
 
 // Ters vekil (Nginx) arkasında gerçek şema/istemci IP'si yalnızca tanımlı vekillerden kabul edilir.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -48,8 +49,8 @@ var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
 if (!string.IsNullOrWhiteSpace(redisConnectionString))
 {
-    // Birden fazla Mvc kopyasi ayni anahtar halkasini kullanmali; aksi halde bir kopyanin urettigi cookie ve
-    // antiforgery token'i digerinde cozulemez (105. gun olcumu: 10 denemede 10 kez 400).
+    // Birden fazla Mvc kopyası aynı anahtar halkasını kullanmalı; aksi halde bir kopyanın ürettiği cookie ve
+    // antiforgery token'ı diğerinde çözülemez (105. gün ölçümü: 10 denemede 10 kez 400).
     var redisOptions = StackExchange.Redis.ConfigurationOptions.Parse(redisConnectionString);
     redisOptions.AbortOnConnectFail = false;
     var redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisOptions);
@@ -57,28 +58,7 @@ if (!string.IsNullOrWhiteSpace(redisConnectionString))
     builder.Services.AddDataProtection()
         .SetApplicationName("Scootly.Mvc")
         .PersistKeysToStackExchangeRedis(redisMultiplexer, "Scootly:Mvc:DataProtection-Keys");
-
-    builder.Services.AddStackExchangeRedisCache(options =>
-    {
-        options.Configuration = redisConnectionString;
-        options.InstanceName = "Scootly:Mvc:";
-    });
 }
-else
-{
-    builder.Services.AddDistributedMemoryCache();
-}
-
-builder.Services.AddSession(options =>
-{
-    options.Cookie.HttpOnly = true;
-    options.Cookie.IsEssential = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.SameAsRequest
-        : CookieSecurePolicy.Always;
-    options.IdleTimeout = TimeSpan.FromMinutes(30);
-});
 
 builder.Services.AddScootlyIdentityCore();
 
@@ -100,6 +80,9 @@ builder.Services.ConfigureApplicationCookie(options =>
         : CookieSecurePolicy.Always;
 });
 
+// Rol değişikliği veya hesap silme (güvenlik damgası) açık oturumlara en geç 1 dakikada yansır (varsayılan 30 dk).
+builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));
+
 builder.Services.AddScootlyAuthorization();
 
 // Mvc'de Messaging:Enabled=false olduğundan yalnızca Postgres ve Redis kontrolleri kurulur.
@@ -116,6 +99,9 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
+
+// Gövdesiz 4xx/5xx yanıtları (bilinmeyen adres, yetkisiz istek) kullanıcıya anlamlı bir hata sayfasıyla gösterilir.
+app.UseStatusCodePagesWithReExecute("/Home/Error", "?statusCode={0}");
 
 app.UseHttpsRedirection();
 
@@ -140,8 +126,6 @@ app.UseRouting();
 
 app.UseScootlyCorrelationId();
 app.UseSerilogRequestLogging();
-
-app.UseSession();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -170,3 +154,4 @@ static string BuildConnectSrc(string? apiBaseUrl)
 
     return string.Join(' ', sources);
 }
+public partial class Program { }

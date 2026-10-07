@@ -1,7 +1,7 @@
+using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
-using Scootly.Domain.Telemetry;
 
 namespace Scootly.Application.Abstractions;
 
@@ -13,6 +13,6 @@ public interface IApplicationDbContext
 {
     IQueryable<Vehicle> Vehicles { get; }
     IQueryable<Ride> Rides { get; }
-    IQueryable<TelemetryReading> TelemetryReadings { get; }
     IQueryable<ServiceArea> ServiceAreas { get; }
+    IQueryable<FieldTask> FieldTasks { get; }
 }

@@ -1,4 +1,4 @@
-﻿using Scootly.Application.Abstractions;
+using Scootly.Application.Abstractions;
 using Scootly.Application.Common;
 using Scootly.Domain.Common;
 using Scootly.Domain.Fleet;
@@ -12,13 +12,11 @@ public sealed class UpdateVehicleDetailsCommandHandler
 {
     private readonly IVehicleRepository _vehicleRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IClock _clock;
 
-    public UpdateVehicleDetailsCommandHandler(IVehicleRepository vehicleRepository, IUnitOfWork unitOfWork, IClock clock)
+    public UpdateVehicleDetailsCommandHandler(IVehicleRepository vehicleRepository, IUnitOfWork unitOfWork)
     {
         _vehicleRepository = vehicleRepository;
         _unitOfWork = unitOfWork;
-        _clock = clock;
     }
 
     public Task<Result> Handle(UpdateVehicleDetailsCommand command, CancellationToken cancellationToken = default)
@@ -41,15 +39,7 @@ public sealed class UpdateVehicleDetailsCommandHandler
                 return Result.Validation(ex.Message);
             }
 
-            try
-            {
-                vehicle.UpdateModel(newModel, _clock.UtcNow);
-            }
-            catch (DomainException ex)
-            {
-                return Result.Validation(ex.Message);
-            }
-
+            vehicle.UpdateModel(newModel);
             await _unitOfWork.SaveChangesAsync(token);
 
             return Result.Success();

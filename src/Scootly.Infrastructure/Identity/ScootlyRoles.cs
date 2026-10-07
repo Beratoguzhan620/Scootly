@@ -25,4 +25,7 @@ public static class ScootlyClaimTypes
 
     public const string UserClient = "user";
     public const string DeviceClient = "device";
+
+    /// <summary>Token verildiği andaki Identity güvenlik damgası; değişirse (rol, parola, silme) token geçersiz olur.</summary>
+    public const string SecurityStamp = "sstamp";
 }

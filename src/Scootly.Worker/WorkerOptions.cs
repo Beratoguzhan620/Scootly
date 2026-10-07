@@ -21,6 +21,13 @@ public sealed class WorkerOptions
     [Range(typeof(TimeSpan), "00:00:10", "1.00:00:00")]
     public TimeSpan UnchargedRideGracePeriod { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>
+    /// Tamamlanmış bir batarya görevinden sonra, düşük bataryalı aynı araç için uzlaştırma taramasının yeni görev
+    /// açmadan önce beklediği süre (cihazın değişen bataryayı bildirmesi için pay).
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:10:00", "7.00:00:00")]
+    public TimeSpan LowBatteryTaskCooldown { get; init; } = TimeSpan.FromHours(6);
+
     [Range(1, 3650)]
     public int TelemetryRetentionDays { get; init; } = 30;
 

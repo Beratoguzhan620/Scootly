@@ -79,6 +79,7 @@ builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Api");
 builder.Services.AddScootlyIdentityCore();
 builder.Services.AddScootlyJwtTokens();
 builder.Services.AddScootlyDeviceAuth();
+builder.Services.AddScootlyPayments();
 builder.Services.AddScootlyPaymentGateway();
 builder.Services.AddScootlyPaymentWebhooks();
 builder.Services.AddScootlyAuthentication();

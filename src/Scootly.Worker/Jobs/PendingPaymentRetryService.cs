@@ -28,7 +28,7 @@ public sealed class PendingPaymentRetryService : PeriodicJob
 
     protected override TimeSpan Interval => TimeSpan.FromMinutes(1);
 
-    protected override async Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken)
+    protected internal override async Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
         var dbContext = services.GetRequiredService<IApplicationDbContext>();
         var now = services.GetRequiredService<IClock>().UtcNow;

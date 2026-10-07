@@ -1,4 +1,5 @@
-﻿using Scootly.Application.Abstractions;
+using Scootly.Application.Abstractions;
+using Scootly.Application.Abstractions.Exceptions;
 using Scootly.Application.Common;
 using Scootly.Domain.Common;
 using Scootly.Domain.FieldOps;
@@ -27,31 +28,30 @@ public sealed class FieldTaskCommandHandler
         _fileStorage = fileStorage;
     }
 
-    private async Task DeleteQuietlyAsync(string objectKey)
+    /// <returns>
+    /// Oluşturulan görevin kimliği; aynı araç+tür için zaten açık bir görev varsa <c>null</c>
+    /// (yeni görev açılmaz, işlem yine de başarılıdır — tekrar teslim edilen olaylar için idempotent).
+    /// </returns>
+    public async Task<Result<Guid?>> Handle(CreateFieldTaskCommand command, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            await _fileStorage.DeleteAsync(objectKey, CancellationToken.None);
-        }
-        catch (Exception)
-        {
-            // En iyi caba temizlik: yukleme basarili ama kayit basarisiz olursa yetim nesne kalabilir (teknik borc).
-        }
-    }
-
-    public async Task<Result<Guid>> Handle(CreateFieldTaskCommand command, CancellationToken cancellationToken = default)
-    {
-        var hasOpenTask = await _fieldTaskRepository.HasOpenTaskAsync(command.VehicleId, command.Type, cancellationToken);
-
-        if (hasOpenTask)
-            return Result<Guid>.Success(Guid.Empty); // Aynı araç+tür için zaten açık görev var; yenisi açılmaz.
+        if (await _fieldTaskRepository.HasOpenTaskAsync(command.VehicleId, command.Type, cancellationToken))
+            return Result<Guid?>.Success(null);
 
         var fieldTask = new FieldTask(Guid.NewGuid(), command.VehicleId, command.Type, _clock.UtcNow);
 
-        await _fieldTaskRepository.AddAsync(fieldTask, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _fieldTaskRepository.AddAsync(fieldTask, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (UniqueConstraintViolationException ex) when (ex.ConstraintName == ConstraintNames.OneOpenFieldTaskPerVehicleAndType)
+        {
+            // Kontrol ile kayıt arasında başka bir süreç aynı görevi açtı; sonuç aynı.
+            _unitOfWork.DiscardChanges();
+            return Result<Guid?>.Success(null);
+        }
 
-        return Result<Guid>.Success(fieldTask.Id);
+        return Result<Guid?>.Success(fieldTask.Id);
     }
 
     public Task<Result> Handle(AssignFieldTaskCommand command, CancellationToken cancellationToken = default)
@@ -63,15 +63,8 @@ public sealed class FieldTaskCommandHandler
             if (fieldTask is null)
                 return Result.NotFound("Görev bulunamadı.");
 
-            try
-            {
-                fieldTask.Assign(command.OperatorId, _clock.UtcNow);
-            }
-            catch (DomainException ex)
-            {
-                return Result.Validation(ex.Message);
-            }
-
+            // Durum ihlalleri (örn. görev zaten üstlenilmiş) DomainException olarak çakışmaya (409) çevrilir.
+            fieldTask.Assign(command.OperatorId, _clock.UtcNow);
             await _unitOfWork.SaveChangesAsync(token);
 
             return Result.Success();
@@ -87,7 +80,7 @@ public sealed class FieldTaskCommandHandler
         if (command.PhotoContent is not null)
         {
             if (!_fileStorage.IsEnabled)
-                return Task.FromResult(Result.Validation("Foto\u011fraf depolama kapal\u0131."));
+                return Task.FromResult(Result.Validation("Fotoğraf depolama kapalı."));
 
             var inspected = FieldTaskPhotoRules.Inspect(command.PhotoContent);
 
@@ -104,19 +97,15 @@ public sealed class FieldTaskCommandHandler
             if (fieldTask is null)
                 return Result.NotFound("Görev bulunamadı.");
 
-            // Nesne adi sunucuda uretilir; kullanicinin dosya adi hicbir yerde kullanilmaz.
+            if (fieldTask.AssignedTo != command.OperatorId)
+                return Result.Forbidden("Bu görev size atanmamış.");
+
+            // Nesne adı sunucuda üretilir; kullanıcının dosya adı hiçbir yerde kullanılmaz.
             string? photoKey = photoInfo is null
                 ? null
                 : $"field-tasks/{fieldTask.Id:N}/{Guid.NewGuid():N}{photoInfo.Extension}";
 
-            try
-            {
-                fieldTask.Complete(command.OperatorId, _clock.UtcNow, command.Note, photoKey);
-            }
-            catch (DomainException ex)
-            {
-                return Result.Validation(ex.Message);
-            }
+            fieldTask.Complete(command.OperatorId, _clock.UtcNow, command.Note, photoKey);
 
             if (photoKey is not null)
             {
@@ -127,7 +116,7 @@ public sealed class FieldTaskCommandHandler
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _unitOfWork.DiscardChanges();
-                    return Result.Failure("Foto\u011fraf y\u00fcklenemedi. L\u00fctfen tekrar deneyin.");
+                    return Result.Failure("Fotoğraf yüklenemedi. Lütfen tekrar deneyin.");
                 }
             }
 
@@ -147,5 +136,17 @@ public sealed class FieldTaskCommandHandler
         },
         conflictMessage: "Görev bu sırada değişti. Lütfen tekrar deneyin.",
         cancellationToken);
+    }
+
+    private async Task DeleteQuietlyAsync(string objectKey)
+    {
+        try
+        {
+            await _fileStorage.DeleteAsync(objectKey, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // En iyi çaba temizlik: yükleme başarılı ama kayıt başarısız olursa yetim nesne kalabilir (teknik borç).
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿@inject IConfiguration Configuration
+@inject IConfiguration Configuration
 @{
     ViewData["Title"] = "Harita";
 }
@@ -7,9 +7,17 @@
 
 <h1>Araç Haritası <span id="connection-status" class="badge bg-secondary">Bağlanıyor...</span></h1>
 
+@if (ViewBag.FleetView != true)
+{
+    <p class="text-muted">Yalnızca müsait araçlar gösteriliyor.</p>
+}
+
 <div id="map"
      data-api-base="@Configuration["ApiBaseUrl"]"
      data-hub-token="@ViewBag.HubToken"
+     data-regions="@ViewBag.Regions"
+     data-fleet-view="@(ViewBag.FleetView == true ? "true" : "false")"
+     data-vehicles-url="@Url.Action("Vehicles", "Map")"
      style="height: 600px;"></div>
 
 @section Scripts {

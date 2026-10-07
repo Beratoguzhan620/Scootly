@@ -50,3 +50,5 @@ public sealed record TelemetryBatchResponse(int Accepted, IReadOnlyList<Guid> Re
 public sealed record ServiceAreaResponse(string Name, IReadOnlyList<BoundaryPointResponse> Boundary);
 
 public sealed record BoundaryPointResponse(double Latitude, double Longitude);
+
+public sealed record AccountResponse(Guid Id, string Email, IReadOnlyList<string> Roles);

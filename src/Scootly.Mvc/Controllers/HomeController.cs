@@ -1,13 +1,19 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Scootly.Mvc.Models;
 
 namespace Scootly.Mvc.Controllers;
 
-public class HomeController : Controller
+[AllowAnonymous]
+public sealed class HomeController : Controller
 {
+    /// <summary>Giriş yapmış kullanıcı doğrudan panele gider; diğerleri tanıtım ve giriş bağlantısını görür.</summary>
     public IActionResult Index()
     {
+        if (User.Identity?.IsAuthenticated == true)
+            return RedirectToAction("Index", "Dashboard");
+
         return View();
     }
 

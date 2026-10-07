@@ -74,69 +74,6 @@ public class TelemetryReadingTests
     }
 }
 
-public class ParkingStationTests
-{
-    [Fact]
-    public void Gecerli_Istasyon_Ad_Ve_Konum_Tasimali()
-    {
-        var location = new GeoPoint(41.0, 29.0);
-
-        var station = new ParkingStation("Kadikoy Iskele", location);
-
-        Assert.Equal("Kadikoy Iskele", station.Name);
-        Assert.Equal(location, station.Location);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Bos_Ad_Reddedilmeli(string name)
-    {
-        Assert.Throws<DomainException>(() => new ParkingStation(name, new GeoPoint(41.0, 29.0)));
-    }
-}
-
-public class NoParkingZoneTests
-{
-    private static List<GeoPoint> Triangle() => new() { new GeoPoint(0, 0), new GeoPoint(0, 1), new GeoPoint(1, 1) };
-
-    [Fact]
-    public void Gecerli_Bolge_Ad_Ve_Siniri_Tasimali()
-    {
-        var zone = new NoParkingZone("Meydan", Triangle());
-
-        Assert.Equal("Meydan", zone.Name);
-        Assert.Equal(3, zone.Boundary.Count);
-    }
-
-    [Fact]
-    public void Sinir_Disaridan_Degistirilince_Bolge_Etkilenmemeli()
-    {
-        var boundary = Triangle();
-        var zone = new NoParkingZone("Meydan", boundary);
-
-        boundary.Add(new GeoPoint(1, 0));
-
-        Assert.Equal(3, zone.Boundary.Count);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public void Bos_Ad_Reddedilmeli(string name)
-    {
-        Assert.Throws<DomainException>(() => new NoParkingZone(name, Triangle()));
-    }
-
-    [Fact]
-    public void Uc_Noktadan_Az_Sinir_Reddedilmeli()
-    {
-        var line = new List<GeoPoint> { new GeoPoint(0, 0), new GeoPoint(1, 1) };
-
-        Assert.Throws<DomainException>(() => new NoParkingZone("Meydan", line));
-    }
-}
-
 public class ValueObjectEqualityTests
 {
     [Fact]

@@ -195,7 +195,7 @@ public class VehicleStatusTransitionTests
         var vehicle = CreateAvailableVehicle();
         var newModel = new VehicleModel("Segway", 30);
 
-        vehicle.UpdateModel(newModel, Now);
+        vehicle.UpdateModel(newModel);
 
         Assert.Equal(newModel, vehicle.Model);
     }
@@ -207,7 +207,7 @@ public class VehicleStatusTransitionTests
         vehicle.Reserve(DriverA, Now);
         var newModel = new VehicleModel("Segway", 30);
 
-        vehicle.UpdateModel(newModel, Now);
+        vehicle.UpdateModel(newModel);
 
         Assert.Equal(newModel, vehicle.Model);
         Assert.Equal(VehicleStatus.Reserved, vehicle.Status);
@@ -221,7 +221,7 @@ public class VehicleStatusTransitionTests
         vehicle.StartRide(DriverA, Now);
         var newModel = new VehicleModel("Segway", 30);
 
-        var ex = Assert.Throws<DomainException>(() => vehicle.UpdateModel(newModel, Now));
+        var ex = Assert.Throws<DomainException>(() => vehicle.UpdateModel(newModel));
 
         Assert.Contains("düzenlenemez", ex.Message);
     }

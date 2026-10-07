@@ -1,4 +1,4 @@
-﻿namespace Scootly.Application.Abstractions;
+namespace Scootly.Application.Abstractions;
 
 public sealed record ActiveRideSummary(
     Guid Id,
@@ -8,7 +8,7 @@ public sealed record ActiveRideSummary(
 
 public interface IRideReadService
 {
-    Task<IReadOnlyList<ActiveRideSummary>> GetActiveRidesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ActiveRideSummary>> GetActiveRidesAsync(int take, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ActiveRideSummary>> GetActiveRidesForDriverAsync(Guid driverId, CancellationToken cancellationToken = default);
 }

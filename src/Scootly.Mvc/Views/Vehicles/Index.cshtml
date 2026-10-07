@@ -1,14 +1,18 @@
-﻿@model Scootly.Mvc.ViewModels.VehicleListViewModel
+@model Scootly.Mvc.ViewModels.VehicleListViewModel
 
 @{
     ViewData["Title"] = "Araçlar";
+    var isFleetManager = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.FleetManagerOnly)).Succeeded;
 }
 
 <h1>Araçlar</h1>
 
-<a asp-action="Create" class="btn btn-primary mb-3">+ Yeni Araç</a>
+@if (isFleetManager)
+{
+    <a asp-action="Create" class="btn btn-primary mb-3">+ Yeni Araç</a>
+}
 
-<table class="table table-striped">
+<table class="table table-striped align-middle">
     <thead>
         <tr>
             <th>Kısa Kimlik</th>
@@ -30,7 +34,33 @@
                 <td>%@vehicle.BatteryPercentage</td>
                 <td><vehicle-status status="@vehicle.Status"></vehicle-status></td>
                 <td>@vehicle.Latitude.ToString("F4"), @vehicle.Longitude.ToString("F4")</td>
-                <td><a asp-action="Edit" asp-route-id="@vehicle.Id" class="btn btn-sm btn-outline-primary">Düzenle</a></td>
+                <td class="text-nowrap">
+                    @if (isFleetManager)
+                    {
+                        <a asp-action="Edit" asp-route-id="@vehicle.Id" class="btn btn-sm btn-outline-primary">Düzenle</a>
+                    }
+
+                    @if (vehicle.Status is "Available" or "Reserved")
+                    {
+                        <form asp-action="SendToMaintenance" asp-route-id="@vehicle.Id" asp-route-pageNumber="@Model.PageNumber" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Bakıma al</button>
+                        </form>
+                    }
+
+                    @if (vehicle.Status is "Maintenance" or "Lost")
+                    {
+                        <form asp-action="ReturnToService" asp-route-id="@vehicle.Id" asp-route-pageNumber="@Model.PageNumber" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-success">Hizmete döndür</button>
+                        </form>
+                    }
+
+                    @if (vehicle.Status is "Available" or "Reserved" or "Maintenance")
+                    {
+                        <form asp-action="MarkLost" asp-route-id="@vehicle.Id" asp-route-pageNumber="@Model.PageNumber" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Kayıp</button>
+                        </form>
+                    }
+                </td>
             </tr>
         }
     </tbody>

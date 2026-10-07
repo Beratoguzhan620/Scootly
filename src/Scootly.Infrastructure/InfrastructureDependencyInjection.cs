@@ -114,11 +114,26 @@ public static class InfrastructureDependencyInjection
         return services;
     }
 
-    /// <summary>JWT token üretimi (yalnızca JWT çıkaran süreçlerde çağrılır, ör. Api).</summary>
+    /// <summary>
+    /// API token'larının üretimi ve doğrulama yardımcıları (yalnızca Api). Hub token'larını doğrulayabilmek için
+    /// hub anahtarı da zorunludur.
+    /// </summary>
     public static IServiceCollection AddScootlyJwtTokens(this IServiceCollection services)
     {
         services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<HubTokenOptions>().BindConfiguration(HubTokenOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
         services.AddScoped<JwtTokenGenerator>();
+        services.AddScoped<UserSessionValidator>();
+        services.AddScoped<AccountDeletionService>();
+
+        return services;
+    }
+
+    /// <summary>Yalnızca SignalR hub token'ı üretimi (Mvc). Ana JWT anahtarını gerektirmez ve üretemez.</summary>
+    public static IServiceCollection AddScootlyHubTokens(this IServiceCollection services)
+    {
+        services.AddOptions<HubTokenOptions>().BindConfiguration(HubTokenOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        services.AddScoped<HubTokenGenerator>();
 
         return services;
     }
@@ -141,6 +156,8 @@ public static class InfrastructureDependencyInjection
         services.AddAuthorizationBuilder()
             // Varsayılan olarak güvenli: [AllowAnonymous] olmayan her uç kimlik doğrulaması ister.
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(PolicyNames.UserOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient))
             .AddPolicy(PolicyNames.DriverOnly, policy => policy
                 .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
                 .RequireRole(ScootlyRoles.Driver))

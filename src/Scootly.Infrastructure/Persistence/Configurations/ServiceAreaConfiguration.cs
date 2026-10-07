@@ -20,14 +20,14 @@ public sealed class ServiceAreaConfiguration : IEntityTypeConfiguration<ServiceA
             .HasDatabaseName(ConstraintNames.UniqueServiceAreaName)
             .IsUnique();
 
+        // Poligonun köşe sırası anlamlıdır (ray casting). Noktalar ayrı bir tabloda tutulduğunda EF, bir sahibin
+        // alt kayıtlarını sıralamadan okur ve Postgres sırayı bozabilir; bu yüzden sınır tek bir jsonb dizisinde
+        // saklanır (dizi sırası korunur). Bkz. ADR 0045.
         builder.OwnsMany(a => a.Boundary, boundary =>
         {
-            boundary.ToTable("ServiceAreaBoundaryPoints");
-            boundary.WithOwner().HasForeignKey("ServiceAreaId");
-            boundary.Property<int>("Id");
-            boundary.HasKey("Id");
-            boundary.Property(p => p.Latitude).HasColumnName("Latitude");
-            boundary.Property(p => p.Longitude).HasColumnName("Longitude");
+            boundary.ToJson("Boundary");
+            boundary.Property(p => p.Latitude).HasJsonPropertyName("Latitude");
+            boundary.Property(p => p.Longitude).HasJsonPropertyName("Longitude");
         });
 
         builder.Navigation(a => a.Boundary).UsePropertyAccessMode(PropertyAccessMode.Field);
