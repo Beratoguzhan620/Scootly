@@ -21,6 +21,11 @@ Bu belge yalnizca denenen adimlari "Denendi" olarak isaretler. Denenmeyenler "De
   Ayni `SCOOTLY_VERSION` ile yeniden derleyince etiket ustune yazilir (derleme ciktisinda `naming to ...scootly-api:1.0.0` goruldu);
   bu yuzden yerel derlemeyle "onceki surume donmek" icin eski imajin ayri bir etiketle saklanmis olmasi gerekir.
 - `migrator` servisi her `up`'ta calisir ve cikis yapar (`Exited` gozlendi); EF Core migration paketi bekleyen migration'lari uygular.
+- `db-init` servisi migrator'dan sonra calisir ve cikar: uygulama rolunu (`APP_DB_USER`, varsayilan `scootly_app`) olusturur veya
+  parolasini `APP_DB_PASSWORD` ile esitler, tablolara yalnizca veri yetkisi verir (ADR 0046). Api, Worker ve Mvc bu rolle baglanir
+  ve `db-init` tamamlanmadan baslamaz. 7 Ekim'de gelistirme yigininda denendi: 9 uygulama baglantisinin hepsi `scootly_app` ile acildi.
+- Mvc yalnizca `JWT_HUB_KEY` alir (harita icin hub token'i); `JWT_KEY` yalnizca Api'ye verilir. `.env.prod` bu iki anahtari ve
+  `APP_DB_PASSWORD`'u icermelidir (eksikse compose acik bir hata mesajiyla durur).
 - `api` ve `mvc` ikiser kopya calisir (`deploy.replicas: 2`); Nginx istekleri `deploy/nginx/upstreams/active.conf` ile secilen upstream'e dagitir (mavi-yesil gecis ve olcumler icin bkz. bolum 8).
 - Gelistirme yigini (proje `deploy`) ile prod yigini sabit `container_name`ler yuzunden ayni anda calismaz; birini baslatmadan once digeri durdurulur (bkz. 8.2).
 - Green yigini icin `GREEN_VERSION` ayri bir imaj etiketi uretir (ornek `scootly-api:1.0.1`); provada `Scootly.Api.dll` SHA-256'si `1.0.0` ve `1.0.1` etiketlerinde ayni cikti (bkz. 8.7).

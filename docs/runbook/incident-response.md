@@ -64,7 +64,7 @@ Hedef sureler olculmedi, ekibin kapasitesine gore ayarlanmali.
 
 27.09.2026'daki rotasyonun adimlari kayda gecmedi; asagidaki liste ADR 0021 ve `deploy/.env.example` anahtarlarina dayanan bir oneridir.
 
-Sir envanteri (adlar, degerler degil): `JWT_KEY`, cihaz sirri (DeviceAuth), `PAYMENT_WEBHOOK_SECRET`, `POSTGRES_PASSWORD`, RabbitMQ parolasi, Redis parolasi, `BOOTSTRAP_FLEET_MANAGER_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`.
+Sir envanteri (adlar, degerler degil): `JWT_KEY`, `JWT_HUB_KEY`, `APP_DB_PASSWORD`, cihaz sirri (DeviceAuth), `PAYMENT_WEBHOOK_SECRET`, `POSTGRES_PASSWORD`, RabbitMQ parolasi, Redis parolasi, `BOOTSTRAP_FLEET_MANAGER_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`.
 
 1. Neyin, nerede acildigini belirle (commit, log, ekran goruntusu); ilk gectigi commit'i bul.
 2. Sirri GECERSIZ kil: yenisini uret (en az 32 karakter, ADR 0021).

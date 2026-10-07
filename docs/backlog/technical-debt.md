@@ -3,6 +3,41 @@
 Bu dosya, bilinçli olarak şimdi düzeltilmeyen ama fark edilen eksiklikleri kaydeder. Kapatılan maddeler silinmez;
 nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 
+## 7 Ekim 2026: proje sonu incelemesi
+
+Kapsamlı bir kod incelemesiyle bulunan ve bu listede olmayan sorunlar düzeltildi; kararlar ADR 0045 ve ADR 0046'da.
+Durum: 359 test geçiyor, 6 test canlı nesne deposu olmadan atlanıyor, 0 başarısız (E2E dahil).
+
+### Bu incelemede bulunup kapatılanlar
+
+- **Hizmet bölgesi köşe sırası bozuluyordu** (3 bölge × 50 noktada bile): sınır tek bir jsonb dizisinde (ADR 0045).
+- **Anonim uçlar sürüşteki araçların canlı konumunu veriyordu:** anonim kullanıcı ve sürücü yalnızca müsait araçları görür (ADR 0046).
+- **Mvc'de bakımdaki aracı hizmete döndürme yolu yoktu** (terk edilen sürüşten sonra araç kalıcı olarak bakımda kalıyordu): Araçlar sayfasında bakıma al / kayıp / hizmete döndür. `Lost` durumuna geçiş de eklendi.
+- **Canlı harita yalnızca `default-region`'ı dinliyordu ve en fazla 100 araç gösteriyordu:** tüm bölgeleri dinliyor, araçları Mvc'nin kendi ucundan rol bazlı alıyor.
+- **Harita sayfası tüm API'de geçerli token sızdırıyordu, Mvc API imza anahtarını taşıyordu:** ayrı anahtarlı, yalnızca hub'da geçerli token (ADR 0046).
+- **JWT iptal edilemiyordu, bootstrapper var olan hesabı yönetici yapıyordu, uygulamalar Postgres süper kullanıcısıyla bağlanıyordu:** ADR 0046.
+- **Sürüş bitiş konumu istemciden geliyor ve aracın konumunu eziyordu:** telemetri tazeyse (2 dk) cihazın konumu esas alınır.
+- **Düşük bataryalı araç kiralanabiliyordu, batarya görevi yalnızca eşik olayıyla açılıyordu:** %10 altı rezerve edilemez; tarama işi eksik görevleri açar (6 saat bekleme süresiyle).
+- **Worker ve Mvc her SQL komutunu logluyordu** (Serilog ayar bölümü yoktu): eklendi.
+- **Mvc'de kullanılmayan session** Redis kesintisinde her sağlık kontrolünde ERR üretiyordu: kaldırıldı.
+- **Mvc sayfalama parametreleri doğrulanmıyordu** (`pageNumber=0` → 500): sınırlandırıldı. Hata sayfasındaki çift metin, şablon artıkları (Home, Privacy, site.js) temizlendi.
+- **`CreateFieldTask` yarışı ve `Guid.Empty` sihirli değeri:** benzersizlik ihlali yakalanıyor, "zaten açık" durumu `null` ile dönüyor.
+- **Outbox yayın hatası 2 sn'de bir tekrar ediyordu** (106. gün gözlemi): hata artık yayıncıya iletilir, bekleme 60 sn'ye kadar büyür; aynı mesaj 10 kez başarısız olursa Error loglanır.
+- **`X-Correlation-Id` doğrulanmıyordu:** en fazla 64 güvenli karakter kabul edilir.
+- **Hesap yönetimi yoktu:** hesap bilgisi, parola değiştirme, hesap silme (KVKK) ve sürüş geçmişi ucu eklendi.
+- **Testsiz bileşenler:** Worker işleri (yeni `Scootly.Worker.Tests`), tüketiciler, Mvc paneli (yeni `Scootly.Mvc.IntegrationTests`), bootstrapper, korelasyon kimliği. Mimari testler Mvc'yi kapsıyor.
+- **CI:** gitleaks (sır taraması), `dotnet format` kontrolü, Trivy (imaj taraması), SHA'ya sabitlenmiş action'lar, Dependabot. `.gitattributes` eklendi, `.editorconfig`'teki CRLF zorlaması kaldırıldı.
+- **Ölü kod:** `NoParkingZone`, `ParkingStation`, kullanılmayan `HomeRegion` alanı (migration ile), Razor Pages artığı dosyalar, kullanılmayan istemci kütüphane dosyaları (48 dosya), kullanılmayan paket sürümleri.
+- Bu listedeki eski maddelerden kapananlar: 81. gün (Mvc'nin ödeme sağlayıcısına bağımlılığı: `AddScootlyPayments`), 84. gün (Api `VehiclesController`'daki `_dbContext` artık kullanılıyor), 87. gün (Mvc entegrasyon testi), 99. gün (bootstrapper yarışı ERR logu), 105. gün (`.gitattributes`), 106. gün (outbox beklemesi), 107. gün (CI'da sır taraması), 108b (nginx `client_max_body_size` = 6 MB), "Mvc yerel sırları README'de belgelenmedi".
+
+### Bu incelemeden sonra açık kalanlar
+
+- Parola sıfırlama ve e-posta doğrulama yok: bir e-posta sağlayıcısı gerektirir.
+- Outbox'ta kalıcı olarak yayınlanamayan mesaj karantinaya alınmaz (yalnızca Error logu): uzun broker kesintisinde olay atmamak için bilinçli.
+- Harita, hizmet bölgelerini sayfa açılışında alır; sonradan eklenen bölge için sayfa yenilenmeli. Hub token'ı 15 dk sonra dolar (89. gün maddesi).
+- Bölge önbelleği kopya başına 1 dakika; yeni bölge diğer Api kopyasında en geç 1 dk sonra görünür.
+- `dotnet run` ile yerel geliştirmede bağlantı dizesi user-secrets'tan gelir ve süper kullanıcı olabilir; rol ayrımı compose yığınlarında uygulanır.
+
 ## Gun 109: son durum (6 Ekim 2026)
 
 ### Kapatilan ya da ilerleyenler
@@ -19,7 +54,7 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 | Git gecmisindeki eski sirlar | Hepsi 27.09.2026'da yenilendi; gecmisi yeniden yazmak paylasilan dallari bozar (ADR 0021). |
 | Arac basina cihaz kimligi | Gercek cihaz filosu yok; provizyon ve sir dagitimi gerektirir (ADR 0021). |
 | Rota surumleme (`/api/...`) | Mevcut istemcileri kirar; bir sonraki kirici surumde birlikte yapilacak. |
-| Park yasagi / hizmet bolgesi kurali | Bolge verisi (poligonlar) tanimli degil. |
+| Park yasağı / hizmet bölgesi kuralı | Hizmet bölgeleri tanımlanabiliyor (ADR 0045) ama park yasağı bölgesi için veri modeli ve yönetim arayüzü yok; "bölge dışına bırakma" kuralı (engelle mi, ücretlendir mi?) iş kararı bekliyor. |
 | Wallet / Billing | Gercek karmasiklik birikene kadar ayri context gereksiz (ADR 0019). |
 | Surec ici telemetri kuyrugu | Kalici kuyruk ihtiyaci dogmadi (ADR 0012). |
 | Denetci (Auditor) rolu | Ilgili raporlama ozellikleri yazilmadi. |
@@ -45,7 +80,7 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 | Araç başına cihaz kimliği | Cihazlar ağ geçidi modeliyle (tek istemci, çok araç) doğrulanıyor. | Provizyon ve sır dağıtımı gerektirir; gerçek cihaz filosuna geçişte değerlendirilecek (ADR 0021). |
 | DLQ izleme / alarm | Ölü mektup kuyruklarına düşen mesajlar yalnızca RabbitMQ yönetim arayüzünden görülebiliyor. | Gözlemlenebilirlik altyapısı (metrik, alarm) henüz yok. |
 | Sürüm tutarlılığı | `RidesController`, `AuthController`, `DeviceAuthController`, `TelemetryController`, `WebhooksController` sürümsüz rotalarda (`/api/...`). | Rota değişikliği mevcut istemcileri (simülatörler, mobil) kırar; bir sonraki kırıcı sürümde birlikte yapılmalı. |
-| Park yasağı / hizmet bölgesi kuralları | `GeofenceEvaluator` canlı bildirim bölgeleri için kullanılıyor, ancak sürüş bitirirken "hizmet bölgesi dışında / park yasağı bölgesinde bırakılamaz" kuralı yok. | Bölge verisi (poligonlar) henüz tanımlanmadı. |
+| Park yasağı / hizmet bölgesi kuralları | `GeofenceEvaluator` canlı bildirim bölgeleri için kullanılıyor, ancak sürüş bitirirken "hizmet bölgesi dışında / park yasağı bölgesinde bırakılamaz" kuralı yok. | Hizmet bölgesi verisi artık var; park yasağı bölgesi modeli ve kural iş kararı bekliyor. Kullanılmayan `NoParkingZone` tipi 7 Ekim'de kaldırıldı. |
 | Wallet / Billing | Ödeme bilgisi hâlâ `Ride` içinde; fatura, vergi, farklı ödeme yöntemleri yok. | ADR 0019: gerçek karmaşıklık birikene kadar ayrı context gereksiz. |
 | Telemetri kuyruğu | Süreç içi `Channel`: API yeniden başlarsa kuyrukta bekleyen okumalar kaybolabilir; yatay ölçeklemede her instance kendi kuyruğunu işler. | ADR 0012; kalıcı kuyruk ihtiyacı henüz doğmadı. |
 | Denetçi (Auditor) rolü | Planlanan aktörlerden biri; henüz hiçbir uç kullanmıyor. | İlgili raporlama özellikleri yazılmadı. |
