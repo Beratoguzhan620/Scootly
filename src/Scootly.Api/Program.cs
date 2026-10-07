@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Scootly.Api.ErrorHandling;
 using Scootly.Api.Extensions;
 using Scootly.Api.Hubs;
-using Scootly.Api.Logging;
+using Scootly.Infrastructure.Logging;
+using Scootly.Infrastructure.Observability;
 using Scootly.Api.Services;
 using Scootly.Api.Validators;
 using Scootly.Application;
@@ -19,8 +20,14 @@ builder.Host.UseSerilog((context, configuration) =>
     configuration
         .ReadFrom.Configuration(context.Configuration)
         .Enrich.FromLogContext()
+        .Enrich.WithProperty("Service", "Scootly.Api")
         .Destructure.With<SensitiveDataDestructuringPolicy>()
-        .WriteTo.Console();
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}");
+
+    var seqUrl = context.Configuration["Seq:ServerUrl"];
+
+    if (!string.IsNullOrWhiteSpace(seqUrl))
+        configuration.WriteTo.Seq(seqUrl);
 });
 
 builder.Services.AddControllers();
@@ -68,7 +75,11 @@ builder.Services.AddScootlySwagger();
 
 builder.Services.AddScootlyApplication();
 builder.Services.AddScootlyInfrastructure(builder.Configuration);
-builder.Services.AddScootlyIdentity();
+builder.Services.AddScootlyTelemetry(builder.Configuration, "Scootly.Api");
+builder.Services.AddScootlyIdentityCore();
+builder.Services.AddScootlyJwtTokens();
+builder.Services.AddScootlyDeviceAuth();
+builder.Services.AddScootlyPayments();
 builder.Services.AddScootlyPaymentGateway();
 builder.Services.AddScootlyPaymentWebhooks();
 builder.Services.AddScootlyAuthentication();
@@ -110,7 +121,23 @@ else
 }
 
 app.UseHttpsRedirection();
-app.UseSerilogRequestLogging();
+
+app.UseScootlyCorrelationId();
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("CorrelationId", httpContext.Response.Headers["X-Correlation-Id"].ToString());
+
+        var userId = httpContext.User.Identity?.IsAuthenticated == true
+            ? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            : null;
+
+        if (userId is not null)
+            diagnosticContext.Set("UserId", userId);
+    };
+});
 
 app.UseCors("ScootlyWebPolicy");
 

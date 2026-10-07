@@ -1,6 +1,8 @@
 using Scootly.Application.Abstractions;
 using Scootly.Application.Common;
+using Scootly.Application.FieldOps.Commands;
 using Scootly.Domain.Common;
+using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
 using Scootly.Domain.Riding;
 
@@ -13,17 +15,20 @@ public sealed class AbandonRideCommandHandler
 {
     private readonly IRideRepository _rideRepository;
     private readonly IVehicleRepository _vehicleRepository;
+    private readonly IFieldTaskRepository _fieldTaskRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IClock _clock;
 
     public AbandonRideCommandHandler(
         IRideRepository rideRepository,
         IVehicleRepository vehicleRepository,
+        IFieldTaskRepository fieldTaskRepository,
         IUnitOfWork unitOfWork,
         IClock clock)
     {
         _rideRepository = rideRepository;
         _vehicleRepository = vehicleRepository;
+        _fieldTaskRepository = fieldTaskRepository;
         _unitOfWork = unitOfWork;
         _clock = clock;
     }
@@ -45,7 +50,17 @@ public sealed class AbandonRideCommandHandler
 
             // Araç kilitli kalmasın: saha ekibi kontrol edene kadar bakıma alınır.
             if (vehicle is not null && vehicle.Status == VehicleStatus.InRide)
+            {
                 vehicle.EndAbandonedRide(now);
+
+                var hasOpenInspection = await _fieldTaskRepository.HasOpenTaskAsync(vehicle.Id, FieldTaskType.Inspection, token);
+
+                if (!hasOpenInspection)
+                {
+                    var inspectionTask = new FieldTask(Guid.NewGuid(), vehicle.Id, FieldTaskType.Inspection, now);
+                    await _fieldTaskRepository.AddAsync(inspectionTask, token);
+                }
+            }
 
             await _unitOfWork.SaveChangesAsync(token);
 

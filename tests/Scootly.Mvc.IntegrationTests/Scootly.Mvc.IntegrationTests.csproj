@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Mvc paneli: cookie girişi, rol bazlı erişim, araç işlemleri ve hata sayfaları (gerçek PostgreSQL).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Scootly.Mvc\Scootly.Mvc.csproj" />
+  </ItemGroup>
+
+</Project>

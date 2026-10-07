@@ -1,0 +1,24 @@
+@using Scootly.Mvc.ViewComponents
+@model IReadOnlyList<Scootly.Application.Abstractions.ActiveRideSummary>
+
+<div class="card">
+    <div class="card-header">Aktif Sürüşler (@(Model.Count >= ActiveRidesViewComponent.ListLimit ? $"{ActiveRidesViewComponent.ListLimit}+" : Model.Count.ToString()))</div>
+    <div class="card-body">
+        @if (Model.Count == 0)
+        {
+            <p class="text-muted mb-0">Şu anda aktif sürüş yok.</p>
+        }
+        else
+        {
+            <ul class="list-group list-group-flush">
+                @foreach (var ride in Model.Take(5))
+                {
+                    <li class="list-group-item d-flex justify-content-between">
+                        <code>@ride.Id.ToString()[..8]</code>
+                        <span class="text-muted">@ride.StartedAt.ToString("HH:mm")</span>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>

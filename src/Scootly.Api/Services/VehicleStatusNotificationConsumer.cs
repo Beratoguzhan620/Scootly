@@ -29,7 +29,11 @@ public sealed class VehicleStatusNotificationConsumer : RabbitMqConsumerService
 
     protected override bool IsDurable => false;
 
-    protected override async Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+    protected override Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+        => ProcessAsync(message, services, Logger, cancellationToken);
+
+    /// <summary>Mesaj işleme mantığı; broker olmadan test edilebilsin diye tüketici altyapısından ayrıdır.</summary>
+    internal static async Task<ConsumeResult> ProcessAsync(ReceivedMessage message, IServiceProvider services, ILogger logger, CancellationToken cancellationToken)
     {
         VehicleStatusChangedIntegrationEvent? integrationEvent;
 

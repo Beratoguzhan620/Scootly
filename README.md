@@ -1,91 +1,371 @@
 # Scootly
 
-**Şehir içi elektrikli scooter paylaşım platformunun backend'i.** Clean Architecture prensipleriyle, .NET 10 ile geliştirilmiştir.
+**Şehir içi elektrikli scooter paylaşım platformu: REST API, filo yönetim paneli ve arka plan işleri.**
+.NET 10 ile, Clean Architecture prensipleriyle geliştirilmiş bir öğrenme/portföy projesidir.
+
+Sürücü yakınındaki müsait scooter'ı bulur, rezerve eder, sürüşe başlar ve bitirir; ücret tarifeyle hesaplanıp ödeme
+sağlayıcısından asenkron tahsil edilir. Cihazlar konum ve batarya gönderir; bataryası düşen araç için saha ekibine
+otomatik görev açılır. Filo ekibi araçları, canlı haritayı ve saha görevlerini web panelinden yönetir.
+
+> Son sürüm `v0.1.0-rc.1` (6 Ekim 2026). Sonrasındaki değişiklikler `CHANGELOG.md` → `[Unreleased]` bölümündedir.
 
 ---
 
 ## İçindekiler
 
-- [Genel Bakış](#genel-bakış)
+- [Öne Çıkanlar](#öne-çıkanlar)
+- [Hızlı Başlangıç (Docker)](#hızlı-başlangıç-docker)
+- [Yerel Geliştirme (dotnet run)](#yerel-geliştirme-dotnet-run)
+- [İlk Giriş ve Roller](#ilk-giriş-ve-roller)
 - [Mimari](#mimari)
-- [Teknoloji Yığını](#teknoloji-yığını)
-- [Proje Yapısı](#proje-yapısı)
-- [Kurulum](#kurulum)
-- [Çalıştırma](#çalıştırma)
-- [Test](#test)
+- [Servisler ve Portlar](#servisler-ve-portlar)
 - [API Uçları](#api-uçları)
-- [Güvenlik Notları](#güvenlik-notları)
-- [Mimari Kararlar](#mimari-kararlar)
-- [Teknik Borç](#teknik-borç)
+- [Web Paneli (Mvc)](#web-paneli-mvc)
+- [Güvenlik ve Gizlilik](#güvenlik-ve-gizlilik)
+- [Testler](#testler)
+- [CI/CD](#cicd)
+- [Proje Yapısı](#proje-yapısı)
+- [Dokümantasyon ve Mimari Kararlar](#dokümantasyon-ve-mimari-kararlar)
 
 ---
 
-## Genel Bakış
+## Öne Çıkanlar
 
-Scootly, kullanıcıların yakınlarındaki elektrikli scooter'ları görüp kiralayabildiği, sürüş başlatıp bitirebildiği bir micro-mobility platformudur:
+| Alan | Ne yapıyor? |
+|---|---|
+| **Sürüş akışı** | Rezervasyon (10 dk) → sürüş → bitiş. Durum makinesi + veritabanı kısıtları: sürücü başına tek rezervasyon ve tek aktif sürüş, araç başına tek aktif sürüş. %10'un altında bataryalı araç kiralanamaz. |
+| **Eşzamanlılık** | PostgreSQL `xmin` ile iyimser kilitleme; çakışmada taze veriyle otomatik yeniden deneme. 50 eşzamanlı rezervasyondan yalnızca biri kazanır. |
+| **Ödeme saga'sı** | Outbox → RabbitMQ → ödeme sağlayıcısı. Idempotency anahtarı, HMAC imzalı webhook ve uzlaştırma işiyle çift tahsilat ve kayıp önlenir. |
+| **Güvenilir mesajlaşma** | Domain olayları aynı transaction'da outbox'a yazılır; publisher confirm, gecikmeli retry kuyruğu, DLQ, idempotent tüketiciler. Broker kesintisinden sonra tüketiciler kendiliğinden toparlanır. |
+| **Telemetri** | Cihaz ağ geçidinden toplu konum/batarya; sınırlı bellek içi kuyruk, doluysa 503 + `Retry-After`. Batarya eşiği aşılınca saha görevi açılır; kaçan olayları bir tarama işi tamamlar. |
+| **Saha operasyonu** | Görev üstlenme/tamamlama, isteğe bağlı fotoğraf (JPEG/PNG, 5 MB, S3 uyumlu depo), bakım/kayıp/hizmete dönüş işlemleri. |
+| **Canlı harita** | SignalR ile hizmet bölgesine göre gruplanmış araç durumu bildirimleri; bölge çözümleme poligon (ray casting) ile. |
+| **Kimlik** | Identity + JWT (API), cookie (panel). Rol ve kaynak sahipliği bazlı yetki, hesap kilitleme, rol/parola değişince token iptali, KVKK hesap silme. |
+| **İşletme** | Docker imajları, üretim Compose'u (Nginx + TLS, 2 replika), mavi-yeşil dağıtım iskeleti, sağlık kontrolleri, Serilog/Seq, OpenTelemetry/Jaeger, Prometheus/Grafana. |
 
-- **Kimlik ve yetki** — JWT ile giriş, rol tabanlı (Driver, FleetManager, FieldOperator) ve kaynak sahipliği bazlı yetkilendirme; cihazlar için ayrı istemci kimlik bilgisi akışı; hesap kilitleme ve istemci başına rate limiting.
-- **Araç ve sürüş yönetimi** — durum makinesiyle korunan araç yaşam döngüsü; rezervasyon sahipliği; sürücü başına tek aktif rezervasyon ve tek aktif sürüş (uygulama + veritabanı kısıtları).
-- **Eşzamanlılık güvenliği** — PostgreSQL `xmin` ile iyimser kilitleme; çakışmalarda taze veriyle otomatik yeniden deneme.
-- **Ödeme saga'sı** — ücret domain'de tarifeyle hesaplanır; tahsilat outbox → RabbitMQ → ödeme sağlayıcısı akışıyla asenkron yapılır; idempotency anahtarı, imzalı webhook ve uzlaştırma işiyle çift tahsilat ve kayıp önlenir.
-- **Güvenilir mesajlaşma** — domain olayları aynı transaction'da outbox'a yazılır; publisher confirm, gecikmeli retry kuyruğu ve ölü mektup kuyruğu (DLQ).
-- **Telemetri** — cihazlardan toplu konum/batarya verisi; aracın son bilinen durumu güncellenir, batarya eşiği aşılınca saha görevi üretilir.
-- **Canlı bildirimler** — SignalR ile, hizmet bölgesine göre gruplanmış araç durumu değişiklikleri.
-- **Arka plan işleri** — süresi dolan rezervasyonlar, terk edilmiş sürüşler, bekleyen ödemelerin yeniden denenmesi, veri saklama politikası (KVKK).
+---
+
+## Hızlı Başlangıç (Docker)
+
+Tüm uygulamayı (veritabanı, mesaj kuyruğu, Api, Worker, panel, ödeme simülatörü) tek komutla açmanın yolu.
+
+**Gerekenler:** Docker Desktop (çalışır durumda).
+
+```powershell
+cd deploy
+Copy-Item .env.example .env      # yalnızca ilk kez; sonra .env içindeki boş/"degistir" değerleri doldurun
+docker compose --profile app up -d --build
+```
+
+`.env` içindeki değerler için güçlü rastgele değer üretmek:
+
+```powershell
+[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+
+Doldurulması zorunlu alanlar: `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `RABBITMQ_PASSWORD`, `REDIS_PASSWORD`, `JWT_KEY`,
+`JWT_HUB_KEY`, `DEVICE_CLIENT_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `GRAFANA_ADMIN_PASSWORD` (anahtarlar en az 32 karakter).
+İlk yönetici hesabı için `BOOTSTRAP_FLEET_MANAGER_EMAIL` ve `BOOTSTRAP_FLEET_MANAGER_PASSWORD` de doldurulmalı
+(bkz. [İlk Giriş ve Roller](#ilk-giriş-ve-roller)). Eksik bir değer varsa Compose hangi değişkenin eksik olduğunu yazarak durur.
+
+Açılış sırası otomatiktir: altyapı sağlıklı olur → `migrator` şemayı uygular → `db-init` uygulama veritabanı rolünü
+hazırlar → Api, Worker ve panel başlar.
+
+| Adres | Ne var? |
+|---|---|
+| http://127.0.0.1:5096 | Web paneli (Mvc) |
+| http://127.0.0.1:5016 | REST API (`/health/ready` ile hazırlık kontrolü) |
+| http://127.0.0.1:15672 | RabbitMQ yönetim arayüzü (`RABBITMQ_USER` / `RABBITMQ_PASSWORD`) |
+
+Araçlara hareket ve batarya verisi göndermek için cihaz simülatörünü ayrıca çalıştırın
+(bkz. [Yerel Geliştirme](#yerel-geliştirme-dotnet-run), adım 4). Durdurmak için `docker compose --profile app stop`
+yeterlidir; veriler volume'larda kalır.
+
+İsteğe bağlı profiller:
+
+```powershell
+docker compose --profile observability up -d     # Seq 5341, Jaeger 16686, Prometheus 9090, Grafana 3001
+docker compose --profile storage up -d seaweedfs  # fotoğraf yükleme için S3 uyumlu depo (+ .env: STORAGE_ENABLED=true)
+```
+
+Üretim benzeri yığın (Nginx + TLS, 2 Api ve 2 panel kopyası, tek giriş `https://127.0.0.1:8443`):
+
+```powershell
+docker compose -p scootly-prod --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml --profile app up -d --build
+```
+
+Geliştirme ve üretim yığınları aynı sabit konteyner adlarını kullandığı için aynı anda çalışmaz: birini açmadan önce
+diğerini `down` ile kapatın (`-v` vermeyin; veriler kalır).
+
+---
+
+## Yerel Geliştirme (dotnet run)
+
+Kodu değiştirip hızlı denemek için: altyapı Docker'da, uygulamalar `dotnet run` ile.
+
+**Gerekenler:** .NET 10 SDK, Docker Desktop, EF Core aracı (`dotnet tool install --global dotnet-ef`).
+
+**1. Altyapıyı başlat** (PostgreSQL, Redis, RabbitMQ; yalnızca 127.0.0.1'e açılır):
+
+```powershell
+cd deploy
+docker compose up -d
+cd ..
+```
+
+**2. Sırları user-secrets'a ekle** (ilk kez; değerler `deploy/.env` ile aynı olmalı). Hiçbir sır kaynak kodda tutulmaz.
+
+```powershell
+$db = "Host=localhost;Port=5432;Database=scootly;Username=postgres;Password=<POSTGRES_PASSWORD>"
+
+# Api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" $db --project src/Scootly.Api
+dotnet user-secrets set "Jwt:Key" "<JWT_KEY>" --project src/Scootly.Api
+dotnet user-secrets set "Jwt:HubKey" "<JWT_HUB_KEY>" --project src/Scootly.Api
+dotnet user-secrets set "DeviceAuth:ClientSecret" "<DEVICE_CLIENT_SECRET>" --project src/Scootly.Api
+dotnet user-secrets set "PaymentWebhook:Secret" "<PAYMENT_WEBHOOK_SECRET>" --project src/Scootly.Api
+dotnet user-secrets set "RabbitMq:Password" "<RABBITMQ_PASSWORD>" --project src/Scootly.Api
+dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,password=<REDIS_PASSWORD>" --project src/Scootly.Api
+dotnet user-secrets set "Bootstrap:FleetManagerEmail" "yonetici@ornek.com" --project src/Scootly.Api
+dotnet user-secrets set "Bootstrap:FleetManagerPassword" "<güçlü parola>" --project src/Scootly.Api
+
+# Worker
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" $db --project src/Scootly.Worker
+dotnet user-secrets set "RabbitMq:Password" "<RABBITMQ_PASSWORD>" --project src/Scootly.Worker
+dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,password=<REDIS_PASSWORD>" --project src/Scootly.Worker
+
+# Web paneli (yalnızca hub anahtarını bilir, JWT_KEY'i bilmez)
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" $db --project src/Scootly.Mvc
+dotnet user-secrets set "Jwt:HubKey" "<JWT_HUB_KEY>" --project src/Scootly.Mvc
+
+# Simülatörler
+dotnet user-secrets set "Webhook:Secret" "<PAYMENT_WEBHOOK_SECRET>" --project src/Scootly.PaymentSimulator
+dotnet user-secrets set "ClientSecret" "<DEVICE_CLIENT_SECRET>" --project src/Scootly.DeviceSimulator
+```
+
+**3. Veritabanı şemasını uygula** (ilk kez ve her yeni migration'dan sonra):
+
+```powershell
+dotnet ef database update --project src/Scootly.Infrastructure --startup-project src/Scootly.Api
+```
+
+**4. Uygulamaları ayrı terminallerde çalıştır** (bu sırayla):
+
+| # | Komut | Adres / görev |
+|---|---|---|
+| 1 | `dotnet run --project src/Scootly.PaymentSimulator` | http://localhost:5094 — ödeme sağlayıcısı |
+| 2 | `dotnet run --project src/Scootly.Api` | http://localhost:5016 — API, Swagger: `/swagger` |
+| 3 | `dotnet run --project src/Scootly.Worker` | arka plan işleri |
+| 4 | `dotnet run --project src/Scootly.Mvc` | http://localhost:5096 — web paneli |
+| 5 | `dotnet run --project src/Scootly.DeviceSimulator` | kayıtlı araçlara telemetri gönderir (en az bir araç olmalı) |
+
+Eksik veya kısa bir ayar varsa uygulama açılışta hangi ayarın eksik olduğunu yazarak durur.
+
+---
+
+## İlk Giriş ve Roller
+
+| Rol | Kim? | Nasıl oluşur? |
+|---|---|---|
+| `FleetManager` | Filo yöneticisi: araç kaydı, rol yönetimi, her şey | `Bootstrap:FleetManagerEmail/Password` ayarlıysa Api açılışında **bu e-postayla hesap yoksa** oluşturulur. Var olan bir hesaba asla yetki verilmez. |
+| `FieldOperator` | Saha ekibi: görevler, bakım/kayıp/hizmete dönüş | Yönetici rol atar: `POST /api/v1/admin/users/{id}/roles/FieldOperator` |
+| `Driver` | Sürücü: rezervasyon, sürüş, kendi geçmişi | `POST /api/auth/register` ile kayıt olan herkes |
+
+Parolalar yalnızca geri döndürülemez özet olarak saklanır; unutulan parola okunamaz. Parola kuralı: en az 8 karakter,
+büyük harf, küçük harf ve rakam. 5 hatalı denemede hesap 15 dakika kilitlenir.
+
+Örnek istekler (kayıt, giriş, rezervasyon, sürüş, hesap işlemleri) `src/Scootly.Api/Scootly.Api.http` dosyasındadır;
+Visual Studio / VS Code / Rider içinden doğrudan çalıştırılabilir.
 
 ---
 
 ## Mimari
 
-Proje **Clean Architecture** (katmanlı mimari) prensiplerine göre kurulmuştur. Bağımlılık oku her zaman içe, Domain'e doğrudur ve mimari testlerle denetlenir:
+Bağımlılık oku her zaman içe, Domain'e doğrudur; mimari testler bunu her derlemede denetler.
 
-```
-Scootly.Api / Scootly.Worker
-        |
-Scootly.Infrastructure
-        |
-Scootly.Application
-        |
-Scootly.Domain   (hiçbir dış pakete bağımlı değildir)
-```
-
-- **Scootly.Domain** — iş kuralları, durum makineleri, değer nesneleri, tarife, domain olayları.
-- **Scootly.Application** — use case'ler (komut/handler), soyutlamalar (repository, saat, ödeme sağlayıcısı, bölge çözümleyici). EF Core'a veya herhangi bir altyapı teknolojisine bağımlı değildir.
-- **Scootly.Infrastructure** — EF Core/PostgreSQL, outbox ve RabbitMQ, Redis, Identity/JWT, ödeme istemcisi, sağlık kontrolleri.
-- **Scootly.Api** — HTTP uçları, yetkilendirme politikaları, rate limiting, ProblemDetails hata yönetimi, SignalR, mesaj tüketicileri.
-- **Scootly.Worker** — zamanlanmış işler ve saha operasyonu tüketicisi.
-- **Scootly.PaymentSimulator / Scootly.DeviceSimulator** — dış ödeme sağlayıcısını ve cihaz ağ geçidini simüle eden yardımcı uygulamalar.
-
-```
-Sürüş bitir ──▶ Ride.Complete (ücret) ──▶ SaveChanges: veri + outbox (tek transaction)
-   OutboxProcessor ──(confirm)──▶ RabbitMQ scootly.events
-      ├─ RideCompleted ──▶ RideChargeConsumer ──▶ PaymentSimulator (Idempotency-Key) ──▶ Paid / ret
-      ├─ VehicleStatusChanged ──▶ her API instance ──▶ SignalR (hizmet bölgesi grubu)
-      └─ VehicleBatteryLow ──▶ Worker ──▶ saha görevi
-   PaymentSimulator ──(imzalı webhook)──▶ /api/webhooks/payment-callback
-   Worker: PendingPaymentRetryService ──▶ reddedilen / kaybolan ödemeleri uzlaştırır
+```mermaid
+flowchart TB
+    Api["Scootly.Api<br/>REST, SignalR, tüketiciler"] --> Infra
+    Mvc["Scootly.Mvc<br/>web paneli"] --> Infra
+    Worker["Scootly.Worker<br/>periyodik işler, tüketici"] --> Infra
+    Infra["Scootly.Infrastructure<br/>EF Core, outbox, RabbitMQ, Redis, Identity, S3"] --> App
+    App["Scootly.Application<br/>use case'ler, soyutlamalar"] --> Domain
+    Domain["Scootly.Domain<br/>iş kuralları, durum makineleri<br/>(hiçbir pakete bağımlı değil)"]
 ```
 
-Kararların gerekçeleri `docs/adr/` klasöründedir.
+| Proje | Sorumluluk |
+|---|---|
+| **Domain** | Araç ve sürüş durum makineleri, tarife, batarya ve konum değer nesneleri, saha görevi, domain olayları. |
+| **Application** | Komut handler'ları, iyimser eşzamanlılık disiplini, soyutlamalar (repository, saat, ödeme, bölge, dosya depolama). EF Core'a bağımlı değil. |
+| **Infrastructure** | EF Core/PostgreSQL, outbox ve RabbitMQ, Redis, Identity/JWT, ödeme istemcisi (Polly), S3 depolama, sağlık kontrolleri. |
+| **Api** | HTTP uçları, politikalar, rate limiting, ProblemDetails, SignalR hub, ödeme ve bildirim tüketicileri, telemetri kuyruğu. |
+| **Mvc** | Cookie girişli filo paneli. Api'ye bağlı değildir; Application ve Infrastructure'ı doğrudan kullanır. |
+| **Worker** | Rezervasyon süresi, terk edilmiş sürüş, bekleyen ödeme, batarya uzlaştırması, veri saklama; batarya olayı tüketicisi. |
+| **PaymentSimulator / DeviceSimulator** | Dış ödeme sağlayıcısını (imzalı webhook) ve cihaz ağ geçidini taklit eder. |
+
+Ödeme ve bildirim akışı:
+
+```mermaid
+sequenceDiagram
+    participant D as Sürücü
+    participant A as Api
+    participant DB as PostgreSQL
+    participant MQ as RabbitMQ
+    participant P as Ödeme sağlayıcısı
+    participant W as Worker
+    D->>A: POST /rides/{id}/complete
+    A->>DB: sürüş + araç + outbox (tek transaction)
+    A-->>D: 202 Accepted (ücret, ödeme: Pending)
+    A->>MQ: outbox yayını (publisher confirm)
+    MQ->>A: RideCompleted → tahsilat tüketicisi
+    A->>P: authorize (Idempotency-Key)
+    P-->>A: onay / ret
+    P->>A: imzalı webhook (onaylar için yetkili kaynak)
+    W->>DB: bekleyen / reddedilen ödemeleri uzlaştırır
+    MQ->>A: VehicleStatusChanged → SignalR (bölge grubu)
+    MQ->>W: VehicleBatteryLow → saha görevi
+```
+
+Gerekçeler `docs/adr/` içinde; sistem tasarımı ve bulut eşleştirmesi `docs/architecture/system-design.md`'de.
+
+**Teknolojiler:** .NET 10, ASP.NET Core, EF Core 10 + Npgsql, PostgreSQL 16, RabbitMQ 3.13, Redis 7.4, SignalR,
+Polly (Microsoft.Extensions.Http.Resilience), Serilog, OpenTelemetry, SeaweedFS (S3 API), Nginx 1.27, xUnit v3,
+Testcontainers, NetArchTest, Playwright, k6. Paket sürümleri merkezi olarak `Directory.Packages.props`'ta yönetilir.
 
 ---
 
-## Teknoloji Yığını
+## Servisler ve Portlar
 
-| Katman | Teknoloji |
-|---|---|
-| Çalışma zamanı | .NET 10 |
-| Veritabanı | PostgreSQL 16 |
-| ORM | Entity Framework Core 10 (Npgsql) |
-| Mesajlaşma | RabbitMQ 3.13 (RabbitMQ.Client 7) |
-| Önbellek | Redis 7.4 (erişilemezse süreç içi yedek) |
-| Kimlik | ASP.NET Core Identity + JWT Bearer |
-| Dayanıklılık | Microsoft.Extensions.Http.Resilience (Polly) |
-| Gerçek zamanlı | SignalR |
-| Test | xUnit v3, Testcontainers (PostgreSQL, RabbitMQ), NetArchTest |
-| Loglama | Serilog (hassas alan maskeleme) |
-| API dokümantasyonu | Swagger / OpenAPI (sürüm başına doküman, JWT desteği) |
-| Paket yönetimi | Central Package Management (`Directory.Packages.props`) |
+`deploy/docker-compose.yml` (tüm portlar yalnızca `127.0.0.1`'e açılır):
+
+| Profil | Servis | Port | Not |
+|---|---|---|---|
+| (varsayılan) | postgres | 5432 | PostgreSQL 16 |
+| (varsayılan) | redis | 6379 | Parolalı. Önbellek ve panel kopyalarının ortak anahtarları; erişilemezse Api önbelleksiz devam eder |
+| (varsayılan) | rabbitmq | 5672, 15672 | AMQP ve yönetim arayüzü |
+| `app` | migrator | — | Bekleyen migration'ları uygular ve çıkar |
+| `app` | db-init | — | `scootly_app` rolünü oluşturur/günceller ve çıkar |
+| `app` | payment-simulator | 5094 | Ödeme sağlayıcısı simülatörü |
+| `app` | api | 5016 | REST API ve SignalR |
+| `app` | mvc | 5096 | Web paneli |
+| `app` | worker | — | Sağlık durumu heartbeat dosyasıyla izlenir |
+| `storage` | seaweedfs | 8333 | S3 API (isteğe bağlı) |
+| `observability` | seq, jaeger, otel-collector, prometheus, grafana | 5341, 16686, 4317/4318, 9090, 3001 | Gözlemlenebilirlik |
+| `experiments` | redpanda | 9092 | Yalnızca Kafka karşılaştırma deneyi |
+
+Sağlık uçları: `GET /health/live` (süreç ayakta mı) ve `GET /health/ready` (PostgreSQL, Redis, RabbitMQ).
+
+---
+
+## API Uçları
+
+Hatalar RFC 7807 ProblemDetails biçiminde döner; Development ortamında tüm şemalar `/swagger`'dadır.
+
+| Uç | Açıklama | Yetki |
+|---|---|---|
+| `POST /api/auth/register` | Kayıt (Driver rolü) | Herkese açık, IP başına 10/dk |
+| `POST /api/auth/login` | Giriş, JWT döner | Herkese açık, IP başına 10/dk |
+| `POST /api/device-auth/token` | Cihaz ağ geçidi token'ı | Herkese açık, IP başına 10/dk |
+| `GET /api/account` | Hesabım (kimlik, e-posta, roller) | Oturum açmış kullanıcı |
+| `POST /api/account/change-password` | Parola değiştir; eski token'lar iptal, yanıtta yeni token | Oturum açmış kullanıcı |
+| `DELETE /api/account` | Hesabı sil (parolayla onaylı; konumlar anonimleşir) | Oturum açmış kullanıcı |
+| `GET /api/v1/vehicles` | Araç listesi (alan filtresi, sayfalı, önbellekli) | Herkese açık\* |
+| `GET /api/v2/vehicles` | Aynı liste, marka ve menzil bilgisiyle | Herkese açık\* |
+| `GET /api/v1/vehicles/{id}` | Araç ayrıntısı | Herkese açık\* |
+| `POST /api/v1/vehicles` | Araç kaydı | FleetManager |
+| `POST /api/v1/vehicles/{id}/reserve` | Rezervasyon (10 dk) | Driver |
+| `DELETE /api/v1/vehicles/{id}/reservation` | Kendi rezervasyonunu iptal | Driver |
+| `POST /api/v1/vehicles/{id}/maintenance` · `/lost` · `/return-to-service` | Bakıma al · kayıp işaretle · hizmete döndür | FleetManager / FieldOperator |
+| `POST /api/rides/start` | Sürüş başlat (201 + rideId) | Driver (rezervasyon sahibi) |
+| `POST /api/rides/{id}/complete` | Sürüş bitir (202; ödeme asenkron) | Sürüş sahibi |
+| `GET /api/rides` | Sürüş geçmişim (sayfalı) | Driver |
+| `GET /api/rides/active` · `/{id}` · `/{id}/payment-status` | Aktif sürüş · ayrıntı · ödeme durumu | Sürüş sahibi |
+| `POST /api/telemetry/batch` | Toplu telemetri (en fazla 500 okuma) | Cihaz |
+| `POST /api/webhooks/payment-callback` | Ödeme sağlayıcısı bildirimi | HMAC imzası |
+| `GET` · `POST /api/v1/service-areas` | Hizmet bölgeleri | Okuma herkese açık · oluşturma FleetManager |
+| `POST` · `DELETE /api/v1/admin/users/{id}/roles/{rol}` | Rol yönetimi | FleetManager |
+| `/hubs/fleet` | SignalR canlı araç durumu | Oturum açmış kullanıcı veya panelin hub token'ı |
+
+\* Anonim kullanıcılar ve sürücüler yalnızca **müsait** araçları görür. Rezerve, sürüşteki, bakımdaki ve kayıp araçları
+filo ekibi ve cihaz ağ geçidi görür; sürücü kendi rezerve ettiği ya da sürdüğü aracın ayrıntısını görebilir.
+
+---
+
+## Web Paneli (Mvc)
+
+| Sayfa | Kim görür? | Ne yapılır? |
+|---|---|---|
+| Panel | Herkes (rolüne göre) | Filo ekibi: aktif sürüşler ve düşük bataryalı araçlar. Sürücü: harita ve sürüşlerim kısayolları. |
+| Harita | Oturum açmış herkes | Canlı araç haritası. Filo ekibi tüm araçları, sürücü yalnızca müsaitleri görür. |
+| Araçlar | FleetManager, FieldOperator | Liste; bakıma al, kayıp işaretle, hizmete döndür. Yönetici ayrıca araç ekler ve düzenler. |
+| Görevler | FleetManager, FieldOperator | Açık saha görevlerini üstlen, tamamla (isteğe bağlı fotoğraf), tamamlananların fotoğrafını aç. |
+| Sürüşlerim | Driver | Aktif sürüşler. |
+
+Terk edilen bir sürüşten sonra araç bakıma alınır ve bir denetim görevi açılır. Görev tamamlanınca araç, Araçlar
+sayfasındaki **Hizmete döndür** ile yeniden kiralanabilir hale gelir.
+
+---
+
+## Güvenlik ve Gizlilik
+
+- **Sırlar** kaynak kodda değil; user-secrets veya `deploy/.env` (git'e girmez). Eksik/kısa ayar açılışta hatayla durur.
+  Git geçmişindeki eski değerler 27.09.2026'da yenilendi ve geçersiz (ADR 0021, postmortem).
+- **Token'lar:** kullanıcı token'ı Identity güvenlik damgasını taşır; rol değişikliği, parola değişikliği veya hesap silme
+  eski token'ları geçersiz kılar. Panelin harita için ürettiği token ayrı anahtarla imzalanır, rol taşımaz ve yalnızca
+  hub'da geçerlidir; panel ana API anahtarını bilmez (ADR 0046).
+- **Veritabanı:** Api, Worker ve panel yalnızca veri okuyup yazabilen `scootly_app` rolüyle bağlanır; şema değişikliğini
+  yalnızca migrator yapar.
+- **Konum gizliliği (KVKK):** sürüşteki araçların konumu herkese açık değildir; telemetri 30 gün sonra silinir, sürüş
+  konumları 90 gün sonra veya hesap silinince anonimleşir (ADR 0004).
+- **Kötüye kullanım:** istemci başına rate limiting, hesap kilitleme, webhook HMAC + zaman damgası, korelasyon kimliği
+  doğrulaması, panelde CSP ve antiforgery.
+- Olay müdahalesi ve sır rotasyonu: `docs/runbook/incident-response.md`.
+
+---
+
+## Testler
+
+```powershell
+dotnet test Scootly.slnx                                                              # tümü (Docker gerekir)
+dotnet test Scootly.slnx --filter "Category!=Measurement&Category!=Experiment&Category!=E2E"  # CI'daki hızlı set
+dotnet test tests/Scootly.E2E.Tests --filter "Category=E2E"                           # tarayıcı testleri
+```
+
+| Proje | Kapsam | Test |
+|---|---|---|
+| Domain.UnitTests | İş kuralları, durum makineleri, tarife, değer nesneleri | 112 |
+| Application.UnitTests | Handler'lar; EF'nin yeniden yükleme/çakışma davranışını taklit eden sahtelerle | 68 |
+| Infrastructure.Tests | Gerçek PostgreSQL + RabbitMQ: outbox, retry → DLQ, broker kesintisinden kurtarma, kısıtlar, poligon sırası, bootstrapper | 61 |
+| Api.IntegrationTests | Uçtan uca HTTP: IDOR, token ayrımı ve iptali, görünürlük, hesap silme, rate limit, webhook sahteciliği, tüketiciler | 76 |
+| Worker.Tests | Periyodik işler ve batarya tüketicisi, gerçek veritabanıyla | 7 |
+| Mvc.IntegrationTests | Cookie girişi, rol bazlı erişim, antiforgery, araç işlemleri, harita verisi, hata sayfaları | 14 |
+| Concurrency.Tests | Eşzamanlı rezervasyon, izolasyon, deadlock, N+1 (+ ölçüm ve deney testleri) | 10 |
+| Architecture.Tests | Katman bağımlılık kuralları (Mvc dahil) | 9 |
+| E2E.Tests | Playwright + Chromium: giriş, araç düzenleme, görev üstlenme, fotoğraflı tamamlama | 8 |
+
+7 Ekim 2026 itibarıyla 359 test geçiyor, 6 test atlanıyor (canlı nesne deposu gerektiren fotoğraf testleri), başarısız
+test yok. Testler sırlarını kendisi üretir; geliştiricinin user-secrets'ına ya da çalışan servislerine ihtiyaç duymaz.
+
+E2E testlerinden önce bir kez tarayıcı kurulumu gerekir:
+`dotnet build tests/Scootly.E2E.Tests` ve ardından `powershell -File tests/Scootly.E2E.Tests/bin/Debug/net10.0/playwright.ps1 install chromium`.
+Fotoğraf senaryoları `SCOOTLY_LIVE_STORAGE_ENDPOINT`, `SCOOTLY_LIVE_STORAGE_ACCESS_KEY` ve
+`SCOOTLY_LIVE_STORAGE_SECRET_KEY` tanımlıysa çalışır. Yük testleri: `tests/Scootly.LoadTests` (k6, ADR 0039).
+
+---
+
+## CI/CD
+
+`.github/workflows/ci.yml` her push ve PR'da:
+
+1. **Sır taraması** (gitleaks, `.gitleaks.toml`)
+2. **Biçim kontrolü** (`dotnet format whitespace --verify-no-changes`)
+3. **Derleme ve testler** (Testcontainers ile), kapsam raporu, zafiyetli paket taraması
+4. **Docker imajları** (5 imaj) ve **imaj taraması** (Trivy; düzeltmesi olan yüksek/kritik açık varsa kırmızı)
+5. **E2E** (Playwright, ayrı iş)
+
+Action'lar commit SHA'sına sabitlenmiştir; Dependabot NuGet, Actions ve Docker güncellemelerini haftalık önerir.
+`v*` etiketi `release.yml`'i tetikler: CI'dan geçmiş commit'in imajları GHCR'a itilir ve CHANGELOG'dan GitHub Release
+oluşturulur (`docs/runbook/deployment.md`).
 
 ---
 
@@ -94,204 +374,67 @@ Kararların gerekçeleri `docs/adr/` klasöründedir.
 ```
 Scootly/
 ├── src/
-│   ├── Scootly.Domain/            # İş kuralları, durum makineleri, tarife
-│   ├── Scootly.Application/       # Use case'ler, soyutlamalar
-│   ├── Scootly.Infrastructure/    # EF Core, outbox, RabbitMQ, Redis, Identity, migration'lar
-│   ├── Scootly.Api/               # HTTP API, SignalR, tüketiciler (Dockerfile)
-│   ├── Scootly.Worker/            # Arka plan işleri (Dockerfile)
-│   ├── Scootly.PaymentSimulator/  # Ödeme sağlayıcısı simülatörü (Dockerfile)
-│   └── Scootly.DeviceSimulator/   # Cihaz ağ geçidi simülatörü
-├── tests/
-│   ├── Scootly.Testing/                 # Ortak test altyapısı (test sunucusu, test verisi)
-│   ├── Scootly.Domain.UnitTests/
-│   ├── Scootly.Application.UnitTests/
-│   ├── Scootly.Infrastructure.Tests/    # Gerçek PostgreSQL + RabbitMQ ile altyapı testleri
-│   ├── Scootly.Api.IntegrationTests/
-│   ├── Scootly.Concurrency.Tests/       # Eşzamanlılık testleri + ölçümler/deneyler
-│   └── Scootly.Architecture.Tests/
+│   ├── Scootly.Domain/            İş kuralları, durum makineleri, tarife
+│   ├── Scootly.Application/       Use case'ler, soyutlamalar
+│   ├── Scootly.Infrastructure/    EF Core, outbox, RabbitMQ, Redis, Identity, depolama, migration'lar
+│   ├── Scootly.Api/               REST API, SignalR, tüketiciler
+│   ├── Scootly.Mvc/               Web paneli
+│   ├── Scootly.Worker/            Arka plan işleri
+│   ├── Scootly.PaymentSimulator/  Ödeme sağlayıcısı simülatörü
+│   └── Scootly.DeviceSimulator/   Cihaz ağ geçidi simülatörü
+├── tests/                         Birim, entegrasyon, eşzamanlılık, mimari, Worker, Mvc, E2E ve yük testleri
 ├── deploy/
-│   ├── docker-compose.yml         # PostgreSQL, Redis, RabbitMQ (+ app ve experiments profilleri)
-│   └── .env.example               # Parola şablonu (.env git'e girmez)
-├── .github/workflows/ci.yml       # Derleme, test, paket güvenlik taraması, Docker imajları
-└── docs/
-    ├── adr/                       # Mimari karar kayıtları
-    ├── architecture/              # Domain sözlüğü
-    └── backlog/                   # Teknik borç listesi
+│   ├── docker-compose.yml         Geliştirme yığını ve profiller
+│   ├── docker-compose.prod.yml    Üretim override'ı (Nginx, kapalı portlar, kaynak sınırları)
+│   ├── docker-compose.green.yml   Mavi-yeşil dağıtım kopyaları
+│   ├── postgres/                  Uygulama veritabanı rolü betiği (db-init)
+│   ├── nginx/ otel/ prometheus/ grafana/
+│   └── .env.example, .env.prod.example
+├── docs/
+│   ├── adr/                       Mimari karar kayıtları (0001–0046)
+│   ├── architecture/              Sistem tasarımı, domain sözlüğü
+│   ├── backlog/                   Teknik borç listesi
+│   ├── runbook/                   Dağıtım, arıza provaları, olay müdahalesi, postmortem
+│   ├── experiments/               Ölçüm ve deney notları
+│   └── presentation/              Sunum planı ve anlatım metni
+└── .github/                       CI, sürüm hattı, Dependabot
 ```
 
 ---
 
-## Kurulum
+## Dokümantasyon ve Mimari Kararlar
 
-### Ön koşullar
-
-- .NET 10 SDK
-- Docker Desktop
-- EF Core aracı: `dotnet tool install --global dotnet-ef`
-
-### 1. Altyapıyı başlat
-
-```
-cd deploy
-cp .env.example .env        # ardından .env içindeki parolaları güçlü rastgele değerlerle değiştirin
-docker compose up -d        # PostgreSQL, Redis, RabbitMQ (yalnızca 127.0.0.1'e açılır)
-cd ..
-```
-
-### 2. Sırları user-secrets'a ekle
-
-Hiçbir sır kaynak kodda veya appsettings'te tutulmaz. Değerler `deploy/.env` ile tutarlı olmalıdır; JWT, cihaz ve webhook anahtarları en az 32 karakterdir.
-
-```
-# API
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=scootly;Username=postgres;Password=<POSTGRES_PASSWORD>" --project src/Scootly.Api
-dotnet user-secrets set "Jwt:Key" "<en az 32 karakter>" --project src/Scootly.Api
-dotnet user-secrets set "DeviceAuth:ClientSecret" "<en az 32 karakter>" --project src/Scootly.Api
-dotnet user-secrets set "PaymentWebhook:Secret" "<en az 32 karakter>" --project src/Scootly.Api
-dotnet user-secrets set "RabbitMq:Password" "<RABBITMQ_PASSWORD>" --project src/Scootly.Api
-dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,password=<REDIS_PASSWORD>" --project src/Scootly.Api
-# İsteğe bağlı: ilk filo yöneticisi hesabı
-dotnet user-secrets set "Bootstrap:FleetManagerEmail" "yonetici@ornek.com" --project src/Scootly.Api
-dotnet user-secrets set "Bootstrap:FleetManagerPassword" "<güçlü parola>" --project src/Scootly.Api
-
-# Worker
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<API ile aynı>" --project src/Scootly.Worker
-dotnet user-secrets set "RabbitMq:Password" "<RABBITMQ_PASSWORD>" --project src/Scootly.Worker
-dotnet user-secrets set "Redis:ConnectionString" "localhost:6379,password=<REDIS_PASSWORD>" --project src/Scootly.Worker
-
-# Simülatörler
-dotnet user-secrets set "Webhook:Secret" "<PaymentWebhook:Secret ile aynı>" --project src/Scootly.PaymentSimulator
-dotnet user-secrets set "ClientSecret" "<DeviceAuth:ClientSecret ile aynı>" --project src/Scootly.DeviceSimulator
-```
-
-Eksik veya kısa bir ayar olursa uygulama açılışta anlaşılır bir hata ile durur.
-
-### 3. Veritabanı şemasını uygula
-
-```
-dotnet ef database update --project src/Scootly.Infrastructure --startup-project src/Scootly.Api
-```
-
----
-
-## Çalıştırma
-
-Ayrı terminallerde:
-
-```
-dotnet run --project src/Scootly.PaymentSimulator   # http://localhost:5094
-dotnet run --project src/Scootly.Api                # http://localhost:5016 (Swagger: /swagger)
-dotnet run --project src/Scootly.Worker
-dotnet run --project src/Scootly.DeviceSimulator    # API'de kayıtlı araçlar için telemetri gönderir
-```
-
-Sağlık kontrolleri: `GET /health/live` (süreç ayakta mı), `GET /health/ready` (PostgreSQL, Redis, RabbitMQ).
-
-**Her şeyi container'da çalıştırmak** (migration dahil; `.env` içinde JWT/cihaz/webhook anahtarları da dolu olmalı):
-
-```
-cd deploy
-docker compose --profile app up -d --build
-```
-
-Redpanda stream deneyi için: `docker compose --profile experiments up -d redpanda`.
-
----
-
-## Test
-
-```
-dotnet test                                                        # tümü
-dotnet test --filter "Category!=Measurement&Category!=Experiment"  # CI'daki hızlı set
-```
-
-- **Domain.UnitTests** — iş kuralları ve durum makineleri, dış bağımlılık yok.
-- **Application.UnitTests** — handler'lar, EF'nin yeniden yükleme/çakışma davranışını taklit eden sahte repository'lerle.
-- **Infrastructure.Tests** — gerçek PostgreSQL ve RabbitMQ container'larıyla: outbox yayını, retry → DLQ akışı, kısıt ve eşzamanlılık istisnaları, webhook imzası, ödeme istemcisi.
-- **Api.IntegrationTests** — gerçek PostgreSQL üzerinde uçtan uca HTTP akışları ve güvenlik regresyonları (IDOR, token ayrımı, kilitleme, rate limit, webhook sahteciliği).
-- **Concurrency.Tests** — eşzamanlı rezervasyon, izolasyon seviyesi, deadlock, N+1; `Category=Measurement` testleri yalnızca süre raporlar.
-- **Architecture.Tests** — katman bağımlılık kuralları.
-
-Integration, Infrastructure ve Concurrency testleri Docker gerektirir; geliştiricinin user-secrets'ına veya çalışan Redis/RabbitMQ'suna ihtiyaç duymaz (sırlar test başına üretilir).
-
----
-
-## API Uçları
-
-| Uç | Açıklama | Yetki |
-|---|---|---|
-| POST /api/auth/register | Kullanıcı kaydı (Driver rolü) | Herkese açık, IP başına sınırlı |
-| POST /api/auth/login | Giriş, JWT döner (5 hatalı denemede kilit) | Herkese açık, IP başına sınırlı |
-| POST /api/device-auth/token | Cihaz token'ı | Herkese açık, IP başına sınırlı |
-| GET /api/v1/vehicles | Araç listesi (filtreli, sayfalı, önbellekli) | Herkese açık |
-| GET /api/v2/vehicles | Araç listesi (model bilgisiyle) | Herkese açık |
-| GET /api/v1/vehicles/{id} | Araç ayrıntısı | Herkese açık |
-| POST /api/v1/vehicles | Araç kaydı | FleetManager |
-| POST /api/v1/vehicles/{id}/reserve | Rezervasyon | Driver |
-| DELETE /api/v1/vehicles/{id}/reservation | Kendi rezervasyonunu iptal | Driver |
-| POST /api/v1/vehicles/{id}/maintenance | Bakıma al | FleetManager / FieldOperator |
-| POST /api/v1/vehicles/{id}/return-to-service | Hizmete döndür | FleetManager / FieldOperator |
-| POST /api/rides/start | Sürüş başlat (201 + rideId) | Driver (rezervasyon sahibi) |
-| POST /api/rides/{id}/complete | Sürüş bitir (202, ödeme asenkron) | Sürüş sahibi |
-| GET /api/rides/active | Aktif sürüşüm | Driver |
-| GET /api/rides/{id} | Sürüş ayrıntısı | Sürüş sahibi |
-| GET /api/rides/{id}/payment-status | Ödeme durumu | Sürüş sahibi |
-| POST /api/telemetry/batch | Toplu telemetri (en fazla 500 okuma) | Cihaz |
-| POST /api/webhooks/payment-callback | Ödeme sağlayıcısı bildirimi | HMAC imzası |
-| GET/POST /api/v1/service-areas | Hizmet bölgeleri | Okuma herkese açık / oluşturma FleetManager |
-| POST/DELETE /api/v1/admin/users/{id}/roles/{rol} | Rol yönetimi | FleetManager |
-| /hubs/fleet | SignalR canlı araç durumu | Oturum açmış kullanıcı |
-
-Hatalar RFC 7807 ProblemDetails biçiminde döner. Tüm şemalar için Swagger arayüzüne bakınız.
-
----
-
-## Güvenlik Notları
-
-- Git geçmişindeki eski anahtar ve parolalar (28. gün öncesi) 27.09.2026'da yenilenmiştir ve geçersizdir. Yeni bir ortam kurarken asla bu değerleri veya `.env.example`'daki yer tutucuları kullanmayın.
-- Ayrıntılar: ADR 0021 (güvenlik sertleştirmesi).
-
----
-
-## Mimari Kararlar
-
-`docs/adr/` klasöründe, gerekçeleri ve güncellemeleriyle birlikte:
-
-| No | Konu |
+| Belge | Konu |
 |---|---|
-| 0001 | Katmanlı mimari (Clean Architecture) seçimi |
-| 0002 | Repository kullanım sınırları |
-| 0003 | Test stratejisi |
-| 0004 | Konum verisi saklama süresi (uygulandı) |
-| 0005 | Eşzamanlılık stratejisi (xmin) |
-| 0006 | İndeksleme gözlemleri |
-| 0007 | Transaction sınırı disiplini |
-| 0008 | N+1 sorgu önleme |
-| 0009 | Toplu yazma stratejisi |
-| 0010 | Idempotency yaklaşımı |
-| 0011 | Worker hata toleransı |
+| `docs/presentation/scootly-anlatim-metni.md` | Uygulamayı baştan sona anlatan sunum metni |
+| `docs/architecture/system-design.md` | Sistem tasarımı ve bulut eşleştirmesi |
+| `docs/runbook/deployment.md` | Sürüm, yedek/geri yükleme, geri alma, mavi-yeşil dağıtım |
+| `docs/runbook/failure-drills.md` · `incident-response.md` | Arıza provaları · olay müdahalesi |
+| `docs/backlog/technical-debt.md` | Bilinçli ertelenenler, açık kalanlar ve kapatılanların geçmişi |
+| `CHANGELOG.md` | Sürüm notları |
+
+Seçilmiş mimari kararlar (`docs/adr/`, tamamı 46 kayıt):
+
+| No | Karar |
+|---|---|
+| 0001 | Katmanlı mimari (Clean Architecture) |
+| 0004 | Konum verisi saklama süresi |
+| 0005 | Eşzamanlılık stratejisi (`xmin`) |
 | 0012 | Telemetri kuyruk mimarisi |
-| 0013 | Mesajlaşma dayanıklılığı — retry ve DLQ (düzeltildi) |
-| 0014 | Paralel işleme deneyi |
-| 0015 | Ödeme saga'sı — koreografi kararları |
-| 0016 | RabbitMQ vs Redpanda deneyimi |
-| 0017 | Modüler monolit durum değerlendirmesi |
-| 0018 | Dikey dilim deneyimi |
-| 0019 | Ride aggregate sınır incelemesi |
-| 0020 | Faz 4 desen envanteri |
-| 0021 | Güvenlik sertleştirmesi — sırlar, kimlikler, erişim sınırları |
-| 0022 | Mesajlaşma güvenilirliği — domain olayları, outbox, tüketiciler |
-| 0023 | Ödeme durumu, tarife ve çift tahsilat önleme |
-| 0024 | Telemetrinin araç durumunu güncellemesi |
+| 0015 · 0023 | Ödeme saga'sı ve çift tahsilat önleme |
+| 0021 | Güvenlik sertleştirmesi: sırlar, kimlikler, erişim sınırları |
+| 0022 | Domain olayları, outbox ve tüketiciler |
+| 0025 | Saha operasyonu (FieldOps) bağlamı |
+| 0035 · 0041 | Nginx + TLS · replika ve mavi-yeşil dağıtım |
+| 0042 | Kasıtlı arıza provası |
+| 0043 | Nesne depolama için SeaweedFS |
+| 0044 | Faz 5 final retrospektifi |
+| 0045 | Hizmet bölgesi sınırı tek jsonb dizisinde |
+| 0046 | Proje sonu incelemesi: güvenlik ve gizlilik sertleştirmeleri |
+
+**Bilinen sınırlar:** parola sıfırlama ve e-posta doğrulama yok (e-posta sağlayıcısı gerektirir); cihazlar ağ geçidi
+modeliyle (tek istemci, çok araç) doğrulanır; telemetri kuyruğu süreç içidir. Tam liste: `docs/backlog/technical-debt.md`.
 
 ---
-
-## Teknik Borç
-
-Bilinçli olarak ertelenmiş işler ve kapatılanların geçmişi `docs/backlog/technical-debt.md` dosyasındadır.
-
----
-
-## Lisans
 
 Bu proje bir öğrenme/portföy çalışmasıdır.

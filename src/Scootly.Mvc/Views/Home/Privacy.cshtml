@@ -1,0 +1,28 @@
+@{
+    ViewData["Title"] = "Gizlilik";
+}
+
+<h1>Gizlilik ve Kişisel Veriler</h1>
+
+<p>Scootly, hizmeti sunmak için gereken en az veriyi işler ve gereğinden uzun tutmaz.</p>
+
+<h2 class="h5 mt-4">İşlenen veriler</h2>
+<ul>
+    <li><strong>Hesap:</strong> e-posta adresi, parolanın geri döndürülemez özeti ve hesabınıza atanmış roller.</li>
+    <li><strong>Sürüşler:</strong> başlangıç ve bitiş zamanı, başlangıç ve bitiş konumu, ücret ve ödeme durumu.</li>
+    <li><strong>Araç telemetrisi:</strong> araçların konumu ve batarya seviyesi (araca aittir, sürücüye değil).</li>
+</ul>
+
+<h2 class="h5 mt-4">Saklama süreleri</h2>
+<ul>
+    <li>Ham telemetri kayıtları 30 gün sonra silinir.</li>
+    <li>Tamamlanan sürüşlerin konumları 90 gün sonra anonimleştirilir; ücret ve ödeme bilgisi muhasebe için kalır.</li>
+    <li>Sürüşteki araçların konumu yalnızca filo ekibine gösterilir; herkese açık listede yalnızca müsait araçlar yer alır.</li>
+</ul>
+
+<h2 class="h5 mt-4">Haklarınız</h2>
+<p>
+    Hesap bilgilerinizi görebilir, parolanızı değiştirebilir ve hesabınızı silebilirsiniz (uygulama API'sindeki
+    <code>/api/account</code> uçları). Hesap silindiğinde sürüşlerinizin konumları hemen anonimleştirilir.
+    Açık bir rezervasyon, devam eden bir sürüş veya ödenmemiş bir ücret varken hesap silinemez.
+</p>

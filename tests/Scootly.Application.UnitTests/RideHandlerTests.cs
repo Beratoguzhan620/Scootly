@@ -1,6 +1,8 @@
 using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Common;
+using Scootly.Domain.FieldOps;
 using Scootly.Domain.Fleet;
+using Scootly.Domain.Geo;
 using Scootly.Domain.Riding;
 using Xunit;
 
@@ -112,6 +114,24 @@ public sealed class CompleteRideCommandHandlerTests
     }
 
     [Fact]
+    public async Task Taze_Telemetri_Varsa_Surus_Aracin_Bildirdigi_Konumda_Bitmeli()
+    {
+        var driverId = Guid.NewGuid();
+        var (vehicle, ride) = Build.ActiveRide(driverId, TestClock.Now.AddMinutes(-10));
+        var deviceLocation = new GeoPoint(41.0500, 29.0500);
+        vehicle.ReportTelemetry(deviceLocation, new BatteryLevel(60), TestClock.Now.AddSeconds(-20));
+        _vehicles.Store(vehicle);
+        _rides.Store(ride);
+
+        var result = await _handler.Handle(new CompleteRideCommand(ride.Id, driverId, 40.0, 28.0));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(deviceLocation, ride.EndLocation);
+        Assert.Equal(deviceLocation, vehicle.Location);
+        Assert.NotSame(vehicle.Location, ride.EndLocation);
+    }
+
+    [Fact]
     public async Task Baska_Bir_Kullanici_Surusu_Tamamlayamamali_IDOR()
     {
         var owner = Guid.NewGuid();
@@ -163,12 +183,52 @@ public sealed class AbandonRideCommandHandlerTests
         vehicles.Store(vehicle);
         rides.Store(ride);
 
-        var result = await new AbandonRideCommandHandler(rides, vehicles, unitOfWork, new FakeClock())
+        var fieldTasks = new InMemoryFieldTaskRepository();
+        var result = await new AbandonRideCommandHandler(rides, vehicles, fieldTasks, unitOfWork, new FakeClock())
             .Handle(new AbandonRideCommand(ride.Id));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(RideStatus.Abandoned, ride.Status);
         Assert.Equal(PaymentStatus.Pending, ride.PaymentStatus);
         Assert.Equal(VehicleStatus.Maintenance, vehicle.Status);
+    }
+
+    [Fact]
+    public async Task Terk_Edilen_Surus_Icin_Inspection_Gorevi_Olusturulmali()
+    {
+        var unitOfWork = new FakeUnitOfWork();
+        var vehicles = new InMemoryVehicleRepository(unitOfWork);
+        var rides = new InMemoryRideRepository();
+        var fieldTasks = new InMemoryFieldTaskRepository();
+        var (vehicle, ride) = Build.ActiveRide(Guid.NewGuid(), TestClock.Now.AddHours(-3));
+        vehicles.Store(vehicle);
+        rides.Store(ride);
+
+        var result = await new AbandonRideCommandHandler(rides, vehicles, fieldTasks, unitOfWork, new FakeClock())
+            .Handle(new AbandonRideCommand(ride.Id));
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(fieldTasks.Added);
+        Assert.Equal(vehicle.Id, fieldTasks.Added[0].VehicleId);
+        Assert.Equal(FieldTaskType.Inspection, fieldTasks.Added[0].Type);
+    }
+
+    [Fact]
+    public async Task Ayni_Arac_Icin_Acik_Inspection_Gorevi_Varsa_Yenisi_Acilmamali()
+    {
+        var unitOfWork = new FakeUnitOfWork();
+        var vehicles = new InMemoryVehicleRepository(unitOfWork);
+        var rides = new InMemoryRideRepository();
+        var fieldTasks = new InMemoryFieldTaskRepository();
+        var (vehicle, ride) = Build.ActiveRide(Guid.NewGuid(), TestClock.Now.AddHours(-3));
+        vehicles.Store(vehicle);
+        rides.Store(ride);
+        fieldTasks.Store(new FieldTask(Guid.NewGuid(), vehicle.Id, FieldTaskType.Inspection, TestClock.Now));
+
+        var result = await new AbandonRideCommandHandler(rides, vehicles, fieldTasks, unitOfWork, new FakeClock())
+            .Handle(new AbandonRideCommand(ride.Id));
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(fieldTasks.Added);
     }
 }

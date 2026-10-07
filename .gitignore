@@ -15,10 +15,20 @@ CoverageReport/
 TestResults/
 **/TestResults/
 *.trx
+tests/Scootly.LoadTests/results/
 
-# Yerel sırlar (şablon: deploy/.env.example)
+# Yerel sırlar (şablonlar: deploy/.env.example, deploy/.env.prod.example)
 .env
+.env.prod
 deploy/.env
+deploy/.env.prod
+
+# Kendinden imzalı geliştirme sertifikaları (yalnızca klasör izlenir)
+deploy/nginx/certs/*
+!deploy/nginx/certs/.gitkeep
 
 # Kök dizindeki geçici SQL denemeleri (örn. explain.sql); migration veya script klasörlerini etkilemez
 /*.sql
+
+# Yerel parola/anahtar özetleri (yalnızca bu makinede; asla commit edilmez)
+*.local.md

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Scootly.Application.Abstractions;
+using Scootly.Infrastructure.Authorization;
 using Scootly.Infrastructure.Caching;
 using Scootly.Infrastructure.Geo;
 using Scootly.Infrastructure.HealthChecks;
@@ -13,9 +15,12 @@ using Scootly.Infrastructure.Identity;
 using Scootly.Infrastructure.Messaging;
 using Scootly.Infrastructure.Messaging.Idempotency;
 using Scootly.Infrastructure.Messaging.Outbox;
+using Scootly.Infrastructure.Observability;
 using Scootly.Infrastructure.Payments;
 using Scootly.Infrastructure.Persistence;
+using Scootly.Infrastructure.Persistence.Queries;
 using Scootly.Infrastructure.Persistence.Repositories;
+using Scootly.Infrastructure.Storage;
 using Scootly.Infrastructure.Time;
 using StackExchange.Redis;
 
@@ -52,12 +57,18 @@ public static class InfrastructureDependencyInjection
             .ValidateOnStart();
 
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ScootlyDbContext>());
+
+        services.AddScootlyFileStorage();
         services.AddScoped<IUnitOfWork>(provider => provider.GetRequiredService<ScootlyDbContext>());
 
         services.AddScoped<IVehicleRepository, VehicleRepository>();
         services.AddScoped<IRideRepository, RideRepository>();
         services.AddScoped<ITelemetryRepository, TelemetryRepository>();
         services.AddScoped<IServiceAreaRepository, ServiceAreaRepository>();
+        services.AddScoped<IFieldTaskRepository, FieldTaskRepository>();
+        services.AddScoped<IVehicleReadService, VehicleReadService>();
+        services.AddScoped<IRideReadService, RideReadService>();
+        services.AddScoped<IFieldTaskReadService, FieldTaskReadService>();
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddMemoryCache();
@@ -72,13 +83,10 @@ public static class InfrastructureDependencyInjection
     public static bool IsMessagingEnabled(IConfiguration configuration)
         => configuration.GetValue($"{MessagingOptions.SectionName}:{nameof(MessagingOptions.Enabled)}", defaultValue: true);
 
-    /// <summary>ASP.NET Core Identity (çerez şemaları olmadan) ve token servisleri.</summary>
-    public static IServiceCollection AddScootlyIdentity(this IServiceCollection services)
+    /// <summary>Identity çekirdeği: kullanıcı/rol yönetimi, cookie-uyumlu claims factory, ICurrentUser.
+    /// JWT ve cihaz token servislerini İÇERMEZ — onlar için AddScootlyJwtTokens / AddScootlyDeviceAuth kullanılır.</summary>
+    public static IServiceCollection AddScootlyIdentityCore(this IServiceCollection services)
     {
-        services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
-        services.AddOptions<DeviceAuthOptions>().BindConfiguration(DeviceAuthOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
-        services.AddOptions<BootstrapOptions>().BindConfiguration(BootstrapOptions.SectionName);
-
         services
             .AddIdentityCore<ApplicationUser>(options =>
             {
@@ -96,13 +104,76 @@ public static class InfrastructureDependencyInjection
             })
             .AddRoles<ApplicationRole>()
             .AddEntityFrameworkStores<ScootlyDbContext>()
+            .AddClaimsPrincipalFactory<ScootlyUserClaimsPrincipalFactory>()
+            .AddDefaultTokenProviders()
             .AddSignInManager();
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUserAccessor>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// API token'larının üretimi ve doğrulama yardımcıları (yalnızca Api). Hub token'larını doğrulayabilmek için
+    /// hub anahtarı da zorunludur.
+    /// </summary>
+    public static IServiceCollection AddScootlyJwtTokens(this IServiceCollection services)
+    {
+        services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<HubTokenOptions>().BindConfiguration(HubTokenOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
         services.AddScoped<JwtTokenGenerator>();
+        services.AddScoped<UserSessionValidator>();
+        services.AddScoped<AccountDeletionService>();
+
+        return services;
+    }
+
+    /// <summary>Yalnızca SignalR hub token'ı üretimi (Mvc). Ana JWT anahtarını gerektirmez ve üretemez.</summary>
+    public static IServiceCollection AddScootlyHubTokens(this IServiceCollection services)
+    {
+        services.AddOptions<HubTokenOptions>().BindConfiguration(HubTokenOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        services.AddScoped<HubTokenGenerator>();
+
+        return services;
+    }
+
+    /// <summary>Cihaz token üretimi ve açılış tohumlama (yalnızca Api).</summary>
+    public static IServiceCollection AddScootlyDeviceAuth(this IServiceCollection services)
+    {
+        services.AddOptions<DeviceAuthOptions>().BindConfiguration(DeviceAuthOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<BootstrapOptions>().BindConfiguration(BootstrapOptions.SectionName);
+
         services.AddScoped<DeviceTokenService>();
         services.AddHostedService<IdentityBootstrapper>();
+
+        return services;
+    }
+
+    /// <summary>Rol/claim tabanlı politikalar ve kaynak tabanlı RideOwner yetkilendirmesi (Api ve Mvc ortak).</summary>
+    public static IServiceCollection AddScootlyAuthorization(this IServiceCollection services)
+    {
+        services.AddAuthorizationBuilder()
+            // Varsayılan olarak güvenli: [AllowAnonymous] olmayan her uç kimlik doğrulaması ister.
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(PolicyNames.UserOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient))
+            .AddPolicy(PolicyNames.DriverOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+                .RequireRole(ScootlyRoles.Driver))
+            .AddPolicy(PolicyNames.FleetManagerOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+                .RequireRole(ScootlyRoles.FleetManager))
+            .AddPolicy(PolicyNames.FleetOperations, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.UserClient)
+                .RequireRole(ScootlyRoles.FleetManager, ScootlyRoles.FieldOperator))
+            .AddPolicy(PolicyNames.DeviceOnly, policy => policy
+                .RequireClaim(ScootlyClaimTypes.ClientType, ScootlyClaimTypes.DeviceClient)
+                .RequireRole(ScootlyRoles.Device))
+            .AddPolicy(PolicyNames.RideOwner, policy => policy
+                .AddRequirements(new RideOwnerRequirement()));
+
+        services.AddSingleton<IAuthorizationHandler, RideOwnerHandler>();
 
         return services;
     }
@@ -186,5 +257,6 @@ public static class InfrastructureDependencyInjection
 
         rabbitMqOptions.ValidateOnStart();
         services.AddHostedService<OutboxPublisherService>();
+        services.AddHostedService<OutboxMetricsCollector>();
     }
 }

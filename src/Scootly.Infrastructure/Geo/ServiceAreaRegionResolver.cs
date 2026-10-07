@@ -8,12 +8,13 @@ namespace Scootly.Infrastructure.Geo;
 
 /// <summary>
 /// Bir konumun hangi hizmet bölgesine düştüğünü bulur (canlı bildirim grupları bölge adına göre kurulur).
-/// Bölgeler nadiren değiştiği için kısa süre bellekte tutulur.
+/// Bölgeler nadiren değiştiği için kısa süre bellekte tutulur. Önbellek süreç başınadır: yeni bölgeyi ekleyen
+/// kopya hemen, diğer kopyalar en geç <see cref="CacheDuration"/> sonra görür.
 /// </summary>
 public sealed class ServiceAreaRegionResolver : IRegionResolver
 {
     private const string CacheKey = "service-areas";
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(1);
 
     private readonly ScootlyDbContext _dbContext;
     private readonly IMemoryCache _cache;

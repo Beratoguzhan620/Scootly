@@ -1,0 +1,11 @@
+# CI'daki sır taraması (gitleaks). Varsayılan kurallar geçerli; yalnızca test projelerindeki bilinçli sahte
+# parolalar (geçici test hesapları ve tek kullanımlık konteynerler) "generic-api-key" kuralından muaf tutulur.
+# Asıl sırlar deploy/.env ve user-secrets'tadır; ikisi de git'e girmez.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test kodundaki sahte parola ve anahtar sabitleri"
+targetRules = ["generic-api-key"]
+paths = ['''(^|/)tests/[^/]+/[^/]+\.cs$''']

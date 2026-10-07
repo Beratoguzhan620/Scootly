@@ -1,0 +1,32 @@
+# Bağımlılık güncellemeleri haftalık PR olarak gelir; her PR CI'dan (test, imaj ve sır taraması) geçmelidir.
+version: 2
+
+updates:
+  # Directory.Packages.props (merkezi paket yönetimi)
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      microsoft:
+        patterns: ["Microsoft.*", "System.*"]
+      opentelemetry:
+        patterns: ["OpenTelemetry*", "Npgsql.OpenTelemetry"]
+      test:
+        patterns: ["xunit*", "coverlet*", "Testcontainers*", "Microsoft.NET.Test.Sdk", "Microsoft.Playwright", "NetArchTest*"]
+
+  # Workflow'lardaki action'lar commit SHA'sına sabitlenmiştir; Dependabot hem SHA'yı hem sürüm yorumunu günceller.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directories:
+      - /src/Scootly.Api
+      - /src/Scootly.Worker
+      - /src/Scootly.Mvc
+      - /src/Scootly.PaymentSimulator
+    schedule:
+      interval: weekly

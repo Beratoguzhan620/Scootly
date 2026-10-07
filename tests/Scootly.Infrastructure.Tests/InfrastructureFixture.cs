@@ -31,6 +31,8 @@ public sealed class InfrastructureFixture : IAsyncLifetime
 
     public ServiceProvider Services { get; private set; } = null!;
 
+    public string ConnectionString => _postgres.GetConnectionString();
+
     public async ValueTask InitializeAsync()
     {
         await Task.WhenAll(_postgres.StartAsync(), _rabbitMq.StartAsync());

@@ -7,6 +7,9 @@ public sealed class BatteryLevel : ValueObject
     /// <summary>Bu yüzdenin altındaki batarya "düşük" sayılır ve saha ekibine görev düşer.</summary>
     public const int LowThresholdPercentage = 20;
 
+    /// <summary>Bu yüzdenin altındaki araç kiralanamaz (sürüş ortasında bitme riski).</summary>
+    public const int MinimumRentablePercentage = 10;
+
     public int Percentage { get; }
 
     public BatteryLevel(int percentage)
@@ -18,6 +21,8 @@ public sealed class BatteryLevel : ValueObject
     }
 
     public bool IsLow => Percentage < LowThresholdPercentage;
+
+    public bool IsRentable => Percentage >= MinimumRentablePercentage;
 
     /// <summary>Batarya bu okumayla düşük eşiğin altına ilk kez indiyse true döner.</summary>
     public bool HasDroppedBelowLowThresholdFrom(BatteryLevel previous) => IsLow && !previous.IsLow;

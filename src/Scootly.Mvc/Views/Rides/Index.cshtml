@@ -1,0 +1,34 @@
+﻿@model IReadOnlyList<Scootly.Application.Abstractions.ActiveRideSummary>
+
+@{
+    ViewData["Title"] = "Sürüşlerim";
+}
+
+<h1>Aktif Sürüşlerim</h1>
+
+@if (Model.Count == 0)
+{
+    <p class="text-muted">Şu anda aktif bir sürüşünüz yok.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Kısa Kimlik</th>
+                <th>Araç</th>
+                <th>Başlangıç</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ride in Model)
+            {
+                <tr>
+                    <td><code>@ride.Id.ToString()[..8]</code></td>
+                    <td><code>@ride.VehicleId.ToString()[..8]</code></td>
+                    <td>@ride.StartedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

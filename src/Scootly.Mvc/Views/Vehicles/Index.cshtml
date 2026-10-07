@@ -1,0 +1,75 @@
+@model Scootly.Mvc.ViewModels.VehicleListViewModel
+
+@{
+    ViewData["Title"] = "Araçlar";
+    var isFleetManager = (await AuthorizationService.AuthorizeAsync(User, PolicyNames.FleetManagerOnly)).Succeeded;
+}
+
+<h1>Araçlar</h1>
+
+@if (isFleetManager)
+{
+    <a asp-action="Create" class="btn btn-primary mb-3">+ Yeni Araç</a>
+}
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Kısa Kimlik</th>
+            <th>Marka</th>
+            <th>Menzil (km)</th>
+            <th>Batarya</th>
+            <th>Durum</th>
+            <th>Konum</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var vehicle in Model.Items)
+        {
+            <tr>
+                <td><code>@vehicle.ShortId</code></td>
+                <td>@vehicle.Brand</td>
+                <td>@vehicle.RangeKm</td>
+                <td>%@vehicle.BatteryPercentage</td>
+                <td><vehicle-status status="@vehicle.Status"></vehicle-status></td>
+                <td>@vehicle.Latitude.ToString("F4"), @vehicle.Longitude.ToString("F4")</td>
+                <td class="text-nowrap">
+                    @if (isFleetManager)
+                    {
+                        <a asp-action="Edit" asp-route-id="@vehicle.Id" class="btn btn-sm btn-outline-primary">Düzenle</a>
+                    }
+
+                    @if (vehicle.Status is "Available" or "Reserved")
+                    {
+                        <form asp-action="SendToMaintenance" asp-route-id="@vehicle.Id" asp-route-pageNumber="@Model.PageNumber" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Bakıma al</button>
+                        </form>
+                    }
+
+                    @if (vehicle.Status is "Maintenance" or "Lost")
+                    {
+                        <form asp-action="ReturnToService" asp-route-id="@vehicle.Id" asp-route-pageNumber="@Model.PageNumber" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-success">Hizmete döndür</button>
+                        </form>
+                    }
+
+                    @if (vehicle.Status is "Available" or "Reserved" or "Maintenance")
+                    {
+                        <form asp-action="MarkLost" asp-route-id="@vehicle.Id" asp-route-pageNumber="@Model.PageNumber" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Kayıp</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (Model.Items.Count == 0)
+{
+    <p class="text-muted">Henüz kayıtlı araç yok.</p>
+}
+
+<p class="text-muted">Toplam @Model.TotalCount araç</p>
+<partial name="_Pagination" model='Model.ToPagination("Index")' />

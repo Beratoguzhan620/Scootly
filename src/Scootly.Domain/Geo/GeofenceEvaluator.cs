@@ -1,4 +1,4 @@
-﻿namespace Scootly.Domain.Geo;
+namespace Scootly.Domain.Geo;
 
 public sealed class GeofenceEvaluator
 {
@@ -7,11 +7,7 @@ public sealed class GeofenceEvaluator
         return IsPointInPolygon(point, area.Boundary);
     }
 
-    public bool IsInNoParkingZone(GeoPoint point, NoParkingZone zone)
-    {
-        return IsPointInPolygon(point, zone.Boundary);
-    }
-
+    /// <summary>Ray casting: noktadan çıkan ışının poligon kenarlarını kaç kez kestiğine bakar (köşe sırası önemlidir).</summary>
     private static bool IsPointInPolygon(GeoPoint point, IReadOnlyList<GeoPoint> polygon)
     {
         var isInside = false;

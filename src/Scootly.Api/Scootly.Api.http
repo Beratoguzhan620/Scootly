@@ -2,7 +2,7 @@
 @Email = surucu@example.com
 @Password = GucluParola1
 
-### Kayıt (yeni kullanıcılar "Driver" rolüyle oluşturulur)
+### Kayıt (yeni kullanıcılar "Driver" rolüyle oluşturulur; parola en az 8 karakter, büyük/küçük harf ve rakam)
 POST {{Api}}/api/auth/register
 Content-Type: application/json
 
@@ -11,7 +11,7 @@ Content-Type: application/json
   "password": "{{Password}}"
 }
 
-### Giriş — dönen token'ı aşağıdaki @Token değişkenine yapıştırın
+### Giriş — dönen token aşağıdaki @Token değişkenine otomatik alınır
 # @name login
 POST {{Api}}/api/auth/login
 Content-Type: application/json
@@ -24,10 +24,27 @@ Content-Type: application/json
 ###
 @Token = {{login.response.body.$.token}}
 
-### Yakındaki araçlar (anonim, sayfalı, filtreli)
-GET {{Api}}/api/v1/vehicles?minLatitude=40.9&maxLatitude=41.2&minLongitude=28.8&maxLongitude=29.2&onlyAvailable=true
+### Hesabım (kimlik, e-posta, roller)
+GET {{Api}}/api/account
+Authorization: Bearer {{Token}}
 
-### Araç ayrıntısı
+### Parola değiştir (eski token'lar geçersiz olur; yanıtta yeni token döner)
+POST {{Api}}/api/account/change-password
+Authorization: Bearer {{Token}}
+Content-Type: application/json
+
+{
+  "currentPassword": "{{Password}}",
+  "newPassword": "YeniParola2"
+}
+
+### Müsait araçlar (anonim; dikdörtgen alan filtresi, sayfalı)
+GET {{Api}}/api/v1/vehicles?minLatitude=40.9&maxLatitude=41.2&minLongitude=28.8&maxLongitude=29.2&pageSize=20
+
+### Aynı liste, v2 (marka ve menzil bilgisiyle)
+GET {{Api}}/api/v2/vehicles?pageSize=20
+
+### Araç ayrıntısı (müsait değilse yalnızca filo ekibine ve aracı kullanan sürücüye görünür)
 @VehicleId = 00000000-0000-0000-0000-000000000000
 GET {{Api}}/api/v1/vehicles/{{VehicleId}}
 
@@ -44,7 +61,7 @@ Content-Type: application/json
   "batteryPercentage": 90
 }
 
-### Rezervasyon
+### Rezervasyon (batarya en az %10 olmalı)
 POST {{Api}}/api/v1/vehicles/{{VehicleId}}/reserve
 Authorization: Bearer {{Token}}
 
@@ -69,7 +86,7 @@ Content-Type: application/json
 GET {{Api}}/api/rides/active
 Authorization: Bearer {{Token}}
 
-### Sürüşü bitir (202 — ödeme asenkron)
+### Sürüşü bitir (202 — ödeme asenkron; araç telemetrisi tazeyse cihazın konumu esas alınır)
 POST {{Api}}/api/rides/{{RideId}}/complete
 Authorization: Bearer {{Token}}
 Content-Type: application/json
@@ -82,6 +99,36 @@ Content-Type: application/json
 ### Ödeme durumu
 GET {{Api}}/api/rides/{{RideId}}/payment-status
 Authorization: Bearer {{Token}}
+
+### Sürüş geçmişim (en yeniden eskiye)
+GET {{Api}}/api/rides?pageNumber=1&pageSize=20
+Authorization: Bearer {{Token}}
+
+### Filo operasyonu: bakıma al / kayıp işaretle / hizmete döndür (FleetManager veya FieldOperator)
+POST {{Api}}/api/v1/vehicles/{{VehicleId}}/maintenance
+Authorization: Bearer {{Token}}
+
+###
+POST {{Api}}/api/v1/vehicles/{{VehicleId}}/lost
+Authorization: Bearer {{Token}}
+
+###
+POST {{Api}}/api/v1/vehicles/{{VehicleId}}/return-to-service
+Authorization: Bearer {{Token}}
+
+### Rol ata (yalnızca FleetManager; kullanıcının eski token'ları geçersiz olur)
+@UserId = 00000000-0000-0000-0000-000000000000
+POST {{Api}}/api/v1/admin/users/{{UserId}}/roles/FieldOperator
+Authorization: Bearer {{Token}}
+
+### Hesabımı sil (KVKK; açık rezervasyon, sürüş veya ödenmemiş ücret varken 409)
+DELETE {{Api}}/api/account
+Authorization: Bearer {{Token}}
+Content-Type: application/json
+
+{
+  "password": "{{Password}}"
+}
 
 ### Sağlık kontrolleri
 GET {{Api}}/health/live

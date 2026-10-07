@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Scootly.Api.Authorization;
+using Scootly.Infrastructure.Authorization;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Api.Contracts.Responses;
 using Scootly.Api.ErrorHandling;
@@ -12,6 +12,7 @@ using Scootly.Application.Abstractions;
 using Scootly.Application.Riding.Commands;
 using Scootly.Domain.Riding;
 using Scootly.Infrastructure.Caching;
+using Scootly.Infrastructure.Observability;
 
 namespace Scootly.Api.Controllers;
 
@@ -35,6 +36,34 @@ public sealed class RidesController : ControllerBase
         _authorizationService = authorizationService;
         _currentUser = currentUser;
         _cache = cache;
+    }
+
+    /// <summary>Sürücünün kendi sürüş geçmişi, en yeniden eskiye.</summary>
+    [HttpGet]
+    [ProducesResponseType<PagedResult<RideResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetHistory(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = Paging.Validate(pageNumber, pageSize);
+
+        if (!validation.IsValid)
+            return this.BadRequestProblem(validation.Error!);
+
+        var driverId = _currentUser.UserId;
+        var rides = _dbContext.Rides.AsNoTracking().Where(r => r.DriverId == driverId);
+
+        var totalCount = await rides.CountAsync(cancellationToken);
+        var items = await rides
+            .OrderByDescending(r => r.StartedAt)
+            .ThenBy(r => r.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new PagedResult<RideResponse>(items.Select(ToResponse).ToList(), pageNumber, pageSize, totalCount));
     }
 
     [HttpGet("{id:guid}", Name = nameof(GetById))]
@@ -98,6 +127,8 @@ public sealed class RidesController : ControllerBase
 
         await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
 
+        ScootlyMetrics.RidesStarted.Add(1);
+
         return CreatedAtRoute(nameof(GetById), new { id = result.Value }, new StartRideResponse(result.Value));
     }
 
@@ -129,6 +160,8 @@ public sealed class RidesController : ControllerBase
         await _cache.InvalidateAsync(CacheKeys.NearbyVehiclesDefault(), cancellationToken);
 
         var completed = result.Value!;
+
+        ScootlyMetrics.RidesCompleted.Add(1);
 
         // Ödeme asenkron işlenir (outbox → tüketici); istemci durumu payment-status ucundan izler.
         return Accepted(

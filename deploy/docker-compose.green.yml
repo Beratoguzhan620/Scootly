@@ -1,0 +1,56 @@
+# Mavi-yesil gecisin YESIL kopyalari; yalnizca "green" profilinde baslar. Mavi servisler (api, mvc) degismez.
+# Altyapi (Postgres, Redis, RabbitMQ, Worker) mavi ile ortaktir: once mavi yigin ayakta olmali.
+#   $env:GREEN_VERSION = "1.0.1"
+#   docker compose -p scootly-prod --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.green.yml --profile app --profile green up -d --build api-green mvc-green
+# Ortam ve kaynak sinirlari docker-compose.prod.yml'deki api/mvc ile ELLE esit tutulmalidir (kopya).
+# extends, depends_on'u tasimaz; yesil servisler mavinin altyapisinin hazir oldugunu varsayar.
+
+services:
+  api-green:
+    extends:
+      file: docker-compose.yml
+      service: api
+    profiles: ["green"]
+    image: scootly-api:${GREEN_VERSION:?GREEN_VERSION tanimlanmali (ornek 1.0.1)}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AllowedHosts: ${ALLOWED_HOSTS:?ALLOWED_HOSTS .env.prod dosyasinda tanimlanmali}
+      ForwardedHeaders__KnownProxies__0: 10.231.0.10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
+
+  mvc-green:
+    extends:
+      file: docker-compose.yml
+      service: mvc
+    profiles: ["green"]
+    image: scootly-mvc:${GREEN_VERSION:?GREEN_VERSION tanimlanmali (ornek 1.0.1)}
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AllowedHosts: ${ALLOWED_HOSTS:?ALLOWED_HOSTS .env.prod dosyasinda tanimlanmali}
+      ApiBaseUrl: https://localhost:8443
+      ForwardedHeaders__KnownProxies__0: 10.231.0.10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384m

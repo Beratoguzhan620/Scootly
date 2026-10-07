@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Scootly.Api.Contracts.Responses;
-using Scootly.Api.Logging;
+using Scootly.Infrastructure.Logging;
 using Scootly.Api.Contracts.Requests;
 using Scootly.Infrastructure.Identity;
 using Scootly.Testing;

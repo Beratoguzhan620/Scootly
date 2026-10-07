@@ -49,6 +49,13 @@ public sealed class OutboxPublisherService : BackgroundService
             {
                 break;
             }
+            catch (OutboxPublishException ex)
+            {
+                // Broker kesintisinde her tur aynı mesajda durur; bekleme süresi büyüyerek broker'ı yormaz.
+                _logger.LogWarning(ex.InnerException, "Outbox mesajı yayınlanamadı ({MessageId}); {Delay} sonra tekrar denenecek.", ex.MessageId, backoff);
+                delay = backoff;
+                backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, MaxBackoff.TotalMilliseconds));
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Outbox yayın turu başarısız; {Delay} sonra tekrar denenecek.", backoff);

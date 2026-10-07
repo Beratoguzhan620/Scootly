@@ -21,7 +21,7 @@ public sealed class DataRetentionService : PeriodicJob
 
     protected override TimeSpan Interval => TimeSpan.FromHours(6);
 
-    protected override async Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken)
+    protected internal override async Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
         var dbContext = services.GetRequiredService<ScootlyDbContext>();
         var now = services.GetRequiredService<IClock>().UtcNow;

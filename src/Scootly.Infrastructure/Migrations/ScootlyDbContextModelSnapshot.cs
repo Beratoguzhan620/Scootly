@@ -125,6 +125,64 @@ namespace Scootly.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Scootly.Domain.FieldOps.FieldTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("AssignedTo")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PhotoObjectKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleId")
+                        .HasDatabaseName("IX_FieldTasks_VehicleId");
+
+                    b.HasIndex("VehicleId", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FieldTasks_OneOpenTaskPerVehicleAndType")
+                        .HasFilter("\"Status\" <> 'Completed'");
+
+                    b.ToTable("FieldTasks", (string)null);
+                });
+
             modelBuilder.Entity("Scootly.Domain.Fleet.Vehicle", b =>
                 {
                     b.Property<Guid>("Id")
@@ -357,9 +415,6 @@ namespace Scootly.Infrastructure.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("HomeRegion")
-                        .HasColumnType("text");
-
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -454,6 +509,10 @@ namespace Scootly.Infrastructure.Migrations
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TraceParent")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
 
@@ -598,28 +657,24 @@ namespace Scootly.Infrastructure.Migrations
                 {
                     b.OwnsMany("Scootly.Domain.Geo.GeoPoint", "Boundary", b1 =>
                         {
-                            b1.Property<int>("Id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
+                            b1.Property<Guid>("ServiceAreaId");
 
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
 
                             b1.Property<double>("Latitude")
-                                .HasColumnType("double precision")
-                                .HasColumnName("Latitude");
+                                .HasJsonPropertyName("Latitude");
 
                             b1.Property<double>("Longitude")
-                                .HasColumnType("double precision")
-                                .HasColumnName("Longitude");
+                                .HasJsonPropertyName("Longitude");
 
-                            b1.Property<Guid>("ServiceAreaId")
-                                .HasColumnType("uuid");
+                            b1.HasKey("ServiceAreaId", "__synthesizedOrdinal");
 
-                            b1.HasKey("Id");
+                            b1.ToTable("ServiceAreas");
 
-                            b1.HasIndex("ServiceAreaId");
-
-                            b1.ToTable("ServiceAreaBoundaryPoints", (string)null);
+                            b1
+                                .ToJson("Boundary")
+                                .HasColumnType("jsonb");
 
                             b1.WithOwner()
                                 .HasForeignKey("ServiceAreaId");

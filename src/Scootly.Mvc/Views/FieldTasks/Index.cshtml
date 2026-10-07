@@ -1,0 +1,104 @@
+﻿@model Scootly.Mvc.Models.FieldTasksIndexViewModel
+
+@{
+    ViewData["Title"] = "Saha Görevleri";
+}
+
+<h1>Açık Saha Görevleri</h1>
+
+@if (Model.Open.Count == 0)
+{
+    <p class="text-muted">Açık görev yok.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Kısa Kimlik</th>
+                <th>Araç</th>
+                <th>Tür</th>
+                <th>Durum</th>
+                <th>Oluşturulma</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var task in Model.Open)
+            {
+                <tr>
+                    <td><code>@task.Id.ToString()[..8]</code></td>
+                    <td><code>@task.VehicleId.ToString()[..8]</code></td>
+                    <td>@task.Type</td>
+                    <td>@task.Status</td>
+                    <td>@task.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>
+                        @if (task.Status == "Open")
+                        {
+                            <form asp-action="Assign" asp-route-id="@task.Id" method="post" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-primary">Üstlen</button>
+                            </form>
+                        }
+                        else if (task.Status == "Assigned")
+                        {
+                            <form asp-action="Complete" asp-route-id="@task.Id" method="post" enctype="multipart/form-data" class="d-inline">
+                                @if (Model.PhotoUploadEnabled)
+                                {
+                                    <input type="file" name="photo" accept="image/jpeg,image/png" class="form-control form-control-sm d-inline-block w-auto" aria-label="Fotoğraf" />
+                                }
+                                <input type="hidden" name="note" value="Tamamlandı." />
+                                <button type="submit" class="btn btn-sm btn-success">Tamamla</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2 class="h4 mt-4">Son Tamamlananlar</h2>
+
+@if (Model.Completed.Count == 0)
+{
+    <p class="text-muted">Henüz tamamlanan görev yok.</p>
+}
+else
+{
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Kısa Kimlik</th>
+                <th>Araç</th>
+                <th>Tür</th>
+                <th>Tamamlanma</th>
+                <th>Fotoğraf</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var done in Model.Completed)
+            {
+                <tr>
+                    <td><code>@done.Id.ToString()[..8]</code></td>
+                    <td><code>@done.VehicleId.ToString()[..8]</code></td>
+                    <td>@done.Type</td>
+                    <td>@(done.CompletedAt?.ToString("dd.MM.yyyy HH:mm"))</td>
+                    <td>
+                        @if (done.HasPhoto && Model.PhotoUploadEnabled)
+                        {
+                            <a asp-action="Photo" asp-route-id="@done.Id" target="_blank" rel="noopener noreferrer">Aç</a>
+                        }
+                        else if (done.HasPhoto)
+                        {
+                            <span class="text-muted">Depolama kapalı</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

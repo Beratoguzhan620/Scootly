@@ -1,15 +1,14 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Scootly.Application.FieldOps.Commands;
 using Scootly.Application.IntegrationEvents;
+using Scootly.Domain.FieldOps;
 using Scootly.Infrastructure.Messaging;
 using Scootly.Infrastructure.Messaging.Consumers;
 
 namespace Scootly.Worker.Jobs;
 
-/// <summary>
-/// Batarya düşük olaylarını saha operasyonlarına iletir. FieldOps bağlamı (saha görevi aggregate'i) henüz
-/// yazılmadığı için görev şimdilik yapılandırılmış log olarak üretilir (bkz. teknik borç listesi).
-/// </summary>
+/// <summary>Batarya düşük olaylarını, saha operasyonları için bir FieldTask'a dönüştürür.</summary>
 public sealed class BatteryLowConsumer : RabbitMqConsumerService
 {
     public BatteryLowConsumer(
@@ -26,6 +25,10 @@ public sealed class BatteryLowConsumer : RabbitMqConsumerService
     protected override IReadOnlyCollection<string> RoutingKeys => [IntegrationEventNames.VehicleBatteryLow];
 
     protected override Task<ConsumeResult> HandleAsync(ReceivedMessage message, IServiceProvider services, CancellationToken cancellationToken)
+        => ProcessAsync(message, services, Logger, cancellationToken);
+
+    /// <summary>Mesaj işleme mantığı; broker olmadan test edilebilsin diye tüketici altyapısından ayrıdır.</summary>
+    internal static async Task<ConsumeResult> ProcessAsync(ReceivedMessage message, IServiceProvider services, ILogger logger, CancellationToken cancellationToken)
     {
         VehicleBatteryLowIntegrationEvent? integrationEvent;
 
@@ -39,12 +42,34 @@ public sealed class BatteryLowConsumer : RabbitMqConsumerService
         }
 
         if (integrationEvent is null || integrationEvent.VehicleId == Guid.Empty)
-            return Task.FromResult(ConsumeResult.DeadLetter);
+            return ConsumeResult.DeadLetter;
 
-        Logger.LogWarning(
-            "Saha görevi: batarya değişimi gerekli — Vehicle={VehicleId}, %{BatteryPercentage}",
-            integrationEvent.VehicleId, integrationEvent.BatteryPercentage);
+        var handler = services.GetRequiredService<FieldTaskCommandHandler>();
 
-        return Task.FromResult(ConsumeResult.Ack);
+        var result = await handler.Handle(
+            new CreateFieldTaskCommand(integrationEvent.VehicleId, FieldTaskType.BatteryReplacement),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            logger.LogError(
+                "Saha görevi oluşturulamadı: Vehicle={VehicleId}, Hata={Error}",
+                integrationEvent.VehicleId, result.Error);
+
+            return ConsumeResult.DeadLetter;
+        }
+
+        if (result.Value is { } fieldTaskId)
+        {
+            logger.LogInformation(
+                "Saha görevi (batarya değişimi) açıldı: Task={FieldTaskId}, Vehicle={VehicleId}, %{BatteryPercentage}",
+                fieldTaskId, integrationEvent.VehicleId, integrationEvent.BatteryPercentage);
+        }
+        else
+        {
+            logger.LogInformation("Araç için zaten açık bir batarya görevi var: Vehicle={VehicleId}", integrationEvent.VehicleId);
+        }
+
+        return ConsumeResult.Ack;
     }
 }

@@ -1,0 +1,30 @@
+﻿@model ErrorViewModel
+@{
+    ViewData["Title"] = "Hata";
+}
+
+@if (Model.StatusCode == 403)
+{
+    <h1 class="text-danger">Erişim Reddedildi</h1>
+    <p class="lead">Bu sayfayı görüntülemek için gerekli yetkiye sahip değilsiniz.</p>
+}
+else if (Model.StatusCode == 404)
+{
+    <h1 class="text-danger">Sayfa Bulunamadı</h1>
+    <p class="lead">Aradığınız sayfa mevcut değil.</p>
+}
+else
+{
+    <h1 class="text-danger">Bir şeyler ters gitti.</h1>
+    <p class="lead">İsteğiniz işlenirken beklenmeyen bir hata oluştu.</p>
+}
+
+@if (Model.ShowRequestId)
+{
+    <p>
+        <strong>İzleme kimliği:</strong> <code>@Model.RequestId</code>
+    </p>
+    <p class="text-muted">Destek talebinizde bu kimliği paylaşabilirsiniz.</p>
+}
+
+<a asp-controller="Home" asp-action="Index" class="btn btn-secondary">Ana Sayfaya Dön</a>

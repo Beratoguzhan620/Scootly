@@ -188,4 +188,41 @@ public class VehicleStatusTransitionTests
         Assert.Equal(VehicleStatus.Reserved, statusChanged.NewStatus);
         Assert.Equal(Now, statusChanged.OccurredOn);
     }
+
+    [Fact]
+    public void Musait_Aracta_UpdateModel_Modeli_Guncellemeli()
+    {
+        var vehicle = CreateAvailableVehicle();
+        var newModel = new VehicleModel("Segway", 30);
+
+        vehicle.UpdateModel(newModel);
+
+        Assert.Equal(newModel, vehicle.Model);
+    }
+
+    [Fact]
+    public void Rezerve_Aracta_UpdateModel_Modeli_Guncelleyebilmeli()
+    {
+        var vehicle = CreateAvailableVehicle();
+        vehicle.Reserve(DriverA, Now);
+        var newModel = new VehicleModel("Segway", 30);
+
+        vehicle.UpdateModel(newModel);
+
+        Assert.Equal(newModel, vehicle.Model);
+        Assert.Equal(VehicleStatus.Reserved, vehicle.Status);
+    }
+
+    [Fact]
+    public void Suruşteki_Arac_UpdateModel_Ile_Duzenlenemez()
+    {
+        var vehicle = CreateAvailableVehicle();
+        vehicle.Reserve(DriverA, Now);
+        vehicle.StartRide(DriverA, Now);
+        var newModel = new VehicleModel("Segway", 30);
+
+        var ex = Assert.Throws<DomainException>(() => vehicle.UpdateModel(newModel));
+
+        Assert.Contains("düzenlenemez", ex.Message);
+    }
 }

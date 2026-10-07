@@ -2,18 +2,37 @@
 #   Yalnızca altyapı:            docker compose up -d
 #   Uygulama servisleri dahil:   docker compose --profile app up -d --build
 #   Redpanda stream deneyi:      docker compose --profile experiments up -d redpanda
+#   Gözlemlenebilirlik:          docker compose --profile observability up -d
+#                                (Seq 5341, Jaeger 16686, Prometheus 9090, Grafana 3001)
 #
+# İmaj etiketi: SCOOTLY_VERSION ortam değişkeniyle ezilebilir (varsayılan 1.0.0).
 # Tüm parolalar ve anahtarlar bu klasördeki .env dosyasından okunur (.env.example'a bakın; .env git'e girmez).
 # Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
 # Proje adı klasör adından (deploy) gelir; böylece mevcut veritabanı volume'u (deploy_scootly-postgres-data) korunur.
 
+# Uygulamalar Postgres'e süper kullanıcıyla değil, yalnızca veri okuyup yazabilen rolle bağlanır (db-init oluşturur).
+# Şema değişikliği yalnızca migrator'ın işidir; migrator süper kullanıcı bağlantısını kendi ortamında ezer.
 x-app-secrets: &app-secrets
-  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable"
+  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${APP_DB_USER:-scootly_app};Password=${APP_DB_PASSWORD:?APP_DB_PASSWORD .env dosyasında tanımlanmalı};GSS Encryption Mode=Disable"
   RabbitMq__HostName: rabbitmq
   RabbitMq__UserName: ${RABBITMQ_USER:-scootly}
   RabbitMq__Password: ${RABBITMQ_PASSWORD}
   Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
   PaymentGateway__BaseUrl: http://payment-simulator:8080
+
+# Anonim /health/live ucu olan ASP.NET Core konteynerleri için ortak kontrol (iç port 8080).
+# CMD-SHELL kullanılmaz: imajdaki sh dash'tir ve /dev/tcp desteklemez; bash açıkça çağrılır.
+# Bu yöntem imajdaki bash, head, grep araçlarına bağlıdır (curl/wget imajda varsayılmaz).
+x-http-healthcheck: &http-healthcheck
+  test:
+    - CMD
+    - bash
+    - -c
+    - exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/live HTTP/1.0\r\n\r\n' >&3 && head -n1 <&3 | grep -q ' 200 '
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
 
 services:
   postgres:
@@ -62,6 +81,36 @@ services:
       timeout: 5s
       retries: 20
 
+  # Opsiyonel nesne depolama (S3 uyumlu). Yalnizca "--profile storage" ile baslar; Mvc'de STORAGE_ENABLED=true gerekir.
+  # MinIO topluluk surumu Nisan 2026'da arsivlendi ve resmi imajlari kaldirildi; bu yuzden SeaweedFS kullanilir.
+  # Imaj (cekildiginde olculen): chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+  seaweedfs:
+    profiles: ["storage"]
+    image: chrislusf/seaweedfs:4.48
+    container_name: scootly-seaweedfs
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ -z "$$AWS_ACCESS_KEY_ID" ] || [ -z "$$AWS_SECRET_ACCESS_KEY" ]; then
+          echo "STORAGE_ACCESS_KEY ve STORAGE_SECRET_KEY .env dosyasinda tanimlanmali" >&2
+          exit 1
+        fi
+        exec /entrypoint.sh server -s3 -dir=/data
+    environment:
+      AWS_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:-}
+      AWS_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:-}
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - scootly-seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   redpanda:
     profiles: ["experiments"]
     image: docker.redpanda.com/redpandadata/redpanda:v26.2.3
@@ -78,64 +127,191 @@ services:
     ports:
       - "127.0.0.1:9092:9092"
 
+  seq:
+    profiles: ["observability"]
+    image: datalust/seq:2025.1
+    container_name: scootly-seq
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "127.0.0.1:5341:80"
+
+  jaeger:
+    profiles: ["observability"]
+    image: jaegertracing/all-in-one:1.65.0
+    container_name: scootly-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"
+
+  otel-collector:
+    profiles: ["observability"]
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: scootly-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    depends_on:
+      - jaeger
+
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.1.0
+    container_name: scootly-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - otel-collector
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.4.0
+    container_name: scootly-grafana
+    environment:
+      # Yalnızca yerel geliştirme: anonim erişim yönetici DEĞİL, salt okunur Viewer rolündedir.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD .env dosyasında tanımlanmalı}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+
   # --- Uygulama servisleri (profil: app) ---
 
   migrator:
     profiles: ["app"]
+    image: scootly-migrator:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Api/Dockerfile
       target: migrator
     environment:
-      <<: *app-secrets
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable"
     depends_on:
       postgres:
         condition: service_healthy
 
+  # Migration'dan sonra uygulama rolünü oluşturur/günceller ve tablolara veri yetkisi verir (idempotent).
+  db-init:
+    profiles: ["app"]
+    image: postgres:16.15
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-scootly}
+      PGGSSENCMODE: disable
+      APP_DB_USER: ${APP_DB_USER:-scootly_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD .env dosyasında tanımlanmalı}
+    entrypoint:
+      - sh
+      - -c
+      - psql -v app_user="$$APP_DB_USER" -v app_password="$$APP_DB_PASSWORD" -v db_name="$$PGDATABASE" -f /scripts/create-app-role.sql
+    volumes:
+      - ./postgres/create-app-role.sql:/scripts/create-app-role.sql:ro
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+
   payment-simulator:
     profiles: ["app"]
+    image: scootly-payment-simulator:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.PaymentSimulator/Dockerfile
     environment:
       Webhook__CallbackUrl: http://api:8080/api/webhooks/payment-callback
       Webhook__Secret: ${PAYMENT_WEBHOOK_SECRET:?PAYMENT_WEBHOOK_SECRET .env dosyasında tanımlanmalı}
+    healthcheck: *http-healthcheck
     ports:
       - "127.0.0.1:5094:8080"
 
   api:
     profiles: ["app"]
+    image: scootly-api:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Api/Dockerfile
     environment:
       <<: *app-secrets
       Jwt__Key: ${JWT_KEY:?JWT_KEY .env dosyasında tanımlanmalı}
+      Jwt__HubKey: ${JWT_HUB_KEY:?JWT_HUB_KEY .env dosyasında tanımlanmalı}
       DeviceAuth__ClientSecret: ${DEVICE_CLIENT_SECRET:?DEVICE_CLIENT_SECRET .env dosyasında tanımlanmalı}
       PaymentWebhook__Secret: ${PAYMENT_WEBHOOK_SECRET}
       Bootstrap__FleetManagerEmail: ${BOOTSTRAP_FLEET_MANAGER_EMAIL:-}
       Bootstrap__FleetManagerPassword: ${BOOTSTRAP_FLEET_MANAGER_PASSWORD:-}
+    healthcheck: *http-healthcheck
     ports:
       - "127.0.0.1:5016:8080"
     depends_on:
-      migrator:
+      db-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       payment-simulator:
-        condition: service_started
+        condition: service_healthy
+
+  mvc:
+    profiles: ["app"]
+    image: scootly-mvc:${SCOOTLY_VERSION:-1.0.0}
+    build:
+      context: ..
+      dockerfile: src/Scootly.Mvc/Dockerfile
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${APP_DB_USER:-scootly_app};Password=${APP_DB_PASSWORD:?APP_DB_PASSWORD .env dosyasında tanımlanmalı};GSS Encryption Mode=Disable"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      Messaging__Enabled: "false"
+      # Mvc yalnızca hub token anahtarını bilir; ana API imza anahtarı (JWT_KEY) bu konteynere verilmez.
+      Jwt__HubKey: ${JWT_HUB_KEY:?JWT_HUB_KEY .env dosyasında tanımlanmalı}
+      Jwt__Issuer: Scootly.Api
+      ApiBaseUrl: http://localhost:5016
+      Storage__Enabled: ${STORAGE_ENABLED:-false}
+      Storage__Endpoint: http://seaweedfs:8333
+      Storage__PublicEndpoint: http://127.0.0.1:8333
+      Storage__AccessKey: ${STORAGE_ACCESS_KEY:-}
+      Storage__SecretKey: ${STORAGE_SECRET_KEY:-}
+    healthcheck: *http-healthcheck
+    ports:
+      - "127.0.0.1:5096:8080"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   worker:
     profiles: ["app"]
+    image: scootly-worker:${SCOOTLY_VERSION:-1.0.0}
     build:
       context: ..
       dockerfile: src/Scootly.Worker/Dockerfile
     environment:
       <<: *app-secrets
+      Worker__HeartbeatPath: /tmp/scootly-worker-heartbeat
+    healthcheck:
+      # Heartbeat dosyası son 1 dakikada güncellenmediyse süreç sağlıksız sayılır.
+      # $$ Compose'un değişken yorumlamasını engeller.
+      test: ["CMD-SHELL", "test -n \"$$(find /tmp/scootly-worker-heartbeat -mmin -1 2>/dev/null)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
-      migrator:
+      db-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -144,3 +320,4 @@ services:
 
 volumes:
   scootly-postgres-data:
+  scootly-seaweedfs-data:

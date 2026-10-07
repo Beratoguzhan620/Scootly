@@ -91,20 +91,33 @@ public sealed record VehicleQuery(
     int PageNumber,
     int PageSize);
 
-public sealed class VehicleQueryValidator
+public static class Paging
 {
     public const int MaxPageSize = 100;
 
     /// <summary>Çok derin sayfalar hem pahalıdır hem de taşmaya yol açabilir.</summary>
     public const int MaxPageNumber = 10_000;
 
-    public ValidationResult Validate(VehicleQuery query)
+    public static ValidationResult Validate(int pageNumber, int pageSize)
     {
-        if (query.PageNumber is < 1 or > MaxPageNumber)
+        if (pageNumber is < 1 or > MaxPageNumber)
             return ValidationResult.Invalid($"pageNumber 1-{MaxPageNumber} arasında olmalı.");
 
-        if (query.PageSize is < 1 or > MaxPageSize)
+        if (pageSize is < 1 or > MaxPageSize)
             return ValidationResult.Invalid($"pageSize 1-{MaxPageSize} arasında olmalı.");
+
+        return ValidationResult.Valid;
+    }
+}
+
+public sealed class VehicleQueryValidator
+{
+    public ValidationResult Validate(VehicleQuery query)
+    {
+        var paging = Paging.Validate(query.PageNumber, query.PageSize);
+
+        if (!paging.IsValid)
+            return paging;
 
         if (query.MinLatitude is { } minLat && !Coordinates.IsValidLatitude(minLat)
             || query.MaxLatitude is { } maxLat && !Coordinates.IsValidLatitude(maxLat))

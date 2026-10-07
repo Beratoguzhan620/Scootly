@@ -38,6 +38,7 @@ public class ScootlyApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         builder.UseSetting("ConnectionStrings:DefaultConnection", ConnectionString);
         builder.UseSetting("Jwt:Key", TestSecrets.JwtKey);
+        builder.UseSetting("Jwt:HubKey", TestSecrets.HubKey);
         builder.UseSetting("DeviceAuth:ClientId", TestSecrets.DeviceClientId);
         builder.UseSetting("DeviceAuth:ClientSecret", TestSecrets.DeviceClientSecret);
         builder.UseSetting("PaymentWebhook:Secret", TestSecrets.WebhookSecret);
