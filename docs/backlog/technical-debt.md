@@ -37,11 +37,6 @@ nasıl kapatıldığıyla birlikte aşağıdaki geçmiş bölümünde tutulur.
 - 108b nesne deposu prod'a bagli degil; en az yetkili kimlik ve icerik taramasi yok.
 - Mvc yerel (`dotnet run`) sirlari README'de belgelenmedi.
 
-### 81-108b arasi "olculmedi / denenmedi" notlari
-
-Bu notlar topluca "bilincli birakildi" sayilir. Gerekce: proje bir ogrenme/portfoy calismasi; cogu madde yerel ortamda olculemiyor. Bu siniflandirma proje sahibinin onayina tabidir.
-
-
 ## Açık borçlar
 
 | Konu | Açıklama | Neden ertelendi |
