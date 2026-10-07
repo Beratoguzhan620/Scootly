@@ -1,0 +1,15 @@
+# Depo içinde satır sonları LF tutulur; Windows çalışma kopyasında C# dosyaları CRLF olabilir (core.autocrlf).
+* text=auto
+
+# Linux konteynerlerine bağlanan veya orada çalışan dosyalar çalışma kopyasında da LF kalmalı.
+deploy/** text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+Dockerfile text eol=lf
+
+# İkili dosyalar
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

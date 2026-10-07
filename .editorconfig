@@ -12,8 +12,8 @@ indent_style = space
 tab_width = 4
 
 # New line preferences
-end_of_line = crlf
-insert_final_newline = false
+# Satır sonlarını git yönetir (.gitattributes: depoda LF). Her dosya tek bir son satır sonuyla biter.
+insert_final_newline = true
 
 #### .NET Code Actions ####
 

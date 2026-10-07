@@ -10,8 +10,10 @@
 # Portlar yalnızca 127.0.0.1'e açılır: yerel ağdaki başka makineler servislere erişemez.
 # Proje adı klasör adından (deploy) gelir; böylece mevcut veritabanı volume'u (deploy_scootly-postgres-data) korunur.
 
+# Uygulamalar Postgres'e süper kullanıcıyla değil, yalnızca veri okuyup yazabilen rolle bağlanır (db-init oluşturur).
+# Şema değişikliği yalnızca migrator'ın işidir; migrator süper kullanıcı bağlantısını kendi ortamında ezer.
 x-app-secrets: &app-secrets
-  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable"
+  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${APP_DB_USER:-scootly_app};Password=${APP_DB_PASSWORD:?APP_DB_PASSWORD .env dosyasında tanımlanmalı};GSS Encryption Mode=Disable"
   RabbitMq__HostName: rabbitmq
   RabbitMq__UserName: ${RABBITMQ_USER:-scootly}
   RabbitMq__Password: ${RABBITMQ_PASSWORD}
@@ -196,10 +198,32 @@ services:
       dockerfile: src/Scootly.Api/Dockerfile
       target: migrator
     environment:
-      <<: *app-secrets
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable"
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Migration'dan sonra uygulama rolünü oluşturur/günceller ve tablolara veri yetkisi verir (idempotent).
+  db-init:
+    profiles: ["app"]
+    image: postgres:16.15
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-scootly}
+      PGGSSENCMODE: disable
+      APP_DB_USER: ${APP_DB_USER:-scootly_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD .env dosyasında tanımlanmalı}
+    entrypoint:
+      - sh
+      - -c
+      - psql -v app_user="$$APP_DB_USER" -v app_password="$$APP_DB_PASSWORD" -v db_name="$$PGDATABASE" -f /scripts/create-app-role.sql
+    volumes:
+      - ./postgres/create-app-role.sql:/scripts/create-app-role.sql:ro
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
 
   payment-simulator:
     profiles: ["app"]
@@ -223,6 +247,7 @@ services:
     environment:
       <<: *app-secrets
       Jwt__Key: ${JWT_KEY:?JWT_KEY .env dosyasında tanımlanmalı}
+      Jwt__HubKey: ${JWT_HUB_KEY:?JWT_HUB_KEY .env dosyasında tanımlanmalı}
       DeviceAuth__ClientSecret: ${DEVICE_CLIENT_SECRET:?DEVICE_CLIENT_SECRET .env dosyasında tanımlanmalı}
       PaymentWebhook__Secret: ${PAYMENT_WEBHOOK_SECRET}
       Bootstrap__FleetManagerEmail: ${BOOTSTRAP_FLEET_MANAGER_EMAIL:-}
@@ -231,7 +256,7 @@ services:
     ports:
       - "127.0.0.1:5016:8080"
     depends_on:
-      migrator:
+      db-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -247,13 +272,12 @@ services:
       context: ..
       dockerfile: src/Scootly.Mvc/Dockerfile
     environment:
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-scootly};Username=${APP_DB_USER:-scootly_app};Password=${APP_DB_PASSWORD:?APP_DB_PASSWORD .env dosyasında tanımlanmalı};GSS Encryption Mode=Disable"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
-      PaymentGateway__BaseUrl: http://payment-simulator:8080
       Messaging__Enabled: "false"
-      Jwt__Key: ${JWT_KEY:?JWT_KEY .env dosyasında tanımlanmalı}
+      # Mvc yalnızca hub token anahtarını bilir; ana API imza anahtarı (JWT_KEY) bu konteynere verilmez.
+      Jwt__HubKey: ${JWT_HUB_KEY:?JWT_HUB_KEY .env dosyasında tanımlanmalı}
       Jwt__Issuer: Scootly.Api
-      Jwt__Audience: Scootly.Clients
       ApiBaseUrl: http://localhost:5016
       Storage__Enabled: ${STORAGE_ENABLED:-false}
       Storage__Endpoint: http://seaweedfs:8333
@@ -264,7 +288,7 @@ services:
     ports:
       - "127.0.0.1:5096:8080"
     depends_on:
-      migrator:
+      db-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
@@ -287,7 +311,7 @@ services:
       retries: 3
       start_period: 30s
     depends_on:
-      migrator:
+      db-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
