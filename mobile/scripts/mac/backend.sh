@@ -94,6 +94,8 @@ valid_password() { # Identity kuralı: en az 8 karakter, büyük harf, küçük 
 
 json_escape() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 
+yes_answer() { case "$1" in e|E|evet|Evet|EVET|y|Y|yes|Yes) return 0 ;; *) return 1 ;; esac; }
+
 # --- Adresler ------------------------------------------------------------------------------------
 lan_ip() { # Varsayılan ağ arayüzünün IP'si; VPN tüneli (utun/ipsec) telefondan erişilemeyeceği için atlanır.
   local iface ip candidate
@@ -298,6 +300,29 @@ show_failure_logs() {
     compose logs --no-color --tail 40 "$service" || true
   done
 }
+
+step "Aynı adlı eski konteyner kontrolü"
+# Takımın Compose dosyası altyapı servislerine sabit konteyner adı veriyor (scootly-postgres, scootly-rabbitmq, …).
+# Başka bir Compose projesinden (önceki bir kurulum, "-p scootly-prod" ile açılan yığın vb.) kalan aynı adlı
+# konteyner varsa yığın "container name is already in use" hatasıyla başlayamaz.
+CONFLICTS=$(docker ps -a --filter "name=scootly-" \
+  --format '{{.Names}}|{{.Label "com.docker.compose.project"}}|{{.Status}}' |
+  awk -F'|' '$1 ~ /^scootly-/ && $2 != "deploy"')
+if [ -z "$CONFLICTS" ]; then
+  echo "  Çakışan konteyner yok."
+else
+  echo "  Başka bir kurulumdan kalan aynı adlı konteynerler var:"
+  printf '%s\n' "$CONFLICTS" | awk -F'|' '{ printf "    %-24s proje: %-16s %s\n", $1, ($2 == "" ? "-" : $2), $3 }'
+  echo "  Bunlar kaldırılmadan yığın başlayamaz. Yalnızca konteynerler kaldırılır; adlandırılmış volume'lardaki"
+  echo "  veriler (ör. veritabanı) silinmez, o kurulum gerektiğinde kendi Compose komutuyla yeniden açılabilir."
+  printf "  Kaldırılsın mı? (e/h) "
+  read -r ANSWER || ANSWER=""
+  printf '%s\n' "$ANSWER" >> "$LOG"
+  yes_answer "$ANSWER" || fail "Eski konteynerler kaldırılmadı; yığın başlatılamıyor."
+  printf '%s\n' "$CONFLICTS" | cut -d'|' -f1 | while read -r name; do
+    docker rm -f "$name" >/dev/null && echo "  Kaldırıldı: $name"
+  done
+fi
 
 step "Servisler derlenip başlatılıyor (ilk seferde imaj indirme + derleme ~15-20 dk)"
 if ! compose up -d --build; then
