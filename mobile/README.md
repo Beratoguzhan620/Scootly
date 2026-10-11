@@ -114,7 +114,15 @@ gerekir; betik:
 5. Veritabanında hiç araç yoksa yönetici hesabıyla iki hizmet bölgesi ve 10 örnek scooter ekler: bir küme ilk
    kurulumda sorulan konumun çevresine (telefonda haritayı açınca hemen görünsün diye), bir küme panelin varsayılan
    harita merkezine (İstanbul). Pil düzeyleri kuralları da gösterir: %15 (düşük, saha görevi açılır) ve %7 (kiralanamaz).
-6. Telefona yazılacak adresi (`http://<Mac'in IP'si>:5017`) yazdırır.
+6. API'yi Cloudflare hızlı tüneliyle internete de açar (hesap gerekmez, `cloudflare/cloudflared` konteyneri):
+   `https://<rastgele>.trycloudflare.com` adresi mobil veride ve başka ağlarda da çalışır. Adres tünel her yeniden
+   başladığında değişir; kalıcı bir adres için adlandırılmış bir tünel (Cloudflare hesabı + alan adı) ya da
+   backend'in bir sunucuya kurulması gerekir. Kapatmak için `SCOOTLY_TUNNEL=0`.
+7. Telefona yazılacak adresleri yazdırır: aynı Wi-Fi'dan `http://<Mac'in IP'si>:5017`, her yerden tünel adresi.
+
+> Tünel açıkken API internete açıktır. Geliştirme yığınının sırları (JWT anahtarı, yönetici parolası) ekipte
+> paylaşılan değerlerse, adresi geniş bir kitleyle paylaşmadan önce `deploy/.env`'de değiştirin. Mac uykuya geçerse
+> ya da kapanırsa bağlantı kopar.
 
 Diğer görevler: **Backend durumu**, **Backend'i durdur** (veriler Docker volume'unda kalır). Çıktı
 `.local-build/backend.log`'a da yazılır. Uygulamaya yalnızca `Driver` rolündeki hesaplar girebildiği için telefonda

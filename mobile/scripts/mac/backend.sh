@@ -13,6 +13,9 @@
 #
 # Veritabanında hiç araç yoksa (ilk kurulum) bir hizmet bölgesi ve örnek scooter'lar eklenir: bir küme panelin
 # varsayılan harita merkezine (İstanbul), bir küme de verdiğin konuma; böylece telefonda haritayı açınca görünürler.
+#
+# API iki yoldan telefona açılır: aynı Wi-Fi'dan http://<Mac IP'si>:5017 ve her yerden (mobil veri dahil)
+# Cloudflare hızlı tüneliyle https://<rastgele>.trycloudflare.com (hesap gerekmez; SCOOTLY_TUNNEL=0 kapatır).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -29,6 +32,7 @@ API_LOCAL="http://127.0.0.1:5016"
 LAN_PORT=5017
 PANEL_URL="http://127.0.0.1:5096"
 VOLUME="deploy_scootly-postgres-data"
+CLOUDFLARED_VERSION="2026.9.1"
 # Adana merkez; konum sorusunda boş bırakılırsa kullanılır.
 DEFAULT_CENTER="37.0000,35.3213"
 REQUIRED_SECRETS="POSTGRES_PASSWORD APP_DB_PASSWORD RABBITMQ_PASSWORD REDIS_PASSWORD JWT_KEY JWT_HUB_KEY DEVICE_CLIENT_SECRET PAYMENT_WEBHOOK_SECRET GRAFANA_ADMIN_PASSWORD"
@@ -109,20 +113,31 @@ lan_ip() { # Varsayılan ağ arayüzünün IP'si; VPN tüneli (utun/ipsec) telef
   return 1
 }
 
+# Cloudflare hızlı tünelinin adresi konteynerin logunda yazar; konteyner yeniden oluşturulunca değişir.
+tunnel_url() {
+  compose logs --no-color tunnel 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true
+}
+
 print_addresses() {
-  local ip
+  local ip url
   ip=$(lan_ip || true)
+  url=$(tunnel_url)
   echo
-  echo "  Web paneli:          $PANEL_URL"
-  echo "  API (bu Mac):        $API_LOCAL"
+  echo "  Web paneli:               $PANEL_URL"
+  echo "  API (bu Mac):             $API_LOCAL"
   if [ -n "$ip" ]; then
-    echo "  API (telefon):       http://$ip:$LAN_PORT"
-    echo
-    echo "  Telefonda: giriş ekranının altındaki \"Sunucu: …\" yazısına dokun, adrese http://$ip:$LAN_PORT yaz,"
-    echo "  \"Bağlantıyı Test Et\" ve \"Kaydet\". Telefon bu Mac'le aynı Wi-Fi ağında olmalı."
+    echo "  API (aynı Wi-Fi):         http://$ip:$LAN_PORT"
   else
-    echo "  API (telefon):       http://<bu Mac'in IP'si>:$LAN_PORT  (Mac'in yerel ağ IP'si bulunamadı; Wi-Fi bağlı mı?)"
+    echo "  API (aynı Wi-Fi):         bulunamadı (Mac'in yerel ağ IP'si yok; Wi-Fi bağlı mı?)"
   fi
+  if [ -n "$url" ]; then
+    echo "  API (her yerden, HTTPS):  $url"
+    printf '%s\n' "$url" > "$LOG_DIR/tunnel-url"
+  fi
+  echo
+  echo "  Telefonda: giriş ekranının altındaki \"Sunucu: …\" yazısına dokun, adresi yaz, \"Bağlantıyı Test Et\" ve"
+  echo "  \"Kaydet\". HTTPS adresi mobil veride ve başka ağlarda da çalışır; Mac açık ve uyanık kalmalı. Bu adres"
+  echo "  tünel her yeniden başladığında (Mac yeniden başlayınca, Docker kapanıp açılınca) değişir."
 }
 
 # --- Komutlar ------------------------------------------------------------------------------------
@@ -276,6 +291,22 @@ EOF
 else
   MIGRATOR_OVERRIDE=""
 fi
+if [ "${SCOOTLY_TUNNEL:-1}" != "0" ]; then
+  TUNNEL_OVERRIDE="
+  # Yerel ağ dışından (mobil veri, başka Wi-Fi) erişim: Cloudflare hızlı tüneli. Hesap gerektirmez; adres
+  # https://<rastgele>.trycloudflare.com biçimindedir ve konteyner yeniden oluşturulunca değişir.
+  # Kapatmak için: SCOOTLY_TUNNEL=0 bash scripts/mac/backend.sh
+  tunnel:
+    image: cloudflare/cloudflared:$CLOUDFLARED_VERSION
+    profiles: [\"app\"]
+    command: tunnel --no-autoupdate --url http://api:8080
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy"
+else
+  TUNNEL_OVERRIDE=""
+fi
 cat > "$OVERRIDE" <<EOF
 # scootly-mobile/scripts/mac/backend.sh her çalıştığında yeniden yazar (yalnızca bu Mac, git'e girmez).
 services:
@@ -285,8 +316,10 @@ services:
     ports:
       - "$LAN_PORT:8080"
 $MIGRATOR_OVERRIDE
+$TUNNEL_OVERRIDE
 EOF
 echo "  API ayrıca $LAN_PORT portundan yerel ağa açık (5016 yalnızca bu Mac'e açık kalır)."
+[ -n "$TUNNEL_OVERRIDE" ] && echo "  İnternetten erişim için Cloudflare hızlı tüneli de açılacak (HTTPS)."
 mkdir -p "$BACKEND/.git/info"
 for ignored in deploy/docker-compose.override.yml deploy/migrator.local.Dockerfile; do
   grep -qx "$ignored" "$BACKEND/.git/info/exclude" 2>/dev/null || echo "$ignored" >> "$BACKEND/.git/info/exclude"
@@ -425,6 +458,33 @@ else
 fi
 if /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null | grep -qi enabled; then
   echo "  macOS güvenlik duvarı açık: Docker için 'gelen bağlantılara izin ver' sorusu çıkarsa izin ver."
+fi
+
+rm -f "$LOG_DIR/tunnel-url"
+if [ -n "$TUNNEL_OVERRIDE" ]; then
+  step "İnternetten erişim (Cloudflare hızlı tüneli)"
+  TUNNEL=""
+  for i in $(seq 1 30); do
+    TUNNEL=$(tunnel_url)
+    [ -n "$TUNNEL" ] && break
+    sleep 2
+  done
+  if [ -z "$TUNNEL" ]; then
+    echo "  UYARI: Tünel adresi alınamadı. Son loglar:"
+    compose logs --no-color --tail 20 tunnel || true
+  else
+    # Yeni adresin DNS kaydının yayılması birkaç saniye sürebilir.
+    REACHABLE=0
+    for i in $(seq 1 20); do
+      if curl -fsS -m 10 "$TUNNEL/health/ready" >/dev/null 2>&1; then REACHABLE=1; break; fi
+      sleep 3
+    done
+    if [ "$REACHABLE" -eq 1 ]; then
+      echo "  $TUNNEL yanıt veriyor."
+    else
+      echo "  UYARI: $TUNNEL henüz yanıt vermiyor; bir dakika sonra \"Backend durumu\" ile tekrar bak."
+    fi
+  fi
 fi
 
 ELAPSED=$(( SECONDS / 60 ))
