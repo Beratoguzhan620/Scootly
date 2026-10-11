@@ -118,6 +118,13 @@ tunnel_url() {
   compose logs --no-color tunnel 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true
 }
 
+# Yeni tünel adresinin DNS kaydı birkaç saniye sonra oluşur; Mac o arada "bulunamadı" yanıtını önbelleğe alırsa
+# adres çalıştığı hâlde yanıt vermiyor görünür. Bu yüzden önce DNS-over-HTTPS (1.1.1.1) ile denenir.
+tunnel_check() {
+  curl -fsS -m 10 --doh-url https://1.1.1.1/dns-query "$1/health/ready" >/dev/null 2>&1 ||
+    curl -fsS -m 10 "$1/health/ready" >/dev/null 2>&1
+}
+
 print_addresses() {
   local ip url
   ip=$(lan_ip || true)
@@ -144,11 +151,22 @@ print_addresses() {
 case "$COMMAND" in
   up) ;;
   status)
+    exec > >(tee "$LOG_DIR/backend-status.log") 2>&1
     ensure_docker
     [ -d "$DEPLOY" ] || fail "Backend henüz kurulmamış: bash scripts/mac/backend.sh"
     compose ps
     if curl -fsS -m 3 "$API_LOCAL/health/ready" >/dev/null 2>&1; then echo "API: hazır"; else echo "API: hazır değil"; fi
     print_addresses
+    URL=$(tunnel_url)
+    if [ -n "$URL" ]; then
+      echo
+      if tunnel_check "$URL"; then
+        echo "  Tünel yanıt veriyor."
+      else
+        echo "  UYARI: Tünel yanıt vermiyor. Son loglar:"
+        compose logs --no-color --tail 15 tunnel || true
+      fi
+    fi
     exit 0
     ;;
   stop)
@@ -473,16 +491,17 @@ if [ -n "$TUNNEL_OVERRIDE" ]; then
     echo "  UYARI: Tünel adresi alınamadı. Son loglar:"
     compose logs --no-color --tail 20 tunnel || true
   else
-    # Yeni adresin DNS kaydının yayılması birkaç saniye sürebilir.
     REACHABLE=0
+    sleep 5
     for i in $(seq 1 20); do
-      if curl -fsS -m 10 "$TUNNEL/health/ready" >/dev/null 2>&1; then REACHABLE=1; break; fi
+      if tunnel_check "$TUNNEL"; then REACHABLE=1; break; fi
       sleep 3
     done
     if [ "$REACHABLE" -eq 1 ]; then
       echo "  $TUNNEL yanıt veriyor."
     else
       echo "  UYARI: $TUNNEL henüz yanıt vermiyor; bir dakika sonra \"Backend durumu\" ile tekrar bak."
+      compose logs --no-color --tail 15 tunnel || true
     fi
   fi
 fi
