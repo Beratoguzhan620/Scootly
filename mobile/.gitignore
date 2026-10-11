@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# CI duman testi çıktıları
+/smoke
+/emulator-ekranlari.zip
+/gradle.log
+__pycache__/

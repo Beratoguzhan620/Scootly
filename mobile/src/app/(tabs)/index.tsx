@@ -107,9 +107,10 @@ export default function MapScreen() {
         ref={mapRef}
         vehicles={markers}
         serviceAreas={serviceAreas}
-        selectedId={selectedVehicle?.id ?? null}
+        // Rezerve edilen araç da seçili gibi vurgulanır.
+        selectedId={reservation?.vehicleId ?? selectedVehicle?.id ?? null}
         initialRegion={DEFAULT_REGION}
-        showsUserLocation={permission === 'granted'}
+        userLocation={permission === 'granted' ? location : null}
         bottomInset={panelHeight}
         onSelect={onSelect}
         onRegionChange={setRegion}

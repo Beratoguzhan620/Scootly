@@ -5,6 +5,7 @@ import { AppState } from 'react-native';
 import { accountFromToken, isDriver } from './account';
 import { configureApi, isApiStatus } from '@/api/client';
 import { accountApi, authApi } from '@/api/scootly';
+import { serverStore } from '@/api/server';
 import type { Account } from '@/api/types';
 import { appConfig } from '@/config';
 import { LOCKOUT_MAX_ATTEMPTS, LOCKOUT_MINUTES } from '@/domain/rules';
@@ -73,8 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // API istemcisini oturuma bağla. Etkiler bildirim sırasıyla çalıştığı için oturum geri yüklenmeden önce olur.
   useEffect(() => {
     configureApi({
-      baseUrl: appConfig.apiBaseUrl,
-      showBaseUrlInErrors: __DEV__,
+      getBaseUrl: serverStore.get,
+      showBaseUrlInErrors: appConfig.serverEditable,
       getToken: () => tokenRef.current,
       onUnauthorized: () => {
         if (tokenRef.current) void signOut(notices.sessionEnded);
@@ -100,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     (async () => {
+      // Kullanıcının seçtiği sunucu adresi ilk istekten önce yüklenir.
+      await serverStore.load();
       const token = await storage.getItem(TOKEN_KEY);
       if (cancelled) return;
 

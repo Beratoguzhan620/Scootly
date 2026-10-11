@@ -1,21 +1,25 @@
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
+import { useApiBaseUrl } from '@/api/server';
 import { useAuth } from '@/auth/AuthProvider';
 import { AlertBox } from '@/components/AlertBox';
-import { AppText } from '@/components/AppText';
+import { AppText, Code } from '@/components/AppText';
 import { Button } from '@/components/Button';
 import { PanelFooter } from '@/components/PanelFooter';
 import { TextField } from '@/components/TextField';
 import { appConfig } from '@/config';
 import { validateEmail } from '@/domain/validation';
+import { isLoopbackUrl } from '@/lib/url';
 import { colors, spacing, typography } from '@/theme';
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const apiBaseUrl = useApiBaseUrl();
   const { signIn, notice, clearNotice } = useAuth();
   const passwordRef = useRef<TextInput>(null);
 
@@ -66,6 +70,12 @@ export default function SignInScreen() {
             </AlertBox>
           ) : null}
           {error ? <AlertBox tone="danger">{error}</AlertBox> : null}
+          {appConfig.serverEditable && isLoopbackUrl(apiBaseUrl) ? (
+            <AlertBox tone="info" action={{ label: 'Sunucu adresini değiştir', onPress: () => router.push('/server') }}>
+              Sunucu adresi bu cihazın kendisini gösteriyor (localhost). Telefonda deniyorsan API&apos;nin çalıştığı
+              bilgisayarın IP adresini gir.
+            </AlertBox>
+          ) : null}
 
           <View>
             <TextField
@@ -107,10 +117,15 @@ export default function SignInScreen() {
           </AppText>
 
           <PanelFooter>
-            {__DEV__ ? (
-              <AppText variant="small" muted>
-                API: {appConfig.apiBaseUrl}
-              </AppText>
+            {appConfig.serverEditable ? (
+              <View style={styles.server}>
+                <AppText variant="small" muted style={styles.serverText}>
+                  Sunucu: <Code>{apiBaseUrl}</Code>
+                </AppText>
+                <Link href="/server" style={styles.serverLink} accessibilityLabel="Sunucu ayarları">
+                  Değiştir
+                </Link>
+              </View>
             ) : null}
           </PanelFooter>
         </ScrollView>
@@ -146,5 +161,19 @@ const styles = StyleSheet.create({
   link: {
     color: colors.link,
     textDecorationLine: 'underline',
+  },
+  server: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  serverText: {
+    flexShrink: 1,
+  },
+  serverLink: {
+    ...typography.small,
+    color: colors.link,
+    textDecorationLine: 'underline',
+    paddingVertical: spacing[2],
   },
 });

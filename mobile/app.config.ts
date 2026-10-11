@@ -1,8 +1,17 @@
 import type { ExpoConfig } from 'expo/config';
 
-// Android geliştirme/üretim derlemelerinde Google Haritalar için gerekir; Expo Go'da gerekmez.
-// Anahtar repoya girmesin diye ortam değişkeninden okunur (bkz. README → Harita anahtarı).
-const googleMapsAndroidApiKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+/** Panelin koyu navbar rengi; simge, açılış ekranı ve uygulama içi açılış görünümü aynı zemini kullanır. */
+const BRAND_DARK = '#212529';
+
+/**
+ * Release derlemede API'ye düz HTTP ile bağlanılabilsin mi? Test sürümlerinde API, bilgisayarın yerel ağ
+ * adresinde HTTP ile çalışıyor; Android 9+ ise release derlemelerde HTTP'yi varsayılan olarak engeller.
+ * Mağaza sürümünde API HTTPS ile yayınlanır ve derleme `SCOOTLY_ALLOW_HTTP=false` ile alınır.
+ */
+const allowHttp = process.env.SCOOTLY_ALLOW_HTTP !== 'false';
+
+/** Her CI derlemesi bir öncekinin üstüne kurulabilsin diye artan derleme numarası. */
+const versionCode = Number(process.env.SCOOTLY_VERSION_CODE) || 1;
 
 const config: ExpoConfig = {
   name: 'Scootly',
@@ -16,13 +25,14 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.scootly.mobile',
+    buildNumber: String(versionCode),
   },
   android: {
     package: 'com.scootly.mobile',
+    versionCode,
     adaptiveIcon: {
-      backgroundColor: '#E6F4FE',
+      backgroundColor: BRAND_DARK,
       foregroundImage: './assets/android-icon-foreground.png',
-      backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
@@ -44,7 +54,23 @@ const config: ExpoConfig = {
         motionUsagePermission: false,
       },
     ],
-    ['react-native-maps', googleMapsAndroidApiKey ? { androidGoogleMapsApiKey: googleMapsAndroidApiKey } : {}],
+    [
+      'expo-splash-screen',
+      {
+        image: './assets/splash-icon.png',
+        imageWidth: 160,
+        resizeMode: 'contain',
+        backgroundColor: BRAND_DARK,
+      },
+    ],
+    [
+      'expo-build-properties',
+      {
+        android: {
+          usesCleartextTraffic: allowHttp,
+        },
+      },
+    ],
   ],
 };
 

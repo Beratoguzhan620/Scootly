@@ -78,7 +78,7 @@ describe('apiRequest', () => {
     onUnauthorized.mockReset();
     token = 'token-123';
     configureApi({
-      baseUrl: 'http://api.test',
+      getBaseUrl: () => 'http://api.test',
       getToken: () => token,
       onUnauthorized,
       fetchImpl: fetchMock as unknown as typeof fetch,

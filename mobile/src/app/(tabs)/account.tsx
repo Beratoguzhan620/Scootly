@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { useApiBaseUrl } from '@/api/server';
 import { useAccount, useAuth } from '@/auth/AuthProvider';
 import { AppText, Code } from '@/components/AppText';
 import { Badge } from '@/components/Badge';
@@ -18,6 +19,7 @@ import { spacing } from '@/theme';
 export default function AccountScreen() {
   const router = useRouter();
   const account = useAccount();
+  const apiBaseUrl = useApiBaseUrl();
   const { signOut } = useAuth();
 
   const onSignOut = async () => {
@@ -62,8 +64,13 @@ export default function AccountScreen() {
 
       <PanelFooter>
         <AppText variant="small" muted>
-          {`Sürüm ${appConfig.version}${__DEV__ ? ` · API ${appConfig.apiBaseUrl}` : ''}`}
+          Sürüm {appConfig.version}
         </AppText>
+        {appConfig.serverEditable ? (
+          <AppText variant="small" muted>
+            Sunucu <Code>{apiBaseUrl}</Code>
+          </AppText>
+        ) : null}
       </PanelFooter>
     </Screen>
   );

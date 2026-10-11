@@ -1,80 +1,52 @@
-import { useImperativeHandle, type Ref } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useImperativeHandle, useRef, type Ref } from 'react';
+import { StyleSheet, View } from 'react-native';
 
+import type { MapCommand } from './mapBridge';
 import type { VehicleMapHandle, VehicleMapProps } from './types';
-import { VehicleMarker } from './VehicleMarker';
-import { AlertBox } from '@/components/AlertBox';
-import { Code } from '@/components/AppText';
-import { ListGroup, ListGroupItem } from '@/components/ListGroup';
-import { shortId } from '@/lib/format';
-import { colors, spacing, typography } from '@/theme';
+import { useMapBridge } from './useMapBridge';
+import { colors } from '@/theme';
 
-export type { VehicleMapHandle } from './types';
+export type { VehicleMapHandle };
 
 /**
- * Web önizlemesi: react-native-maps web'de çalışmadığı için araçları liste olarak gösterir. Yalnızca
- * geliştirme sırasında akışları tarayıcıda denemek içindir; asıl hedef iOS ve Android.
+ * Web önizlemesi: telefondaki haritayla aynı sayfa, WebView yerine yalıtılmış (sandbox) bir iframe içinde.
+ * Mesajlaşma `postMessage` ile; sayfadaki betik iki ortamı da tanır.
  */
-export function VehicleMap({
-  vehicles,
-  selectedId,
-  bottomInset,
-  onSelect,
-  ref,
-}: VehicleMapProps & { ref?: Ref<VehicleMapHandle> }) {
-  useImperativeHandle(ref, () => ({ centerOn: () => {} }), []);
+export function VehicleMap({ ref, ...props }: VehicleMapProps & { ref?: Ref<VehicleMapHandle> }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  const send = useCallback((command: MapCommand) => {
+    frameRef.current?.contentWindow?.postMessage(JSON.stringify(command), '*');
+  }, []);
+  const openUrl = useCallback((url: string) => void window.open(url, '_blank', 'noopener'), []);
+
+  const { html, handle, handleMessage } = useMapBridge(props, { send, openUrl });
+  useImperativeHandle(ref, () => handle, [handle]);
+
+  // Dinleyici bir kez eklenir; mesajlar her zaman en güncel işleyiciye gider.
+  const handlerRef = useRef(handleMessage);
+  useEffect(() => {
+    handlerRef.current = handleMessage;
+  });
+  useEffect(() => {
+    const listener = (event: MessageEvent) => {
+      if (event.source === frameRef.current?.contentWindow) handlerRef.current(event.data);
+    };
+    window.addEventListener('message', listener);
+    return () => window.removeEventListener('message', listener);
+  }, []);
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.root]}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomInset + spacing[3] }]}>
-        <AlertBox tone="info" style={styles.notice}>
-          Harita web önizlemesinde gösterilmiyor; araçlar liste halinde.
-        </AlertBox>
-        {vehicles.length > 0 ? (
-          <ListGroup>
-            {vehicles.map((vehicle) => (
-              <ListGroupItem
-                key={vehicle.id}
-                onPress={() => onSelect(vehicle.id === selectedId ? null : vehicle.id)}
-                accessibilityLabel={`${vehicle.brand} seç`}>
-                <View style={styles.row}>
-                  <VehicleMarker
-                    status={vehicle.status}
-                    battery={vehicle.batteryPercentage}
-                    selected={vehicle.id === selectedId}
-                  />
-                  <Text style={styles.brand}>{vehicle.brand}</Text>
-                  <Code>{shortId(vehicle.id)}</Code>
-                </View>
-              </ListGroupItem>
-            ))}
-          </ListGroup>
-        ) : null}
-      </ScrollView>
+      <iframe ref={frameRef} srcDoc={html} sandbox="allow-scripts" title="Araç haritası" style={frameStyle} />
     </View>
   );
 }
 
+const frameStyle = { border: 0, width: '100%', height: '100%', display: 'block' } as const;
+
 const styles = StyleSheet.create({
   root: {
-    backgroundColor: colors.tertiaryBg,
-  },
-  content: {
-    padding: spacing[3],
-    gap: spacing[3],
-  },
-  notice: {
-    // Sağ üstteki harita düğmelerinin altında kalmasın.
-    marginRight: 52,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[3],
-  },
-  brand: {
-    ...typography.body,
-    color: colors.body,
-    flex: 1,
+    backgroundColor: colors.secondaryBg,
   },
 });

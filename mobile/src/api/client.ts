@@ -32,18 +32,19 @@ export class ApiError extends Error {
 }
 
 type ApiConfig = {
-  baseUrl: string;
+  /** API adresi her istekte okunur; kullanıcı sunucu ayarlarından değiştirebilir. */
+  getBaseUrl: () => string;
   getToken: () => string | null;
   /** Oturumlu bir istek 401 aldığında çağrılır (token süresi doldu ya da iptal edildi). */
   onUnauthorized: () => void;
   timeoutMs: number;
-  /** Bağlantı hatası mesajında API adresini göster (geliştirmede faydalı). */
+  /** Bağlantı hatası mesajında API adresini göster ve sunucu ayarlarına yönlendir (test sürümleri). */
   showBaseUrlInErrors: boolean;
   fetchImpl?: typeof fetch;
 };
 
 let config: ApiConfig = {
-  baseUrl: '',
+  getBaseUrl: () => '',
   getToken: () => null,
   onUnauthorized: () => {},
   timeoutMs: 15_000,
@@ -55,7 +56,7 @@ export function configureApi(partial: Partial<ApiConfig>): void {
 }
 
 export function getApiBaseUrl(): string {
-  return config.baseUrl;
+  return config.getBaseUrl();
 }
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -98,7 +99,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   let response: Response;
   try {
-    response = await (config.fetchImpl ?? fetch)(buildUrl(config.baseUrl, path, query), {
+    response = await (config.fetchImpl ?? fetch)(buildUrl(config.getBaseUrl(), path, query), {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -190,7 +191,7 @@ const messages = {
   timeout: 'Sunucu zamanında yanıt vermedi. Bağlantınızı kontrol edip tekrar deneyin.',
   network: (current: ApiConfig) =>
     current.showBaseUrlInErrors
-      ? `Sunucuya ulaşılamadı (${current.baseUrl}). API'nin çalıştığını ve telefonun bu adrese erişebildiğini kontrol edin.`
+      ? `Sunucuya ulaşılamadı (${current.getBaseUrl()}). API'nin çalıştığını ve telefonun bu adrese erişebildiğini kontrol edin; adres yanlışsa giriş ekranındaki sunucu ayarlarından değiştirin.`
       : 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.',
 };
 

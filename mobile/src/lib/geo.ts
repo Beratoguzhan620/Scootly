@@ -9,7 +9,7 @@ export type Bounds = {
 
 export type MapRegion = LatLng & { latitudeDelta: number; longitudeDelta: number };
 
-/** Paneldeki haritanın varsayılan görünümü (`map.js` → `setView([41.0, 29.0], 13)`). */
+/** Paneldeki haritanın varsayılan görünümü (`map.js` → `setView([41.0, 29.0], 13)`); 0,04° ≈ yakınlık 13. */
 export const DEFAULT_REGION: MapRegion = {
   latitude: 41.0,
   longitude: 29.0,

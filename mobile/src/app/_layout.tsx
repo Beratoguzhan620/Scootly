@@ -51,6 +51,7 @@ function RootNavigator() {
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="sign-up" options={{ title: 'Kayıt Ol' }} />
+        <Stack.Screen name="server" options={{ title: 'Sunucu Ayarları', presentation: 'modal' }} />
       </Stack.Protected>
 
       <Stack.Protected guard={signedIn}>
