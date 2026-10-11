@@ -4,6 +4,7 @@
 #
 #   bash scripts/mac/backend.sh          # başlat (ilk sefer: backend'i indirir, imajları derler, ~20 dk)
 #   bash scripts/mac/backend.sh status   # servislerin durumu ve adresler
+#   bash scripts/mac/backend.sh tunnel   # internet tünelini yeniden aç (yeni adres)
 #   bash scripts/mac/backend.sh stop     # durdur (veriler Docker volume'unda kalır)
 #   bash scripts/mac/backend.sh logs     # API'nin son logları
 #
@@ -125,6 +126,46 @@ tunnel_check() {
     curl -fsS -m 10 "$1/health/ready" >/dev/null 2>&1
 }
 
+wait_tunnel_url() { # adres konteyner açıldıktan birkaç saniye sonra loga düşer (en fazla 60 sn beklenir)
+  local i url
+  for i in $(seq 1 30); do
+    url=$(tunnel_url)
+    if [ -n "$url" ]; then printf '%s' "$url"; return 0; fi
+    sleep 2
+  done
+  return 1
+}
+
+tunnel_reachable() { # yeni adresin DNS kaydı birkaç saniye sonra oluşur
+  local i
+  sleep 5
+  for i in $(seq 1 20); do
+    tunnel_check "$1" && return 0
+    sleep 3
+  done
+  return 1
+}
+
+# Tünel adresini bulup doğrular (sonuç TUNNEL değişkeninde). Hızlı tünel bağlantısı uzun süre koparsa Cloudflare onu
+# siler ("Tunnel not found") ve konteyner boşuna yeniden dener; o durumda tünel bir kez yeniden oluşturulur (yeni adres).
+ensure_tunnel() { # $1 = "recreate" ise doğrudan yeni tünel açılır
+  if [ "${1:-}" = "recreate" ]; then
+    compose up -d --force-recreate --no-deps tunnel
+  fi
+  TUNNEL=$(wait_tunnel_url || true)
+  if [ -n "$TUNNEL" ] && tunnel_reachable "$TUNNEL"; then return 0; fi
+  if [ "${1:-}" != "recreate" ]; then
+    echo "  Tünel yanıt vermiyor; yeni tünel açılıyor (adres değişecek)…"
+    compose up -d --force-recreate --no-deps tunnel
+    TUNNEL=$(wait_tunnel_url || true)
+    if [ -n "$TUNNEL" ] && tunnel_reachable "$TUNNEL"; then return 0; fi
+  fi
+  echo "  UYARI: Tünel çalışmıyor. Son loglar:"
+  compose logs --no-color --tail 15 tunnel || true
+  TUNNEL=""
+  return 1
+}
+
 print_addresses() {
   local ip url
   ip=$(lan_ip || true)
@@ -163,10 +204,22 @@ case "$COMMAND" in
       if tunnel_check "$URL"; then
         echo "  Tünel yanıt veriyor."
       else
-        echo "  UYARI: Tünel yanıt vermiyor. Son loglar:"
+        echo "  UYARI: Tünel yanıt vermiyor. Yeni adres için: \"Tüneli yenile\" görevi (bash scripts/mac/backend.sh tunnel)."
+        echo "  Son loglar:"
         compose logs --no-color --tail 15 tunnel || true
       fi
     fi
+    exit 0
+    ;;
+  tunnel)
+    exec > >(tee "$LOG_DIR/backend-status.log") 2>&1
+    ensure_docker
+    [ -d "$DEPLOY" ] || fail "Backend henüz kurulmamış: bash scripts/mac/backend.sh"
+    curl -fsS -m 3 "$API_LOCAL/health/ready" >/dev/null 2>&1 || fail "API çalışmıyor; önce: bash scripts/mac/backend.sh"
+    echo "Yeni tünel açılıyor (adres değişecek)…"
+    rm -f "$LOG_DIR/tunnel-url"
+    if ensure_tunnel recreate; then echo "  $TUNNEL yanıt veriyor."; fi
+    print_addresses
     exit 0
     ;;
   stop)
@@ -181,7 +234,7 @@ case "$COMMAND" in
     exit 0
     ;;
   *)
-    echo "Kullanım: bash scripts/mac/backend.sh [up|status|stop|logs]"
+    echo "Kullanım: bash scripts/mac/backend.sh [up|status|tunnel|stop|logs]"
     exit 2
     ;;
 esac
@@ -481,29 +534,7 @@ fi
 rm -f "$LOG_DIR/tunnel-url"
 if [ -n "$TUNNEL_OVERRIDE" ]; then
   step "İnternetten erişim (Cloudflare hızlı tüneli)"
-  TUNNEL=""
-  for i in $(seq 1 30); do
-    TUNNEL=$(tunnel_url)
-    [ -n "$TUNNEL" ] && break
-    sleep 2
-  done
-  if [ -z "$TUNNEL" ]; then
-    echo "  UYARI: Tünel adresi alınamadı. Son loglar:"
-    compose logs --no-color --tail 20 tunnel || true
-  else
-    REACHABLE=0
-    sleep 5
-    for i in $(seq 1 20); do
-      if tunnel_check "$TUNNEL"; then REACHABLE=1; break; fi
-      sleep 3
-    done
-    if [ "$REACHABLE" -eq 1 ]; then
-      echo "  $TUNNEL yanıt veriyor."
-    else
-      echo "  UYARI: $TUNNEL henüz yanıt vermiyor; bir dakika sonra \"Backend durumu\" ile tekrar bak."
-      compose logs --no-color --tail 15 tunnel || true
-    fi
-  fi
+  if ensure_tunnel; then echo "  $TUNNEL yanıt veriyor."; fi
 fi
 
 ELAPSED=$(( SECONDS / 60 ))

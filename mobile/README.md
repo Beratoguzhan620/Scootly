@@ -124,7 +124,9 @@ gerekir; betik:
 > paylaşılan değerlerse, adresi geniş bir kitleyle paylaşmadan önce `deploy/.env`'de değiştirin. Mac uykuya geçerse
 > ya da kapanırsa bağlantı kopar.
 
-Diğer görevler: **Backend durumu**, **Backend'i durdur** (veriler Docker volume'unda kalır). Çıktı
+Diğer görevler: **Backend durumu** (adresler ve tünelin erişilebilirliği), **Tüneli yenile (yeni adres)**: hızlı
+tünelin bağlantısı uzun süre koparsa (Mac uykuya geçti, ağ değişti) Cloudflare onu siler ve loglarda
+`Tunnel not found` görünür; bu görev yeni bir tünel ve adres açar. **Backend'i durdur** (veriler Docker volume'unda kalır). Çıktı
 `.local-build/backend.log`'a da yazılır. Uygulamaya yalnızca `Driver` rolündeki hesaplar girebildiği için telefonda
 **Kayıt Ol** ile bir sürücü hesabı açın; yönetici hesabı web paneli (`http://127.0.0.1:5096`) içindir.
 

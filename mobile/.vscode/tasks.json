@@ -30,6 +30,15 @@
       "presentation": { "reveal": "always", "panel": "shared", "clear": true }
     },
     {
+      "label": "Tüneli yenile (yeni adres)",
+      "detail": "İnternet tünelini yeniden açar; telefona yeni HTTPS adresini yazmak gerekir",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh tunnel",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
       "label": "Backend'i durdur",
       "type": "shell",
       "command": "bash scripts/mac/backend.sh stop",
