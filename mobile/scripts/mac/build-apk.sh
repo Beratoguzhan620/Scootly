@@ -26,8 +26,16 @@ fail() {
   echo "DURUM: BASARISIZ" > "$LOG_DIR/status"
   exit 1
 }
+PACKAGE_BACKUP="$LOG_DIR/package.json.bak"
+restore_package_json() {
+  if [ -f "$PACKAGE_BACKUP" ]; then
+    cp "$PACKAGE_BACKUP" "$ROOT/package.json"
+    rm -f "$PACKAGE_BACKUP"
+  fi
+}
 on_exit() {
   local code=$?
+  restore_package_json
   [ "$code" -eq 0 ] && return
   echo "DURUM: BASARISIZ (çıkış kodu $code)" > "$LOG_DIR/status"
   printf '\nDerleme durdu (çıkış kodu %s). Ayrıntılar: %s\n' "$code" "$LOG"
@@ -164,6 +172,7 @@ if [ ! -f "$SDK/licenses/android-sdk-license" ]; then
   echo "  https://developer.android.com/studio/terms"
   printf "Kabul ediyor musun? (e/h) "
   read -r ANSWER
+  printf '%s\n' "$ANSWER" >> "$LOG" # yanıt terminalde görünür ama günlüğe düşmez
   yes_answer "$ANSWER" || fail "Lisans kabul edilmedi; kurulum durduruldu."
   { yes || true; } | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null
 fi
@@ -175,7 +184,9 @@ for package in "${PACKAGES[@]}"; do
 done
 if [ ${#MISSING[@]} -gt 0 ]; then
   echo "Kuruluyor: ${MISSING[*]} (NDK ~1 GB, birkaç dakika sürebilir)"
-  "$SDKMANAGER" --sdk_root="$SDK" --install "${MISSING[@]}" | grep -v '^\[' || true
+  # İlerleme çubuğu satır sonu yerine \r kullanıyor; araya filtre koymak çubuğu indirme bitene kadar gizler.
+  "$SDKMANAGER" --sdk_root="$SDK" --install "${MISSING[@]}" || true
+  echo
   for package in "${MISSING[@]}"; do
     [ -d "$SDK/$(printf '%s' "$package" | tr ';' '/')" ] || fail "Kurulamadı: $package"
   done
@@ -187,7 +198,11 @@ export PATH="$SDK/platform-tools:$PATH"
 
 # --- Derleme -------------------------------------------------------------------------------------
 step "Android projesi (expo prebuild)"
+# prebuild package.json'daki android/ios betiklerini "expo run:*" yapıyor; android/ klasörü üretilen bir çıktı
+# olduğundan (git'e girmiyor) bu değişiklik istenmiyor, dosya prebuild sonrası eski hâline getirilir.
+cp package.json "$PACKAGE_BACKUP"
 EXPO_NO_GIT_STATUS=1 EXPO_NO_TELEMETRY=1 CI=1 npx expo prebuild --platform android --no-install --clean
+restore_package_json
 printf 'sdk.dir=%s\n' "$SDK" > android/local.properties
 HEAP=2560m
 [ "$RAM_GB" -ge 16 ] && HEAP=4g
