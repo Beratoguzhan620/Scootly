@@ -34,6 +34,8 @@ on_exit() {
 }
 trap on_exit EXIT
 echo "DURUM: CALISIYOR" > "$LOG_DIR/status"
+# Uzun indirme ve derleme sırasında Mac uykuya geçmesin (betik bitince kendiliğinden kapanır).
+caffeinate -i -w $$ &
 
 yes_answer() { case "$1" in e|E|evet|Evet|EVET|y|Y|yes|Yes) return 0 ;; *) return 1 ;; esac; }
 
