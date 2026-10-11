@@ -1,5 +1,5 @@
 {
-  // Terminal → Run Build Task… (⇧⌘B) ile çalışır.
+  // Terminal → Run Build Task… (⇧⌘B) APK'yı derler; diğerleri Terminal → Run Task… ile çalışır.
   "version": "2.0.0",
   "tasks": [
     {
@@ -11,6 +11,31 @@
       "problemMatcher": [],
       "group": { "kind": "build", "isDefault": true },
       "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "Backend'i başlat (Docker)",
+      "detail": "Scootly backend'ini Docker'da çalıştırır ve API'yi telefon için yerel ağa açar",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "Backend durumu",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh status",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Backend'i durdur",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh stop",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
     },
     {
       "label": "Denetim (tip, lint, test)",

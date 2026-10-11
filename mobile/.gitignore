@@ -49,3 +49,4 @@ __pycache__/
 # Yerel derleme (scripts/mac/build-apk.sh)
 /.local-build
 /scootly.apk
+/scootly.apk.zip

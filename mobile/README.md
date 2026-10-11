@@ -98,6 +98,28 @@ services:
 API'yi `dotnet run` ile çalıştırıyorsanız yerel ağa açmak için:
 `dotnet run --project src/Scootly.Api --urls http://0.0.0.0:5016` (adres bu durumda `:5016`).
 
+### Backend'i bu Mac'te tek komutla çalıştırma
+
+VS Code: *Terminal → Run Task… → **Backend'i başlat (Docker)*** (ya da `bash scripts/mac/backend.sh`). Docker Desktop
+gerekir; betik:
+
+1. Backend'i `~/scootly-backend`'e indirir (`SCOOTLY_BACKEND_DIR` ile değiştirilebilir; var olan kopyaya dokunmaz).
+2. `deploy/.env` yoksa `.local-build/backend.env`'yi oraya taşır; o da yoksa anahtarları rastgele üretir ve yalnızca
+   panel yöneticisinin e-posta/parolasını sorar. Sırlar bu repoya hiç girmez.
+3. Yukarıdaki override dosyasını yazar (API `5017`'den yerel ağa açılır). Apple Silicon'da migrator imajını arm64
+   için derleyen yerel bir Dockerfile da ekler: takımın `src/Scootly.Api/Dockerfile`'ı migration paketini
+   `-r linux-x64` ile ürettiği için arm64 imajında çalışmıyor (kalıcı çözüm için backend'de `TARGETARCH`'a göre RID
+   seçilmeli). Bu iki dosya backend reposunda `.git/info/exclude` ile git dışında tutulur.
+4. `docker compose --profile app up -d --build` ile yığını açar, `/health/ready`'yi bekler.
+5. Veritabanında hiç araç yoksa yönetici hesabıyla iki hizmet bölgesi ve 10 örnek scooter ekler: bir küme ilk
+   kurulumda sorulan konumun çevresine (telefonda haritayı açınca hemen görünsün diye), bir küme panelin varsayılan
+   harita merkezine (İstanbul). Pil düzeyleri kuralları da gösterir: %15 (düşük, saha görevi açılır) ve %7 (kiralanamaz).
+6. Telefona yazılacak adresi (`http://<Mac'in IP'si>:5017`) yazdırır.
+
+Diğer görevler: **Backend durumu**, **Backend'i durdur** (veriler Docker volume'unda kalır). Çıktı
+`.local-build/backend.log`'a da yazılır. Uygulamaya yalnızca `Driver` rolündeki hesaplar girebildiği için telefonda
+**Kayıt Ol** ile bir sürücü hesabı açın; yönetici hesabı web paneli (`http://127.0.0.1:5096`) içindir.
+
 Bilgisayarın IP'si: macOS'ta *Sistem Ayarları → Wi-Fi → Ayrıntılar*, Windows'ta `ipconfig`. Güvenlik duvarı gelen
 bağlantıyı sorabilir; izin verin. API bir sanal makinede (ör. Parallels) çalışıyorsa telefonun ulaşacağı adres o
 makinenin IP'sidir: ağ modunu *Bridged* yapın ya da port yönlendirme ekleyin.
