@@ -45,3 +45,7 @@ yarn-error.*
 /emulator-ekranlari.zip
 /gradle.log
 __pycache__/
+
+# Yerel derleme (scripts/mac/build-apk.sh)
+/.local-build
+/scootly.apk

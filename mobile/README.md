@@ -146,7 +146,25 @@ kullanıma izin veren bir sağlayıcıya geçin
 İsteğe bağlı: depo ayarlarında *Settings → Secrets and variables → Actions → Variables* altında
 `EXPO_PUBLIC_API_URL` tanımlanırsa APK bu adresle başlar.
 
-**Kendi bilgisayarınızda derlemek** (Android Studio, JDK 17 ve Android SDK kurulu olmalı):
+### macOS'ta yerel derleme
+
+VS Code'da **Terminal → Run Build Task…** (⇧⌘B) ya da terminalde:
+
+```bash
+bash scripts/mac/build-apk.sh                    # telefonlar için (arm64-v8a, armeabi-v7a)
+ABIS=arm64-v8a bash scripts/mac/build-apk.sh     # yalnızca 64 bit: daha hızlı
+```
+
+Betik eksik araçları yönetici parolası istemeden kullanıcı klasörlerine kurar: Node.js 22 (sistemde uygun sürüm
+yoksa), JDK 17 (`~/Library/Java/JavaVirtualMachines/temurin-17.jdk`), Android SDK + NDK (`~/Library/Android/sdk`,
+Android Studio'nun da kullandığı yer). Android SDK lisanslarını kabul edip etmeyeceğini ilk çalıştırmada sorar.
+İlk kurulum ~8 GB disk ve indirme hızına göre 20-30 dakika sürer; sonraki derlemeler birkaç dakikadır.
+Sonuç proje kökünde `scootly.apk`; telefon USB hata ayıklamayla bağlıysa kurmayı da önerir. Tüm çıktı
+`.local-build/build.log` dosyasına yazılır.
+
+### Diğer sistemler
+
+Android Studio (JDK ve Android SDK ile birlikte gelir) kurulu olmalı:
 
 ```bash
 npx expo prebuild --platform android --clean
@@ -177,7 +195,7 @@ src/
 ├── lib/                      # Biçimlendirme, coğrafya, JWT, konum, depolama, adres doğrulama
 └── theme/                    # Tasarım dili (renk, tipografi, boşluk, gölge)
 e2e/                          # Sahte API ve Android duman testi (CI)
-scripts/                      # Leaflet'i gömen betik
+scripts/                      # Leaflet'i gömen betik, macOS'ta APK derleme betiği
 .github/workflows/            # Android APK hattı
 ```
 

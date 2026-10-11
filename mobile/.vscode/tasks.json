@@ -1,0 +1,23 @@
+{
+  // Terminal → Run Build Task… (⇧⌘B) ile çalışır.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "APK derle (macOS)",
+      "detail": "Eksik araçları (Node.js, JDK 17, Android SDK) kurar ve scootly.apk üretir",
+      "type": "shell",
+      "command": "bash scripts/mac/build-apk.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "Denetim (tip, lint, test)",
+      "type": "npm",
+      "script": "check",
+      "problemMatcher": ["$tsc"],
+      "group": "test"
+    }
+  ]
+}
