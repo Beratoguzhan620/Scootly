@@ -1,22 +1,25 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { useApiBaseUrl } from '@/api/server';
 import { useAccount, useAuth } from '@/auth/AuthProvider';
-import { AppText, Code } from '@/components/AppText';
-import { Badge } from '@/components/Badge';
-import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
-import { KeyValueRow, ListGroup } from '@/components/ListGroup';
-import { PanelFooter } from '@/components/PanelFooter';
+import { AppText } from '@/components/AppText';
+import { ListRow, RowGroup } from '@/components/Rows';
 import { Screen } from '@/components/Screen';
+import { StatusPill } from '@/components/StatusPill';
+import { Surface } from '@/components/Surface';
 import { appConfig } from '@/config';
 import { roleLabel } from '@/domain/labels';
 import { confirm } from '@/lib/confirm';
-import { shortId } from '@/lib/format';
-import { spacing } from '@/theme';
+import { INK, makeStyles, space, textVariants } from '@/theme';
+
+/** E-postanın ilk harfi: profil diskinde. */
+function initialOf(email: string): string {
+  return (email.trim()[0] ?? '?').toLocaleUpperCase('tr-TR');
+}
 
 export default function AccountScreen() {
+  const styles = useStyles();
   const router = useRouter();
   const account = useAccount();
   const apiBaseUrl = useApiBaseUrl();
@@ -26,70 +29,91 @@ export default function AccountScreen() {
     const confirmed = await confirm({
       title: 'Çıkış yap',
       message: 'Oturumun bu cihazda kapatılacak.',
-      confirmLabel: 'Çıkış Yap',
+      confirmLabel: 'Çıkış yap',
     });
     if (confirmed) await signOut();
   };
 
   return (
-    <Screen>
-      <Card header="Hesap Bilgileri" bodyStyle={styles.cardBody}>
-        <ListGroup flush>
-          <KeyValueRow label="E-posta" value={account.email} />
-          <KeyValueRow
-            label="Rol"
-            value={
-              <View style={styles.badges}>
-                {account.roles.map((role) => (
-                  <Badge key={role} label={roleLabel(role)} tone="primary" />
-                ))}
-              </View>
-            }
-          />
-          <KeyValueRow label="Kullanıcı kimliği" value={<Code>{shortId(account.id)}</Code>} />
-        </ListGroup>
-      </Card>
+    <Screen title="Hesap" edges={['top']}>
+      <Surface style={styles.profile}>
+        <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no">
+          <Text style={styles.avatarText}>{initialOf(account.email)}</Text>
+        </View>
+        <View style={styles.profileText}>
+          <AppText variant="heading" numberOfLines={1}>
+            {account.email}
+          </AppText>
+          <View style={styles.roles}>
+            {account.roles.map((role) => (
+              <StatusPill key={role} label={roleLabel(role)} tone="primary" />
+            ))}
+          </View>
+        </View>
+      </Surface>
 
-      <View style={styles.actions}>
-        <Button title="Parolayı Değiştir" variant="outline-primary" onPress={() => router.push('/change-password')} />
-        <Button title="Çıkış Yap" variant="outline-secondary" onPress={onSignOut} />
-      </View>
+      <RowGroup>
+        <ListRow icon="key-outline" title="Parolayı değiştir" onPress={() => router.push('/change-password')} />
+        <ListRow icon="log-out-outline" title="Çıkış yap" onPress={() => void onSignOut()} />
+      </RowGroup>
 
-      <Card header="Hesabı Sil" bodyStyle={styles.dangerBody}>
-        <AppText muted>
-          Hesabın kalıcı olarak silinir ve sürüş konumların anonimleştirilir. Bu işlem geri alınamaz.
-        </AppText>
-        <Button title="Hesabımı Sil" variant="outline-danger" onPress={() => router.push('/delete-account')} />
-      </Card>
+      <RowGroup>
+        <ListRow
+          icon="trash-outline"
+          title="Hesabımı sil"
+          subtitle="Hesap kalıcı olarak silinir; sürüş konumların anonimleştirilir."
+          destructive
+          onPress={() => router.push('/delete-account')}
+        />
+      </RowGroup>
 
-      <PanelFooter>
-        <AppText variant="small" muted>
-          Sürüm {appConfig.version}
+      <View style={styles.footer}>
+        <AppText variant="caption" muted>
+          {`Scootly ${appConfig.version}`}
         </AppText>
         {appConfig.serverEditable ? (
-          <AppText variant="small" muted>
-            Sunucu <Code>{apiBaseUrl}</Code>
+          <AppText variant="caption" muted numberOfLines={1}>
+            {`Sunucu: ${apiBaseUrl}`}
           </AppText>
         ) : null}
-      </PanelFooter>
+      </View>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  cardBody: {
-    paddingVertical: spacing[1],
+const useStyles = makeStyles((t) => ({
+  profile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.lg,
   },
-  badges: {
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: t.brand,
+  },
+  avatarText: {
+    ...textVariants.numeral,
+    fontSize: 28,
+    lineHeight: 32,
+    color: INK,
+  },
+  profileText: {
+    flex: 1,
+    gap: space.xs + 2,
+  },
+  roles: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: spacing[1],
+    gap: space.xs + 2,
   },
-  actions: {
-    gap: spacing[2],
+  footer: {
+    marginTop: 'auto',
+    paddingTop: space.lg,
+    gap: 2,
+    alignItems: 'center',
   },
-  dangerBody: {
-    gap: spacing[3],
-  },
-});
+}));

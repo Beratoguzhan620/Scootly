@@ -183,7 +183,7 @@ print_addresses() {
     printf '%s\n' "$url" > "$LOG_DIR/tunnel-url"
   fi
   echo
-  echo "  Telefonda: giriş ekranının altındaki \"Sunucu: …\" yazısına dokun, adresi yaz, \"Bağlantıyı Test Et\" ve"
+  echo "  Telefonda: giriş ekranının altındaki \"Sunucu: …\" yazısına dokun, adresi yaz, \"Bağlantıyı test et\" ve"
   echo "  \"Kaydet\". HTTPS adresi mobil veride ve başka ağlarda da çalışır; Mac açık ve uyanık kalmalı. Bu adres"
   echo "  tünel her yeniden başladığında (Mac yeniden başlayınca, Docker kapanıp açılınca) değişir."
 }

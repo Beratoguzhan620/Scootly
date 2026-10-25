@@ -2,9 +2,9 @@ import { useCallback, useEffect, useImperativeHandle, useRef, type Ref } from 'r
 import { StyleSheet, View } from 'react-native';
 
 import type { MapCommand } from './mapBridge';
+import { mapPalettes } from './mapTheme';
 import type { VehicleMapHandle, VehicleMapProps } from './types';
 import { useMapBridge } from './useMapBridge';
-import { colors } from '@/theme';
 
 export type { VehicleMapHandle };
 
@@ -37,16 +37,10 @@ export function VehicleMap({ ref, ...props }: VehicleMapProps & { ref?: Ref<Vehi
   }, []);
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.root]}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: mapPalettes[props.scheme].background }]}>
       <iframe ref={frameRef} srcDoc={html} sandbox="allow-scripts" title="Araç haritası" style={frameStyle} />
     </View>
   );
 }
 
 const frameStyle = { border: 0, width: '100%', height: '100%', display: 'block' } as const;
-
-const styles = StyleSheet.create({
-  root: {
-    backgroundColor: colors.secondaryBg,
-  },
-});

@@ -138,7 +138,7 @@ def run(args):
 
     print("Uygulama açılıyor...", flush=True)
     adb("shell", "monkey", "-p", PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
-    device.find_text("Giriş Yap", timeout=90)
+    device.find_text("Giriş yap", timeout=90)
     device.screenshot("giris")
 
     print("Sunucu adresi ayarlanıyor...", flush=True)
@@ -150,45 +150,46 @@ def run(args):
     device.tap_text("Kaydet", exact=True)
 
     print("Giriş yapılıyor...", flush=True)
-    device.find_text("Giriş Yap")
+    device.find_text("Giriş yap")
     device.type_into("E-posta", EMAIL)
     device.type_into("Parola", PASSWORD)
-    device.find_text("Yakındaki scooter", timeout=45)
+    device.find_text("müsait scooter", timeout=45)
     time.sleep(6)  # harita karoları
     device.screenshot("harita")
 
     print("Araç seçiliyor...", flush=True)
-    # WebView içindeki işaret erişilebilirlik ağacında metniyle (%86) ya da etiketiyle görünür.
-    pin = device.find(lambda n: n.text == "%86" or "yüzde 86" in (n.text + n.desc), timeout=40, what="%86 işareti")
-    device.tap(pin)
-    device.find_text("Rezerve Et", exact=True)
+    # Harita WebGL ile çizildiği için işaretler erişilebilirlik ağacında yok; en yakın scooter düğmesi seçer.
+    # Emülatörün konumuna en yakın kiralanabilir araç %86 bataryalı olan.
+    device.tap_text("En yakın scooter'ı göster", exact=True)
+    device.find_text("Rezerve et", exact=True)
+    device.find_text("Batarya yüzde 86")
     device.screenshot("arac-karti")
 
     print("Rezerve ediliyor...", flush=True)
-    device.tap_text("Rezerve Et", exact=True)
+    device.tap_text("Rezerve et", exact=True)
     device.find_text("Rezervasyonun", timeout=20)
     device.screenshot("rezervasyon")
 
     print("Sürüş başlatılıyor...", flush=True)
-    device.tap_text("Sürüşü Başlat", exact=True)
+    device.tap_text("Sürüşü başlat", exact=True)
     device.find_text("Sürüştesin", timeout=20)
     device.screenshot("surus")
 
     print("Sürüş bitiriliyor...", flush=True)
-    device.tap_text("Sürüşü Bitir", exact=True)
+    device.tap_text("Sürüşü bitir", exact=True)
     device.tap(device.find(lambda n: n.cls.endswith("Button") and norm(n.text) == norm("Bitir"), what="Bitir onayı"))
     device.find_text("Toplam ücret", timeout=30)
     device.find_text("Ödeme alındı", timeout=45)
     device.screenshot("surus-ozeti")
 
     print("Sürüş geçmişi ve hesap...", flush=True)
-    device.tap_text("Haritaya Dön", exact=True)
-    device.find_text("Yakındaki scooter", timeout=20)
+    device.tap_text("Haritaya dön", exact=True)
+    device.find_text("müsait scooter", timeout=20)
     device.tap_text("Sürüşlerim", exact=True)
     device.find_text("₺32,50", timeout=20)
     device.screenshot("suruslerim")
     device.tap_text("Hesap", exact=True)
-    device.find_text("Hesap Bilgileri", timeout=20)
+    device.find_text("Parolayı değiştir", timeout=20)
     device.screenshot("hesap")
 
 

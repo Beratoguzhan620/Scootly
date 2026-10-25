@@ -1,6 +1,8 @@
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -9,8 +11,9 @@ import { BrandSplash } from '@/components/BrandSplash';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { queryClient, subscribeAppFocus } from '@/lib/queryClient';
 import { ReservationProvider } from '@/ride/ReservationProvider';
-import { colors } from '@/theme';
-import { headerOptions } from '@/theme/navigation';
+import { useTheme } from '@/theme';
+import { fontAssets } from '@/theme/fonts';
+import { stackHeaderOptions } from '@/theme/navigation';
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
   return <RouteErrorBoundary {...props} />;
@@ -18,15 +21,15 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 
 export default function RootLayout() {
   useEffect(() => subscribeAppFocus(), []);
+  // Yazı tipi yüklenemezse (bozuk dosya vb.) sistem yazısıyla devam edilir.
+  const [fontsLoaded, fontError] = useFonts(fontAssets);
 
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ReservationProvider>
-            {/* Başlıklar koyu (navbar) olduğu için durum çubuğu açık renkli. */}
-            <StatusBar style="light" />
-            <RootNavigator />
+            <RootNavigator ready={fontsLoaded || Boolean(fontError)} />
           </ReservationProvider>
         </AuthProvider>
       </QueryClientProvider>
@@ -34,34 +37,38 @@ export default function RootLayout() {
   );
 }
 
-function RootNavigator() {
+function RootNavigator({ ready }: { ready: boolean }) {
   const { state } = useAuth();
+  const theme = useTheme();
 
-  if (state.status === 'restoring') return <BrandSplash />;
+  // Klavye açılırken ya da ekran geçişlerinde kenarlarda beyaz şerit görünmesin.
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(theme.bg).catch(() => undefined);
+  }, [theme.bg]);
+
+  if (!ready || state.status === 'restoring') return <BrandSplash />;
 
   const signedIn = state.status === 'signedIn';
 
   return (
-    <Stack
-      screenOptions={{
-        ...headerOptions,
-        headerBackButtonDisplayMode: 'minimal',
-        contentStyle: { backgroundColor: colors.bodyBg },
-      }}>
-      <Stack.Protected guard={!signedIn}>
-        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-        <Stack.Screen name="sign-up" options={{ title: 'Kayıt Ol' }} />
-        <Stack.Screen name="server" options={{ title: 'Sunucu Ayarları', presentation: 'modal' }} />
-      </Stack.Protected>
+    <>
+      <StatusBar style={theme.statusBar} />
+      <Stack screenOptions={stackHeaderOptions(theme)}>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen name="sign-up" options={{ title: 'Kayıt ol' }} />
+          <Stack.Screen name="server" options={{ title: 'Sunucu ayarları', presentation: 'modal' }} />
+        </Stack.Protected>
 
-      <Stack.Protected guard={signedIn}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="ride/[id]" options={{ title: 'Sürüş Özeti' }} />
-        <Stack.Screen name="change-password" options={{ title: 'Parolayı Değiştir', presentation: 'modal' }} />
-        <Stack.Screen name="delete-account" options={{ title: 'Hesabı Sil', presentation: 'modal' }} />
-      </Stack.Protected>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="ride/[id]" options={{ title: 'Sürüş özeti' }} />
+          <Stack.Screen name="change-password" options={{ title: 'Parolayı değiştir', presentation: 'modal' }} />
+          <Stack.Screen name="delete-account" options={{ title: 'Hesabı sil', presentation: 'modal' }} />
+        </Stack.Protected>
 
-      <Stack.Screen name="+not-found" options={{ title: 'Bulunamadı' }} />
-    </Stack>
+        <Stack.Screen name="+not-found" options={{ title: 'Bulunamadı' }} />
+      </Stack>
+    </>
   );
 }

@@ -3,7 +3,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
   View,
   type RefreshControlProps,
   type StyleProp,
@@ -11,10 +10,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, spacing } from '@/theme';
+import { AppText } from './AppText';
+import { makeStyles, screenPadding, space } from '@/theme';
 
 type Props = {
   children: ReactNode;
+  /** Sekme ekranlarında başlık çubuğu yerine içerikte büyük başlık */
+  title?: string;
   scroll?: boolean;
   /** Başlık çubuğu olmayan ekranlarda üst, sekme çubuğu olmayan ekranlarda alt güvenli alan. */
   edges?: ('top' | 'bottom')[];
@@ -24,13 +26,27 @@ type Props = {
   contentStyle?: StyleProp<ViewStyle>;
 };
 
-/** Panelin `.container` karşılığı: beyaz zemin, 16 birim yatay boşluk. */
-export function Screen({ children, scroll = true, edges = [], keyboard = false, refreshControl, contentStyle }: Props) {
+export function Screen({
+  children,
+  title,
+  scroll = true,
+  edges = [],
+  keyboard = false,
+  refreshControl,
+  contentStyle,
+}: Props) {
   const insets = useSafeAreaInsets();
+  const styles = useStyles();
   const padding = {
-    paddingTop: spacing[3] + (edges.includes('top') ? insets.top : 0),
-    paddingBottom: spacing[3] + (edges.includes('bottom') ? insets.bottom : 0),
+    paddingTop: space.lg + (edges.includes('top') ? insets.top : 0),
+    paddingBottom: space.xxl + (edges.includes('bottom') ? insets.bottom : 0),
   };
+  const body = (
+    <>
+      {title ? <LargeTitle>{title}</LargeTitle> : null}
+      {children}
+    </>
+  );
 
   const content = scroll ? (
     <ScrollView
@@ -38,10 +54,10 @@ export function Screen({ children, scroll = true, edges = [], keyboard = false, 
       contentContainerStyle={[styles.content, padding, contentStyle]}
       keyboardShouldPersistTaps="handled"
       refreshControl={refreshControl}>
-      {children}
+      {body}
     </ScrollView>
   ) : (
-    <View style={[styles.fill, styles.content, padding, contentStyle]}>{children}</View>
+    <View style={[styles.fill, styles.content, padding, contentStyle]}>{body}</View>
   );
 
   if (!keyboard) return <View style={styles.root}>{content}</View>;
@@ -53,17 +69,31 @@ export function Screen({ children, scroll = true, edges = [], keyboard = false, 
   );
 }
 
-const styles = StyleSheet.create({
+/** Sekme ekranlarının büyük başlığı (dar, kalın; tabela gibi). */
+export function LargeTitle({ children }: { children: string }) {
+  const styles = useStyles();
+  return (
+    <AppText variant="largeTitle" style={styles.largeTitle}>
+      {children}
+    </AppText>
+  );
+}
+
+const useStyles = makeStyles((t) => ({
   root: {
     flex: 1,
-    backgroundColor: colors.bodyBg,
+    backgroundColor: t.bg,
   },
   fill: {
     flex: 1,
   },
   content: {
     flexGrow: 1,
-    paddingHorizontal: spacing[3],
-    gap: spacing[3],
+    paddingHorizontal: screenPadding,
+    gap: space.lg,
   },
-});
+  largeTitle: {
+    marginTop: space.sm,
+    marginBottom: space.xs,
+  },
+}));

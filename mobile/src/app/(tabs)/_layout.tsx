@@ -1,65 +1,43 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
-import { StyleSheet, Text } from 'react-native';
 
-import { useAuth } from '@/auth/AuthProvider';
-import { colors, typography } from '@/theme';
-import { headerOptions } from '@/theme/navigation';
+import { TabBar } from '@/components/TabBar';
+import { useTheme } from '@/theme';
 
-/** Paneldeki gibi sağda oturum açan kullanıcının e-postası (`text-white-50`). */
-function SignedInUser() {
-  const { state } = useAuth();
-  if (state.status !== 'signedIn') return null;
-  return (
-    <Text numberOfLines={1} style={styles.user}>
-      {state.account.email}
-    </Text>
-  );
-}
-
-/** Alt sekme çubuğu panelin koyu menüsüyle aynı: etkin sekme beyaz, diğerleri %55 beyaz. */
+/** Harita tam ekran; diğer sekmeler başlığı içerikte büyük yazıyla gösterir. */
 export default function TabsLayout() {
+  const theme = useTheme();
   return (
     <Tabs
-      screenOptions={{
-        ...headerOptions,
-        tabBarStyle: { backgroundColor: colors.navbar, borderTopColor: colors.navbar },
-        tabBarActiveTintColor: colors.navbarText,
-        tabBarInactiveTintColor: colors.navbarLink,
-        sceneStyle: { backgroundColor: colors.bodyBg },
-      }}>
+      tabBar={(props) => <TabBar {...props} />}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.bg } }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Harita',
-          headerTitle: 'Scootly',
-          headerRight: () => <SignedInUser />,
-          tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'map' : 'map-outline'} color={color} size={22} />
+          ),
         }}
       />
       <Tabs.Screen
         name="rides"
         options={{
           title: 'Sürüşlerim',
-          tabBarIcon: ({ color, size }) => <Ionicons name="receipt-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} color={color} size={22} />
+          ),
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
           title: 'Hesap',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" color={color} size={size} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={22} />
+          ),
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  user: {
-    ...typography.small,
-    color: colors.navbarSubtle,
-    maxWidth: 200,
-    marginRight: 16,
-  },
-});

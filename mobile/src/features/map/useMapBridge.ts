@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { centerCommand, parseMapEvent, toStateCommand, zoomForRegion, type MapCommand } from './mapBridge';
-import { FOCUS_ZOOM, isAllowedExternalUrl, MAP_ATTRIBUTION, MAP_TILE_URL } from './mapConfig';
+import {
+  centerCommand,
+  parseMapEvent,
+  themeCommand,
+  toStateCommand,
+  zoomForRegion,
+  type MapCommand,
+} from './mapBridge';
+import { FOCUS_ZOOM, isAllowedExternalUrl, MAP_STYLE_URL } from './mapConfig';
 import { buildMapHtml } from './mapHtml';
+import { mapPalettes } from './mapTheme';
 import type { VehicleMapHandle, VehicleMapProps } from './types';
 import type { LatLng } from '@/lib/geo';
 
@@ -18,18 +26,29 @@ type Platform = {
  * Sayfa hazır olunca durum gönderilir, hazır olmadan istenen odak beklemeye alınır.
  */
 export function useMapBridge(props: VehicleMapProps, { send, openUrl }: Platform) {
-  const { vehicles, serviceAreas, selectedId, initialRegion, userLocation, bottomInset, onSelect, onRegionChange } = props;
+  const {
+    vehicles,
+    serviceAreas,
+    selectedId,
+    initialRegion,
+    userLocation,
+    bottomInset,
+    scheme,
+    onSelect,
+    onRegionChange,
+  } = props;
   const pendingCenter = useRef<LatLng | null>(null);
   const [ready, setReady] = useState(false);
 
-  // Sayfa bir kez üretilir; sonraki değişiklikler mesajla gider (kaynak değişirse sayfa baştan yüklenir).
+  // Sayfa bir kez üretilir; sonraki değişiklikler (tema dahil) mesajla gider.
   const [html] = useState(() =>
     buildMapHtml({
       center: [initialRegion.latitude, initialRegion.longitude],
       zoom: zoomForRegion(initialRegion),
       focusZoom: FOCUS_ZOOM,
-      tileUrl: MAP_TILE_URL,
-      attribution: MAP_ATTRIBUTION,
+      styleUrl: MAP_STYLE_URL,
+      scheme,
+      palettes: mapPalettes,
     }),
   );
 
@@ -43,6 +62,10 @@ export function useMapBridge(props: VehicleMapProps, { send, openUrl }: Platform
   }, [ready, stateCommand, send]);
 
   useEffect(() => {
+    if (ready) send(themeCommand(scheme));
+  }, [ready, scheme, send]);
+
+  useEffect(() => {
     if (!ready || !pendingCenter.current) return;
     send(centerCommand(pendingCenter.current));
     pendingCenter.current = null;
@@ -50,8 +73,8 @@ export function useMapBridge(props: VehicleMapProps, { send, openUrl }: Platform
 
   const handle = useMemo<VehicleMapHandle>(
     () => ({
-      centerOn: (point) => {
-        if (ready) send(centerCommand(point));
+      centerOn: (point, zoom) => {
+        if (ready) send(centerCommand(point, zoom));
         else pendingCenter.current = point;
       },
     }),

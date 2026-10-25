@@ -1,9 +1,11 @@
 import type { ServiceArea, Vehicle } from '@/api/types';
+import { batteryLevel, batteryPercent, type BatteryLevel } from '@/domain/battery';
 import { vehicleStatusMeta } from '@/domain/labels';
 import type { LatLng, MapRegion } from '@/lib/geo';
+import type { Scheme } from '@/theme';
 
 /**
- * Uygulama ile harita sayfası (WebView/iframe içindeki Leaflet) arasındaki mesajlar. İki taraf da yalnızca
+ * Uygulama ile harita sayfası (WebView/iframe içindeki MapLibre) arasındaki mesajlar. İki taraf da yalnızca
  * JSON metni alışverişi yapar; sayfadaki karşılığı `mapHtml.ts` içindeki betiktir.
  */
 
@@ -11,9 +13,9 @@ export type MapVehicle = {
   id: string;
   lat: number;
   lng: number;
+  /** 0–100 */
   battery: number;
-  /** Rozet tonu (`VehicleStatusTagHelper` eşlemesi): success, warning, primary, secondary, danger, light */
-  tone: string;
+  level: BatteryLevel;
   /** Ekran okuyucu metni */
   label: string;
   selected: boolean;
@@ -31,10 +33,11 @@ export type MapCommand =
       vehicles: MapVehicle[];
       areas: MapArea[];
       user: { lat: number; lng: number } | null;
-      /** Haritanın altını kaplayan kartın yüksekliği (px). */
+      /** Haritanın altını kaplayan panelin yüksekliği (px). */
       bottomInset: number;
     }
-  | { type: 'center'; lat: number; lng: number; zoom?: number };
+  | { type: 'center'; lat: number; lng: number; zoom?: number }
+  | { type: 'theme'; scheme: Scheme };
 
 /** Sayfadan uygulamaya */
 export type MapEvent =
@@ -53,18 +56,25 @@ export type MapStateInput = {
   bottomInset: number;
 };
 
-export function toStateCommand({ vehicles, serviceAreas, selectedId, userLocation, bottomInset }: MapStateInput): MapCommand {
+export function toStateCommand({
+  vehicles,
+  serviceAreas,
+  selectedId,
+  userLocation,
+  bottomInset,
+}: MapStateInput): MapCommand {
   return {
     type: 'state',
     vehicles: vehicles.map((vehicle) => {
       const meta = vehicleStatusMeta(vehicle.status);
+      const battery = batteryPercent(vehicle.batteryPercentage);
       return {
         id: vehicle.id,
         lat: vehicle.latitude,
         lng: vehicle.longitude,
-        battery: Math.round(vehicle.batteryPercentage),
-        tone: meta.tone,
-        label: `${vehicle.brand}, ${meta.label}, batarya yüzde ${vehicle.batteryPercentage}`,
+        battery,
+        level: batteryLevel(battery),
+        label: `${vehicle.brand}, ${meta.label}, batarya yüzde ${battery}`,
         selected: vehicle.id === selectedId,
       };
     }),
@@ -78,7 +88,13 @@ export function toStateCommand({ vehicles, serviceAreas, selectedId, userLocatio
 }
 
 export function centerCommand(point: LatLng, zoom?: number): MapCommand {
-  return { type: 'center', lat: point.latitude, lng: point.longitude, zoom };
+  return zoom === undefined
+    ? { type: 'center', lat: point.latitude, lng: point.longitude }
+    : { type: 'center', lat: point.latitude, lng: point.longitude, zoom };
+}
+
+export function themeCommand(scheme: Scheme): MapCommand {
+  return { type: 'theme', scheme };
 }
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -132,8 +148,8 @@ export function parseMapEvent(data: unknown): MapEvent | null {
   }
 }
 
-/** Bir bölgeyi gösterecek Leaflet yakınlık seviyesi. */
+/** Bir bölgeyi gösterecek yakınlık seviyesi (512 px'lik vektör karolarda Leaflet'tekinden bir eksik). */
 export function zoomForRegion(region: MapRegion): number {
-  const zoom = Math.round(Math.log2(360 / Math.max(region.longitudeDelta, 1e-6)));
+  const zoom = Math.round(Math.log2(360 / Math.max(region.longitudeDelta, 1e-6))) - 1;
   return Math.min(19, Math.max(3, zoom));
 }

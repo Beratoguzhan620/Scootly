@@ -1,28 +1,25 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import { Text, type TextProps, type TextStyle } from 'react-native';
 
-import { colors, typography } from '@/theme';
-
-type Variant = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'lead' | 'body' | 'small';
+import { textVariants, useTheme, type TextVariantName } from '@/theme';
 
 type Props = TextProps & {
-  variant?: Variant;
-  /** `.text-muted` */
+  variant?: TextVariantName;
+  /** İkincil metin rengi */
   muted?: boolean;
   color?: string;
-  weight?: '300' | '400' | '500' | '700';
-  align?: 'left' | 'center' | 'right';
+  align?: TextStyle['textAlign'];
 };
 
-const headings: ReadonlySet<Variant> = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
-
-export function AppText({ variant = 'body', muted, color, weight, align, style, ...rest }: Props) {
+/** Uygulamadaki tüm metin: yazı ailesi, ölçek ve tema rengi buradan gelir. */
+export function AppText({ variant = 'body', muted = false, color, align, style, ...rest }: Props) {
+  const theme = useTheme();
+  const headingRole = variant === 'largeTitle' || variant === 'title';
   return (
     <Text
-      accessibilityRole={headings.has(variant) ? 'header' : undefined}
+      accessibilityRole={headingRole ? 'header' : undefined}
       style={[
-        typography[variant],
-        { color: color ?? (muted ? colors.muted : colors.body) },
-        weight ? { fontWeight: weight } : null,
+        textVariants[variant],
+        { color: color ?? (muted ? theme.textMuted : theme.text) },
         align ? { textAlign: align } : null,
         style,
       ]}
@@ -30,16 +27,3 @@ export function AppText({ variant = 'body', muted, color, weight, align, style, 
     />
   );
 }
-
-/** Paneldeki `<code>` görünümü — kısa kimlikler için. */
-export function Code({ style, ...rest }: TextProps) {
-  return <Text style={[styles.code, style]} {...rest} />;
-}
-
-const styles = StyleSheet.create({
-  code: {
-    fontFamily: typography.monospaceFamily,
-    fontSize: 14,
-    color: colors.code,
-  },
-});

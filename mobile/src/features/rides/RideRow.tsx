@@ -1,43 +1,47 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { Ride } from '@/api/types';
-import { AppText, Code } from '@/components/AppText';
-import { PaymentStatusBadge, RideStatusBadge } from '@/components/Badge';
-import { formatCurrency, formatDateTime, formatMinutes, parseServerDate, shortId } from '@/lib/format';
-import { colors, radius, spacing } from '@/theme';
+import { Plate } from '@/components/Plate';
+import { PaymentStatusPill, RideStatusPill } from '@/components/StatusPill';
+import { formatCurrency, formatMinutes, formatRelativeDateTime, parseServerDate } from '@/lib/format';
+import { makeStyles, radius, space, textVariants } from '@/theme';
 
 type Props = {
   ride: Ride;
+  /** Ay grubunun ilk ve son satırı: köşeler yuvarlanır. */
   first: boolean;
   last: boolean;
   now: number;
   onPress: () => void;
 };
 
-/** Sürüş geçmişi satırı — FlatList içinde tek parça bir `list-group` gibi görünür. */
+/** Sürüş geçmişi satırı: ne zaman, ne kadar sürdü, hangi scooter; sağda ücret ve ödeme durumu. */
 export function RideRow({ ride, first, last, now, onPress }: Props) {
+  const styles = useStyles();
   const startedAt = parseServerDate(ride.startedAt);
   const endedAt = ride.endedAt ? parseServerDate(ride.endedAt).getTime() : now;
   const duration = formatMinutes(endedAt - startedAt.getTime());
+  const when = formatRelativeDateTime(startedAt, new Date(now));
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${formatDateTime(startedAt)} sürüşü, ${duration}`}
+      accessibilityLabel={`${when} sürüşü, ${duration}${ride.fare !== null ? `, ${formatCurrency(ride.fare)}` : ''}`}
       onPress={onPress}
       style={({ pressed }) => [styles.row, first && styles.first, last && styles.last, pressed && styles.pressed]}>
       <View style={styles.main}>
-        <AppText>{formatDateTime(startedAt)}</AppText>
-        <AppText variant="small" muted>
-          {duration} · Araç <Code>{shortId(ride.vehicleId)}</Code>
-        </AppText>
+        <Text style={styles.when}>{when}</Text>
+        <View style={styles.meta}>
+          <Text style={styles.duration}>{duration}</Text>
+          <Plate id={ride.vehicleId} kind="Araç" />
+        </View>
       </View>
       <View style={styles.side}>
-        <AppText weight="500">{ride.fare !== null ? formatCurrency(ride.fare) : '—'}</AppText>
+        <Text style={styles.fare}>{ride.fare !== null ? formatCurrency(ride.fare) : '—'}</Text>
         {ride.status === 'Completed' ? (
-          <PaymentStatusBadge status={ride.paymentStatus} />
+          <PaymentStatusPill status={ride.paymentStatus} />
         ) : (
-          <RideStatusBadge status={ride.status} />
+          <RideStatusPill status={ride.status} />
         )}
       </View>
     </Pressable>
@@ -45,44 +49,68 @@ export function RideRow({ ride, first, last, now, onPress }: Props) {
 }
 
 export function RideRowSeparator() {
-  return <View style={styles.separator} />;
+  const styles = useStyles();
+  return (
+    <View style={styles.separatorTrack}>
+      <View style={styles.separator} />
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[3],
-    paddingVertical: 12,
-    paddingHorizontal: spacing[3],
-    backgroundColor: colors.bodyBg,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: colors.borderTranslucent,
+    gap: space.md,
+    paddingVertical: space.md + 2,
+    paddingHorizontal: space.lg + 2,
+    backgroundColor: t.surface,
   },
   first: {
-    borderTopWidth: 1,
-    borderTopLeftRadius: radius.md,
-    borderTopRightRadius: radius.md,
+    borderTopLeftRadius: radius.surface,
+    borderTopRightRadius: radius.surface,
   },
   last: {
-    borderBottomWidth: 1,
-    borderBottomLeftRadius: radius.md,
-    borderBottomRightRadius: radius.md,
+    borderBottomLeftRadius: radius.surface,
+    borderBottomRightRadius: radius.surface,
   },
   pressed: {
-    backgroundColor: colors.tertiaryBg,
+    backgroundColor: t.surfaceAlt,
   },
   main: {
     flex: 1,
-    gap: 2,
+    gap: space.xs + 2,
+  },
+  when: {
+    ...textVariants.bodyStrong,
+    color: t.text,
+  },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  duration: {
+    ...textVariants.caption,
+    fontSize: 14,
+    color: t.textMuted,
   },
   side: {
     alignItems: 'flex-end',
-    gap: spacing[1],
+    gap: space.xs + 2,
+  },
+  fare: {
+    ...textVariants.numeral,
+    fontSize: 22,
+    lineHeight: 26,
+    color: t.text,
+  },
+  separatorTrack: {
+    backgroundColor: t.surface,
   },
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.borderTranslucent,
+    height: 1,
+    backgroundColor: t.line,
+    marginLeft: space.lg + 2,
   },
-});
+}));

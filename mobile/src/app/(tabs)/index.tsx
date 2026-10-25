@@ -1,23 +1,33 @@
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { Linking, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { useActiveRide, useServiceAreas, useVehicle, useVehiclesInBounds } from '@/api/queries';
 import type { Vehicle } from '@/api/types';
-import { AlertBox } from '@/components/AlertBox';
-import { MapIconButton } from '@/components/MapIconButton';
-import { NearbyCard } from '@/features/map/NearbyCard';
-import { ReservationCard } from '@/features/map/ReservationCard';
-import { RideInProgressCard } from '@/features/map/RideInProgressCard';
-import { VehicleCard } from '@/features/map/VehicleCard';
+import type { SheetFrameProps } from '@/components/BottomSheet';
+import { MapButton } from '@/components/MapButton';
+import { Notice } from '@/components/Notice';
+import { Wordmark } from '@/components/Wordmark';
+import { FOCUS_ZOOM } from '@/features/map/mapConfig';
+import { NearbySheet } from '@/features/map/NearbySheet';
+import { nearestRentable } from '@/features/map/nearest';
+import { ReservationSheet } from '@/features/map/ReservationSheet';
+import { RideSheet } from '@/features/map/RideSheet';
 import { VehicleMap, type VehicleMapHandle } from '@/features/map/VehicleMap';
+import { VehicleSheet } from '@/features/map/VehicleSheet';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import { DEFAULT_REGION, isInBounds, regionToBounds, type MapRegion } from '@/lib/geo';
+import { haptics } from '@/lib/haptics';
 import { useReservation } from '@/ride/ReservationProvider';
-import { colors, spacing } from '@/theme';
+import { makeStyles, radius, space, useTheme } from '@/theme';
 
 export default function MapScreen() {
+  const theme = useTheme();
+  const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const mapRef = useRef<VehicleMapHandle>(null);
   const centeredOnUser = useRef(false);
@@ -25,7 +35,7 @@ export default function MapScreen() {
   const { permission, location, refresh: refreshLocation } = useUserLocation();
   const [region, setRegion] = useState<MapRegion>(DEFAULT_REGION);
   const [selected, setSelected] = useState<Vehicle | null>(null);
-  const [panelHeight, setPanelHeight] = useState(0);
+  const [sheetHeight, setSheetHeight] = useState(0);
   const [vanishedNotice, setVanishedNotice] = useState(false);
 
   const activeRideQuery = useActiveRide();
@@ -48,7 +58,7 @@ export default function MapScreen() {
   }, [location]);
 
   // Seçim, render sırasında türetilen koşullara göre bırakılır (efekt yerine React'in önerdiği kalıp):
-  // - rezervasyon ya da sürüş başlayınca seçim kartı yerini onlara bırakır;
+  // - rezervasyon ya da sürüş başlayınca seçim paneli yerini onlara bırakır;
   // - seçili araç görünen alandaysa ama yenilenen listede yoksa başkası rezerve etmiştir.
   const vehiclesSettled = vehiclesQuery.isSuccess && !vehiclesQuery.isFetching && !vehiclesQuery.isPlaceholderData;
   if (selected && busy) {
@@ -63,10 +73,10 @@ export default function MapScreen() {
     setVanishedNotice(true);
   }
 
-  // Seçili aracın en güncel bilgisi; harita başka yere kaydırılsa da kart açık kalır.
+  // Seçili aracın en güncel bilgisi; harita başka yere kaydırılsa da panel açık kalır.
   const selectedVehicle = selected ? (available.find((vehicle) => vehicle.id === selected.id) ?? selected) : null;
 
-  // Sürüşte diğer araçlar gizlenir; rezervasyonda sürücünün aracı "Rezerve" rengiyle görünür.
+  // Sürüşte diğer araçlar gizlenir; rezervasyonda sürücünün aracı seçili gibi vurgulanır.
   const markers: Vehicle[] = useMemo(() => {
     if (activeRide) return [];
     const others = available.filter((vehicle) => vehicle.id !== reservation?.vehicleId);
@@ -76,7 +86,23 @@ export default function MapScreen() {
   const onSelect = (vehicleId: string | null) => {
     if (busy) return;
     setVanishedNotice(false);
-    setSelected(vehicleId ? (available.find((vehicle) => vehicle.id === vehicleId) ?? null) : null);
+    const next = vehicleId ? (available.find((vehicle) => vehicle.id === vehicleId) ?? null) : null;
+    if (next && next.id !== selected?.id) haptics.select();
+    setSelected(next);
+  };
+
+  // Konum yoksa haritanın ortasına en yakın olan.
+  const nearest = useMemo(
+    () => nearestRentable(available, location ?? { latitude: region.latitude, longitude: region.longitude }),
+    [available, location, region.latitude, region.longitude],
+  );
+
+  const showNearest = () => {
+    if (!nearest) return;
+    haptics.select();
+    setVanishedNotice(false);
+    setSelected(nearest);
+    mapRef.current?.centerOn(nearest, FOCUS_ZOOM + 1);
   };
 
   const centerOnUser = async () => {
@@ -84,25 +110,103 @@ export default function MapScreen() {
     if (current) mapRef.current?.centerOn(current);
   };
 
-  let panel;
+  const notices = [
+    permission === 'denied' ? (
+      <Notice
+        key="permission"
+        tone="warning"
+        action={{ label: 'Ayarları aç', onPress: () => void Linking.openSettings() }}>
+        Konum izni kapalı. Yakındaki scooter&apos;ları görmek ve sürüşü bitirdiğin yeri kaydetmek için konum gerekir.
+      </Notice>
+    ) : null,
+    expired ? (
+      <Notice key="expired" tone="warning" onDismiss={dismissExpired}>
+        Rezervasyonun süresi doldu; scooter yeniden müsait.
+      </Notice>
+    ) : null,
+    vanishedNotice ? (
+      <Notice key="vanished" tone="info" onDismiss={() => setVanishedNotice(false)}>
+        Seçtiğin scooter artık müsait değil.
+      </Notice>
+    ) : null,
+    vehiclesQuery.isError && !activeRide ? (
+      <Notice
+        key="vehicles"
+        tone="danger"
+        action={{ label: 'Tekrar dene', onPress: () => void vehiclesQuery.refetch() }}>
+        {errorMessage(vehiclesQuery.error)}
+      </Notice>
+    ) : null,
+    activeRideQuery.isError ? (
+      <Notice key="ride" tone="danger" action={{ label: 'Tekrar dene', onPress: () => void activeRideQuery.refetch() }}>
+        {errorMessage(activeRideQuery.error)}
+      </Notice>
+    ) : null,
+  ].filter(Boolean);
+
+  const frame: SheetFrameProps = {
+    onVisibleHeightChange: setSheetHeight,
+    notices: notices.length > 0 ? <View style={styles.notices}>{notices}</View> : null,
+    accessory: (
+      <>
+        <MapButton icon="locate" label="Konumuma git" onPress={() => void centerOnUser()} />
+        {!activeRide ? (
+          <MapButton
+            icon="refresh"
+            label="Scooter'ları yenile"
+            busy={vehiclesQuery.isFetching && !vehiclesQuery.isPending}
+            onPress={() => {
+              void vehiclesQuery.refetch();
+              void activeRideQuery.refetch();
+            }}
+          />
+        ) : null}
+      </>
+    ),
+  };
+
+  let sheet;
   if (activeRide) {
-    panel = <RideInProgressCard ride={activeRide} onCompleted={(rideId) => router.push(`/ride/${rideId}`)} />;
+    sheet = (
+      <RideSheet key="ride" {...frame} ride={activeRide} onCompleted={(rideId) => router.push(`/ride/${rideId}`)} />
+    );
   } else if (reservation) {
-    panel = <ReservationCard reservation={reservation} vehicle={reservedVehicle} userLocation={location} />;
+    sheet = (
+      <ReservationSheet
+        key="reservation"
+        {...frame}
+        reservation={reservation}
+        vehicle={reservedVehicle}
+        userLocation={location}
+      />
+    );
   } else if (selectedVehicle) {
-    panel = <VehicleCard vehicle={selectedVehicle} userLocation={location} onClose={() => setSelected(null)} />;
+    sheet = (
+      <VehicleSheet
+        key="vehicle"
+        {...frame}
+        vehicle={selectedVehicle}
+        userLocation={location}
+        onClose={() => setSelected(null)}
+      />
+    );
   } else {
-    panel = (
-      <NearbyCard
+    sheet = (
+      <NearbySheet
+        key="nearby"
+        {...frame}
         loading={vehiclesQuery.isPending}
         shown={available.length}
         total={vehiclesQuery.data?.totalCount ?? 0}
+        canShowNearest={nearest !== null}
+        onShowNearest={showNearest}
       />
     );
   }
 
   return (
     <View style={styles.root}>
+      <StatusBar style={theme.statusBar} />
       <VehicleMap
         ref={mapRef}
         vehicles={markers}
@@ -111,71 +215,39 @@ export default function MapScreen() {
         selectedId={reservation?.vehicleId ?? selectedVehicle?.id ?? null}
         initialRegion={DEFAULT_REGION}
         userLocation={permission === 'granted' ? location : null}
-        bottomInset={panelHeight}
+        bottomInset={sheetHeight}
+        scheme={theme.scheme}
         onSelect={onSelect}
         onRegionChange={setRegion}
       />
 
-      <View style={styles.fabs}>
-        <MapIconButton icon="locate" label="Konumuma git" onPress={centerOnUser} />
-        <MapIconButton
-          icon="refresh"
-          label="Araçları yenile"
-          onPress={() => {
-            void vehiclesQuery.refetch();
-            void activeRideQuery.refetch();
-          }}
-        />
+      <View style={[styles.brand, { top: insets.top + space.md }]} pointerEvents="none">
+        <Wordmark size={24} />
       </View>
 
-      <View style={styles.panel} onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}>
-        {permission === 'denied' ? (
-          <AlertBox tone="warning" action={{ label: 'Ayarları aç', onPress: () => void Linking.openSettings() }}>
-            Konum izni yok. Yakındaki araçları görmek ve sürüşü bitirdiğin yeri kaydetmek için konum gerekir.
-          </AlertBox>
-        ) : null}
-        {expired ? (
-          <AlertBox tone="warning" onDismiss={dismissExpired}>
-            Rezervasyon süresi doldu; araç yeniden müsait.
-          </AlertBox>
-        ) : null}
-        {vanishedNotice ? (
-          <AlertBox tone="info" onDismiss={() => setVanishedNotice(false)}>
-            Seçtiğin araç artık müsait değil.
-          </AlertBox>
-        ) : null}
-        {vehiclesQuery.isError && !activeRide ? (
-          <AlertBox tone="danger" action={{ label: 'Tekrar dene', onPress: () => void vehiclesQuery.refetch() }}>
-            {errorMessage(vehiclesQuery.error)}
-          </AlertBox>
-        ) : null}
-        {activeRideQuery.isError ? (
-          <AlertBox tone="danger" action={{ label: 'Tekrar dene', onPress: () => void activeRideQuery.refetch() }}>
-            {errorMessage(activeRideQuery.error)}
-          </AlertBox>
-        ) : null}
-        {panel}
-      </View>
+      {sheet}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   root: {
     flex: 1,
-    backgroundColor: colors.tertiaryBg,
+    // Panel küçülünce alt kısmı sekme çubuğunun üstüne taşmasın.
+    overflow: 'hidden',
+    backgroundColor: t.bg,
   },
-  fabs: {
+  brand: {
     position: 'absolute',
-    top: spacing[3],
-    right: spacing[3],
-    gap: spacing[2],
+    left: space.lg,
+    backgroundColor: t.brand,
+    borderRadius: radius.control - 4,
+    paddingHorizontal: space.md,
+    paddingTop: 1,
+    paddingBottom: 3,
+    boxShadow: t.floatShadow,
   },
-  panel: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 12,
-    gap: spacing[2],
+  notices: {
+    gap: space.sm,
   },
-});
+}));

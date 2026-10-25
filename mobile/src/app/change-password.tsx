@@ -5,13 +5,14 @@ import { TextInput, View } from 'react-native';
 import { errorMessage } from '@/api/client';
 import { accountApi } from '@/api/scootly';
 import { useAuth } from '@/auth/AuthProvider';
-import { AlertBox } from '@/components/AlertBox';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
+import { Notice } from '@/components/Notice';
 import { PasswordRules } from '@/components/PasswordRules';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { validatePassword } from '@/domain/validation';
+import { space } from '@/theme';
 
 type FieldErrors = { current?: string | null; next?: string | null; confirmation?: string | null };
 
@@ -31,7 +32,7 @@ export default function ChangePasswordScreen() {
 
   const submit = async () => {
     const errors: FieldErrors = {
-      current: current ? null : 'Mevcut parolanızı girin.',
+      current: current ? null : 'Mevcut parolanı gir.',
       next: validatePassword(next) ?? (next === current ? 'Yeni parola mevcut paroladan farklı olmalı.' : null),
       confirmation: confirmation === next ? null : 'Parolalar eşleşmiyor.',
     };
@@ -55,32 +56,34 @@ export default function ChangePasswordScreen() {
   if (done) {
     return (
       <Screen edges={['bottom']}>
-        <AlertBox tone="success" title="Parolan değiştirildi">
+        <Notice tone="success" title="Parolan değiştirildi">
           Diğer cihazlardaki oturumların kapatıldı; bu cihazda oturumun açık kalıyor.
-        </AlertBox>
-        <Button title="Tamam" onPress={() => router.back()} />
+        </Notice>
+        <Button title="Tamam" size="lg" onPress={() => router.back()} />
       </Screen>
     );
   }
 
   return (
     <Screen keyboard edges={['bottom']}>
-      {error ? <AlertBox tone="danger">{error}</AlertBox> : null}
+      <AppText muted>Parolan değişince diğer cihazlardaki oturumların kapanır.</AppText>
 
-      <View>
-        <TextField
-          label="Mevcut parola"
-          value={current}
-          onChangeText={setCurrent}
-          error={fieldErrors.current}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="current-password"
-          textContentType="password"
-          returnKeyType="next"
-          onSubmitEditing={() => nextRef.current?.focus()}
-          editable={!submitting}
-        />
+      {error ? <Notice tone="danger">{error}</Notice> : null}
+
+      <TextField
+        label="Mevcut parola"
+        value={current}
+        onChangeText={setCurrent}
+        error={fieldErrors.current}
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="next"
+        onSubmitEditing={() => nextRef.current?.focus()}
+        editable={!submitting}
+      />
+      <View style={{ gap: space.md }}>
         <TextField
           ref={nextRef}
           label="Yeni parola"
@@ -96,26 +99,22 @@ export default function ChangePasswordScreen() {
           editable={!submitting}
         />
         <PasswordRules password={next} />
-        <TextField
-          ref={confirmationRef}
-          label="Yeni parola (tekrar)"
-          value={confirmation}
-          onChangeText={setConfirmation}
-          error={fieldErrors.confirmation}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="new-password"
-          textContentType="newPassword"
-          returnKeyType="go"
-          onSubmitEditing={() => void submit()}
-          editable={!submitting}
-        />
-        <Button title="Parolayı Değiştir" onPress={() => void submit()} loading={submitting} />
       </View>
-
-      <AppText variant="small" muted>
-        Parolan değişince diğer cihazlardaki oturumların kapanır.
-      </AppText>
+      <TextField
+        ref={confirmationRef}
+        label="Yeni parola (tekrar)"
+        value={confirmation}
+        onChangeText={setConfirmation}
+        error={fieldErrors.confirmation}
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="go"
+        onSubmitEditing={() => void submit()}
+        editable={!submitting}
+      />
+      <Button title="Parolayı değiştir" size="lg" onPress={() => void submit()} loading={submitting} />
     </Screen>
   );
 }

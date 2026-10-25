@@ -1,9 +1,14 @@
 import {
   formatCurrency,
   formatDateTime,
+  formatDayMonth,
   formatDistance,
   formatDuration,
   formatMinutes,
+  formatMonthYear,
+  formatRelativeDateTime,
+  formatWalk,
+  monthKey,
   parseServerDate,
   shortId,
 } from '../format';
@@ -67,4 +72,35 @@ describe('tarih', () => {
 
 it('kısa kimlik ilk 8 karakterdir', () => {
   expect(shortId('3f2b8c1a-0000-4000-8000-000000000000')).toBe('3f2b8c1a');
+});
+
+describe('formatWalk', () => {
+  it.each([
+    [0, '1 dk'],
+    [40, '1 dk'],
+    [240, '3 dk'],
+    [1500, '20 dk'],
+  ])('%d m → %s', (meters, expected) => {
+    expect(formatWalk(meters)).toBe(expected);
+  });
+});
+
+describe('Türkçe tarih biçimleri', () => {
+  it('ay adı ve kısa gün', () => {
+    expect(formatMonthYear(new Date(2026, 9, 24))).toBe('Ekim 2026');
+    expect(formatMonthYear(new Date(2026, 1, 1))).toBe('Şubat 2026');
+    expect(formatDayMonth(new Date(2026, 7, 5))).toBe('5 Ağu');
+  });
+
+  it('bugün, dün ve daha eskisi', () => {
+    const now = new Date(2026, 9, 24, 18, 0);
+    expect(formatRelativeDateTime(new Date(2026, 9, 24, 14, 32), now)).toBe('Bugün 14:32');
+    expect(formatRelativeDateTime(new Date(2026, 9, 23, 23, 59), now)).toBe('Dün 23:59');
+    expect(formatRelativeDateTime(new Date(2026, 9, 2, 9, 5), now)).toBe('2 Eki 09:05');
+  });
+
+  it('aynı ayın tarihleri aynı anahtarı alır', () => {
+    expect(monthKey(new Date(2026, 9, 1))).toBe(monthKey(new Date(2026, 9, 31, 23)));
+    expect(monthKey(new Date(2026, 9, 1))).not.toBe(monthKey(new Date(2025, 9, 1)));
+  });
 });

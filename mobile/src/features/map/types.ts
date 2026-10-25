@@ -1,9 +1,10 @@
 import type { ServiceArea, Vehicle } from '@/api/types';
 import type { LatLng, MapRegion } from '@/lib/geo';
+import type { Scheme } from '@/theme';
 
 export type VehicleMapHandle = {
-  /** Noktayı, alttaki kartın üstünde kalan alanın ortasına getirir. */
-  centerOn: (point: LatLng) => void;
+  /** Noktayı, alttaki panelin üstünde kalan alanın ortasına getirir. */
+  centerOn: (point: LatLng, zoom?: number) => void;
 };
 
 export type VehicleMapProps = {
@@ -14,9 +15,11 @@ export type VehicleMapProps = {
   initialRegion: MapRegion;
   /** Sürücünün konumu (mavi nokta); izin yoksa null. */
   userLocation: LatLng | null;
-  /** Haritanın altını kaplayan kartın yüksekliği; bildirilen alan ve odak bunun üstünde kalır. */
+  /** Haritanın altını kaplayan panelin yüksekliği; bildirilen alan ve odak bunun üstünde kalır. */
   bottomInset: number;
+  /** Açık ya da koyu harita */
+  scheme: Scheme;
   onSelect: (vehicleId: string | null) => void;
-  /** Görünen alan değişince (kartın altında kalan kısım hariç). */
+  /** Görünen alan değişince (panelin altında kalan kısım hariç). */
   onRegionChange: (region: MapRegion) => void;
 };

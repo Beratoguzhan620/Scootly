@@ -1,12 +1,15 @@
-import { colors } from './tokens';
+import type { Theme } from './palette';
+import { fontFamily } from './typography';
 
-/**
- * Başlık çubuğu panelin `navbar-dark bg-dark` çubuğu gibi: koyu zemin, beyaz başlık, solda marka.
- */
-export const headerOptions = {
-  headerStyle: { backgroundColor: colors.navbar },
-  headerTintColor: colors.navbarText,
-  headerTitleStyle: { fontWeight: '500' as const },
-  headerTitleAlign: 'left' as const,
-  headerShadowVisible: false,
-};
+/** Yığın ekranlarının başlık çubuğu: ekran zeminiyle bütün, gölgesiz, lacivert başlık. */
+export function stackHeaderOptions(theme: Theme) {
+  return {
+    headerStyle: { backgroundColor: theme.bg },
+    headerTintColor: theme.text,
+    headerTitleStyle: { fontFamily: fontFamily.semibold, fontSize: 18, color: theme.text },
+    headerTitleAlign: 'center' as const,
+    headerShadowVisible: false,
+    headerBackButtonDisplayMode: 'minimal' as const,
+    contentStyle: { backgroundColor: theme.bg },
+  };
+}

@@ -1,7 +1,7 @@
 import type { ExpoConfig } from 'expo/config';
 
-/** Panelin koyu navbar rengi; simge, açılış ekranı ve uygulama içi açılış görünümü aynı zemini kullanır. */
-const BRAND_DARK = '#212529';
+/** Marka sarısı (voltaj sarısı); simge, açılış ekranı ve uygulama içi açılış görünümü aynı zemini kullanır. */
+const BRAND_VOLT = '#FFD60A';
 
 /**
  * Release derlemede API'ye düz HTTP ile bağlanılabilsin mi? Test sürümlerinde API, bilgisayarın yerel ağ
@@ -20,8 +20,8 @@ const config: ExpoConfig = {
   version: '0.1.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
-  // Panel yalnızca açık temayı kullanıyor; mobil de aynı görünümle başlıyor.
-  userInterfaceStyle: 'light',
+  // Uygulama telefonun açık/koyu tema ayarını izler.
+  userInterfaceStyle: 'automatic',
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.scootly.mobile',
@@ -31,7 +31,7 @@ const config: ExpoConfig = {
     package: 'com.scootly.mobile',
     versionCode,
     adaptiveIcon: {
-      backgroundColor: BRAND_DARK,
+      backgroundColor: BRAND_VOLT,
       foregroundImage: './assets/android-icon-foreground.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
@@ -60,7 +60,7 @@ const config: ExpoConfig = {
         image: './assets/splash-icon.png',
         imageWidth: 160,
         resizeMode: 'contain',
-        backgroundColor: BRAND_DARK,
+        backgroundColor: BRAND_VOLT,
       },
     ],
     [

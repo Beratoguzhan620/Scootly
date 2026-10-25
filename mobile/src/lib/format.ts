@@ -40,6 +40,51 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1).replace('.', ',')} km`;
 }
 
+/** Yürüme süresi: kuş uçuşu mesafe, şehir içinde dakikada ~75 m. "3 dk" */
+export function formatWalk(meters: number): string {
+  return `${Math.max(1, Math.round(meters / 75))} dk`;
+}
+
+const MONTHS = [
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
+];
+const SHORT_MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+
+/** "Ekim 2026" — liste bölüm başlıkları için. */
+export function formatMonthYear(date: Date): string {
+  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/** "24 Eki" */
+export function formatDayMonth(date: Date): string {
+  return `${date.getDate()} ${SHORT_MONTHS[date.getMonth()]}`;
+}
+
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+/** "Bugün 14:32", "Dün 09:05", "24 Eki 14:32" (yerel saat). */
+export function formatRelativeDateTime(date: Date, now: Date = new Date()): string {
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+  const day = days === 0 ? 'Bugün' : days === 1 ? 'Dün' : formatDayMonth(date);
+  return `${day} ${formatTime(date)}`;
+}
+
+/** Aynı ay ve yıla düşen tarihler için anahtar: "2026-9" */
+export function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}`;
+}
+
 /** Panel gibi kimliklerin ilk 8 karakteri. */
 export function shortId(id: string): string {
   return id.slice(0, 8);

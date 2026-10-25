@@ -1,16 +1,16 @@
 import type { ErrorBoundaryProps } from 'expo-router';
 
-import { AlertBox } from './AlertBox';
 import { Button } from './Button';
+import { Notice } from './Notice';
 import { Screen } from './Screen';
 
-/** Ekranlardan biri çökerse: panelin hata uyarısı görünümünde mesaj ve yeniden deneme. */
+/** Ekranlardan biri çökerse: ne olduğunu söyleyen mesaj ve yeniden deneme. */
 export function RouteErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   return (
     <Screen edges={['top', 'bottom']}>
-      <AlertBox tone="danger" title="Beklenmeyen bir hata oluştu">
-        {error.message || 'Ekran yüklenemedi.'}
-      </AlertBox>
+      <Notice tone="danger" title="Bu ekran açılamadı">
+        {error.message || 'Beklenmeyen bir hata oluştu.'}
+      </Notice>
       <Button title="Tekrar dene" onPress={() => void retry()} />
     </Screen>
   );

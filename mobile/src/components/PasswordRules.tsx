@@ -1,21 +1,24 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Icon } from './Icon';
 import { checkPassword } from '@/domain/validation';
-import { colors, spacing, typography } from '@/theme';
+import { space, textVariants, useTheme } from '@/theme';
 
-/** Parola yazılırken Identity kurallarını canlı gösteren liste. */
+/** Parola yazılırken kuralları canlı gösteren liste. */
 export function PasswordRules({ password }: { password: string }) {
+  const theme = useTheme();
   return (
     <View style={styles.list} accessibilityLabel="Parola kuralları">
       {checkPassword(password).map((rule) => (
         <View key={rule.key} style={styles.row} accessibilityState={{ checked: rule.met }}>
-          <Ionicons
+          <Icon
             name={rule.met ? 'checkmark-circle' : 'ellipse-outline'}
-            size={16}
-            color={rule.met ? colors.success : colors.muted}
+            size={17}
+            color={rule.met ? theme.positive.solid : theme.textSubtle}
           />
-          <Text style={[styles.text, rule.met && styles.met]}>{rule.label}</Text>
+          <Text style={[textVariants.caption, { color: rule.met ? theme.positive.fg : theme.textMuted }]}>
+            {rule.label}
+          </Text>
         </View>
       ))}
     </View>
@@ -24,20 +27,12 @@ export function PasswordRules({ password }: { password: string }) {
 
 const styles = StyleSheet.create({
   list: {
-    gap: spacing[1],
-    marginTop: -spacing[2],
-    marginBottom: spacing[3],
+    gap: space.xs + 2,
+    paddingHorizontal: space.xxs,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  text: {
-    ...typography.small,
-    color: colors.muted,
-  },
-  met: {
-    color: colors.success,
+    gap: space.sm,
   },
 });

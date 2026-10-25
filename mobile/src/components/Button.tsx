@@ -1,86 +1,58 @@
-import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, disabledOpacity, radius, typography } from '@/theme';
+import { Icon, type IconName } from './Icon';
+import { disabledOpacity, minTouchSize, radius, space, textVariants, useTheme, type Theme } from '@/theme';
 
-type VariantStyle = {
-  bg: string;
-  border: string;
-  text: string;
-  pressedBg: string;
-  pressedBorder: string;
-  pressedText?: string;
-  underline?: boolean;
-};
-
-const solid = (bg: string, pressedBg: string, pressedBorder: string, text: string = colors.white): VariantStyle => ({
-  bg,
-  border: bg,
-  text,
-  pressedBg,
-  pressedBorder,
-});
-
-const outline = (color: string): VariantStyle => ({
-  bg: 'transparent',
-  border: color,
-  text: color,
-  pressedBg: color,
-  pressedBorder: color,
-  pressedText: colors.white,
-});
-
-/** Bootstrap 5.3.3 buton renkleri; basılı hali `:active` durumunun renkleridir. */
-const variants = {
-  primary: solid(colors.primary, '#0a58ca', '#0a53be'),
-  secondary: solid(colors.secondary, '#565e64', '#51585e'),
-  success: solid(colors.success, '#146c43', '#13653f'),
-  danger: solid(colors.danger, '#b02a37', '#a52834'),
-  light: solid(colors.light, '#c6c7c8', '#babbbc', colors.black),
-  'outline-primary': outline(colors.primary),
-  'outline-secondary': outline(colors.secondary),
-  'outline-success': outline(colors.success),
-  'outline-danger': outline(colors.danger),
-  link: {
-    bg: 'transparent',
-    border: 'transparent',
-    text: colors.link,
-    pressedBg: 'transparent',
-    pressedBorder: 'transparent',
-    pressedText: '#0a58ca',
-    underline: true,
-  },
-} satisfies Record<string, VariantStyle>;
-
-export type ButtonVariant = keyof typeof variants;
+export type ButtonVariant = 'primary' | 'strong' | 'secondary' | 'ghost' | 'danger' | 'dangerGhost';
 
 type Props = {
   title: string;
-  onPress?: () => void;
+  onPress: () => void;
+  /** primary: sarı levha (ekranın asıl eylemi) · strong: lacivert · secondary: gri · ghost: yalın metin */
   variant?: ButtonVariant;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'md' | 'lg';
+  icon?: IconName;
   loading?: boolean;
   disabled?: boolean;
-  /** Simge, butonun o anki yazı rengiyle çizilir. */
-  icon?: (color: string) => ReactNode;
+  /** Kendi genişliği kadar (varsayılan: satırı doldurur) */
+  inline?: boolean;
   style?: StyleProp<ViewStyle>;
   accessibilityHint?: string;
   testID?: string;
 };
+
+function colorsFor(theme: Theme, variant: ButtonVariant) {
+  switch (variant) {
+    case 'primary':
+      return { bg: theme.brand, pressed: theme.brandPressed, text: theme.onBrand };
+    case 'strong':
+      return { bg: theme.strong, pressed: theme.strongPressed, text: theme.onStrong };
+    case 'secondary':
+      return { bg: theme.surfaceAlt, pressed: theme.lineStrong, text: theme.text };
+    case 'danger':
+      return { bg: theme.critical.solid, pressed: theme.critical.fg, text: '#FFFFFF' };
+    case 'dangerGhost':
+      return { bg: 'transparent', pressed: theme.critical.bg, text: theme.critical.fg };
+    default:
+      return { bg: 'transparent', pressed: theme.surfaceAlt, text: theme.text };
+  }
+}
 
 export function Button({
   title,
   onPress,
   variant = 'primary',
   size = 'md',
+  icon,
   loading = false,
   disabled = false,
-  icon,
+  inline = false,
   style,
   accessibilityHint,
   testID,
 }: Props) {
-  const palette: VariantStyle = variants[variant];
+  const theme = useTheme();
+  const palette = colorsFor(theme, variant);
   const inactive = disabled || loading;
 
   return (
@@ -94,61 +66,57 @@ export function Button({
       testID={testID}
       style={({ pressed }) => [
         styles.base,
-        sizes[size],
-        {
-          backgroundColor: pressed ? palette.pressedBg : palette.bg,
-          borderColor: pressed ? palette.pressedBorder : palette.border,
-        },
-        inactive && { opacity: disabledOpacity },
+        size === 'lg' ? styles.lg : styles.md,
+        inline ? styles.inline : null,
+        { backgroundColor: pressed ? palette.pressed : palette.bg },
+        pressed ? styles.pressed : null,
+        disabled && !loading ? styles.disabled : null,
         style,
       ]}>
-      {({ pressed }) => {
-        const textColor = pressed && palette.pressedText ? palette.pressedText : palette.text;
-        return (
-          <View style={styles.content}>
-            {loading ? <ActivityIndicator size="small" color={textColor} /> : icon?.(textColor)}
-            <Text
-              numberOfLines={1}
-              style={[styles.label, labelSizes[size], { color: textColor }, palette.underline && styles.underline]}>
-              {title}
-            </Text>
-          </View>
-        );
-      }}
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator color={palette.text} />
+        ) : icon ? (
+          <Icon name={icon} size={size === 'lg' ? 22 : 20} color={palette.text} />
+        ) : null}
+        <Text numberOfLines={1} style={[textVariants.button, { color: palette.text }]}>
+          {title}
+        </Text>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    borderWidth: 1,
+    minHeight: minTouchSize,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: space.xl,
+  },
+  md: {
+    height: 50,
+    borderRadius: radius.control,
+  },
+  lg: {
+    height: 58,
+    borderRadius: radius.control + 2,
+  },
+  inline: {
+    alignSelf: 'flex-start',
+    height: 44,
+    paddingHorizontal: space.lg,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: space.sm,
   },
-  label: {
-    fontWeight: '400',
-    textAlign: 'center',
+  pressed: {
+    transform: [{ scale: 0.98 }],
   },
-  underline: {
-    textDecorationLine: 'underline',
+  disabled: {
+    opacity: disabledOpacity,
   },
-});
-
-// Bootstrap ölçüleri (btn-sm / btn / btn-lg), yükseklikler dokunma hedefine göre büyütüldü.
-const sizes = StyleSheet.create({
-  sm: { minHeight: 34, paddingHorizontal: 8, borderRadius: radius.sm },
-  md: { minHeight: 44, paddingHorizontal: 12, borderRadius: radius.md },
-  lg: { minHeight: 52, paddingHorizontal: 16, borderRadius: radius.lg },
-});
-
-const labelSizes = StyleSheet.create({
-  sm: { fontSize: typography.small.fontSize },
-  md: { fontSize: typography.body.fontSize },
-  lg: { fontSize: 18 },
 });

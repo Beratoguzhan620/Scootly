@@ -1,11 +1,9 @@
 import { useState } from 'react';
-import { View } from 'react-native';
-
 import { errorMessage } from '@/api/client';
 import { accountApi } from '@/api/scootly';
 import { notices, useAuth } from '@/auth/AuthProvider';
-import { AlertBox } from '@/components/AlertBox';
 import { Button } from '@/components/Button';
+import { Notice } from '@/components/Notice';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { confirm } from '@/lib/confirm';
@@ -19,7 +17,7 @@ export default function DeleteAccountScreen() {
 
   const submit = async () => {
     if (!password) {
-      setFieldError('Hesabı silmek için parolanızı girin.');
+      setFieldError('Hesabı silmek için parolanı gir.');
       return;
     }
     setFieldError(null);
@@ -46,34 +44,33 @@ export default function DeleteAccountScreen() {
 
   return (
     <Screen keyboard edges={['bottom']}>
-      <AlertBox tone="danger" title="Bu işlem geri alınamaz">
-        Hesabın kalıcı olarak silinir ve sürüş konumların anonimleştirilir. Açık bir rezervasyonun, devam eden
-        sürüşün ya da ödenmemiş bir ücretin varsa hesap silinemez.
-      </AlertBox>
+      <Notice tone="danger" title="Bu işlem geri alınamaz">
+        Hesabın kalıcı olarak silinir ve sürüş konumların anonimleştirilir. Açık bir rezervasyonun, devam eden sürüşün
+        ya da ödenmemiş bir ücretin varsa hesap silinemez.
+      </Notice>
 
-      {error ? <AlertBox tone="warning">{error}</AlertBox> : null}
+      {error ? <Notice tone="warning">{error}</Notice> : null}
 
-      <View>
-        <TextField
-          label="Parola"
-          hint="Güvenliğin için hesabı parolanla onaylıyoruz."
-          value={password}
-          onChangeText={setPassword}
-          error={fieldError}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="current-password"
-          textContentType="password"
-          returnKeyType="done"
-          editable={!submitting}
-        />
-        <Button
-          title="Hesabımı Kalıcı Olarak Sil"
-          variant="danger"
-          onPress={() => void submit()}
-          loading={submitting}
-        />
-      </View>
+      <TextField
+        label="Parola"
+        hint="Güvenliğin için hesabı parolanla onaylıyoruz."
+        value={password}
+        onChangeText={setPassword}
+        error={fieldError}
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="done"
+        editable={!submitting}
+      />
+      <Button
+        title="Hesabımı kalıcı olarak sil"
+        variant="danger"
+        size="lg"
+        onPress={() => void submit()}
+        loading={submitting}
+      />
     </Screen>
   );
 }

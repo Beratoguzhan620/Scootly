@@ -1,93 +1,131 @@
 import { useState, type Ref } from 'react';
-import { StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { Pressable, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
-import { colors, radius, shadows, spacing, typography } from '@/theme';
+import { Icon } from './Icon';
+import { makeStyles, radius, space, textVariants, useTheme } from '@/theme';
 
 type Props = TextInputProps & {
   label: string;
-  /** `.invalid-feedback` */
   error?: string | null;
-  /** `.form-text` */
   hint?: string;
   containerStyle?: StyleProp<ViewStyle>;
   ref?: Ref<TextInput>;
 };
 
-/** Bootstrap `.form-label` + `.form-control`; odak halkası paneldeki gibi #258cfb. */
-export function TextField({ label, error, hint, containerStyle, onFocus, onBlur, style, ref, ...rest }: Props) {
+/** Etiketli form alanı. Parola alanlarında yazılanı gösterip gizleyen bir göz düğmesi vardır. */
+export function TextField({
+  label,
+  error,
+  hint,
+  containerStyle,
+  onFocus,
+  onBlur,
+  style,
+  ref,
+  secureTextEntry,
+  ...rest
+}: Props) {
+  const theme = useTheme();
+  const styles = useStyles();
   const [focused, setFocused] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const invalid = Boolean(error);
+  const secure = Boolean(secureTextEntry);
 
   return (
     <View style={[styles.container, containerStyle]}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        ref={ref}
-        accessibilityLabel={label}
-        accessibilityHint={invalid ? (error ?? undefined) : hint}
-        placeholderTextColor={colors.muted}
-        style={[
-          styles.input,
-          focused && styles.focused,
-          invalid && styles.invalid,
-          focused && invalid && styles.invalidFocused,
-          style,
-        ]}
-        onFocus={(event) => {
-          setFocused(true);
-          onFocus?.(event);
-        }}
-        onBlur={(event) => {
-          setFocused(false);
-          onBlur?.(event);
-        }}
-        {...rest}
-      />
-      {invalid ? <Text style={styles.error}>{error}</Text> : hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      <View style={[styles.field, focused && styles.focused, invalid && styles.invalid]}>
+        <TextInput
+          ref={ref}
+          accessibilityLabel={label}
+          accessibilityHint={invalid ? (error ?? undefined) : hint}
+          placeholderTextColor={theme.textSubtle}
+          selectionColor={theme.focus}
+          cursorColor={theme.focus}
+          secureTextEntry={secure && !revealed}
+          style={[styles.input, style]}
+          onFocus={(event) => {
+            setFocused(true);
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            onBlur?.(event);
+          }}
+          {...rest}
+        />
+        {secure ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? 'Parolayı gizle' : 'Parolayı göster'}
+            hitSlop={8}
+            onPress={() => setRevealed((value) => !value)}
+            style={styles.reveal}>
+            <Icon name={revealed ? 'eye-off-outline' : 'eye-outline'} size={22} color={theme.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+      {invalid ? (
+        <View style={styles.messageRow}>
+          <Icon name="alert-circle" size={16} color={theme.critical.fg} />
+          <Text style={[styles.message, { color: theme.critical.fg }]}>{error}</Text>
+        </View>
+      ) : hint ? (
+        <Text style={[styles.message, styles.hint]}>{hint}</Text>
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   container: {
-    marginBottom: spacing[3],
+    gap: space.sm,
   },
   label: {
-    ...typography.body,
-    color: colors.body,
-    marginBottom: spacing[2],
+    ...textVariants.label,
+    color: t.text,
   },
-  input: {
-    ...typography.body,
-    color: colors.body,
-    backgroundColor: colors.bodyBg,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    // Web önizlemesinde tarayıcının kendi odak çerçevesi yerine panelin halkası görünsün.
-    outlineWidth: 0,
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 52,
+    borderRadius: radius.control,
+    borderWidth: 1.5,
+    borderColor: t.lineStrong,
+    backgroundColor: t.surface,
   },
   focused: {
-    borderColor: colors.focusBorder,
-    boxShadow: shadows.focus,
+    borderColor: t.focus,
   },
   invalid: {
-    borderColor: colors.danger,
+    borderColor: t.critical.solid,
   },
-  invalidFocused: {
-    boxShadow: '0px 0px 0px 4px rgba(220, 53, 69, 0.25)',
+  input: {
+    ...textVariants.body,
+    flex: 1,
+    color: t.text,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    // Web önizlemesinde tarayıcının kendi odak çerçevesi görünmesin; odak, alanın çerçevesinde.
+    outlineWidth: 0,
   },
-  error: {
-    ...typography.small,
-    color: colors.danger,
-    marginTop: spacing[1],
+  reveal: {
+    width: 48,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.xs + 2,
+  },
+  message: {
+    ...textVariants.caption,
+    flexShrink: 1,
   },
   hint: {
-    ...typography.small,
-    color: colors.muted,
-    marginTop: spacing[1],
+    color: t.textMuted,
   },
-});
+}));

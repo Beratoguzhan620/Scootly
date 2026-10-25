@@ -1,23 +1,34 @@
 import { Link, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { useApiBaseUrl } from '@/api/server';
 import { useAuth } from '@/auth/AuthProvider';
-import { AlertBox } from '@/components/AlertBox';
-import { AppText, Code } from '@/components/AppText';
+import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
-import { PanelFooter } from '@/components/PanelFooter';
+import { Notice } from '@/components/Notice';
 import { TextField } from '@/components/TextField';
+import { Wordmark } from '@/components/Wordmark';
 import { appConfig } from '@/config';
+import { RESERVATION_DURATION_MS, STANDARD_TARIFF } from '@/domain/rules';
 import { validateEmail } from '@/domain/validation';
+import { formatCurrency } from '@/lib/format';
 import { isLoopbackUrl } from '@/lib/url';
-import { colors, spacing, typography } from '@/theme';
+import { INK, makeStyles, radius, screenPadding, space, textVariants } from '@/theme';
+
+/** Fiyatlar tabela levhası gibi: kayıt olmadan önce ne ödeneceği görünsün. */
+const tariffPlates = [
+  STANDARD_TARIFF.unlockFee === 0 ? 'Açılış ücretsiz' : `Açılış ${formatCurrency(STANDARD_TARIFF.unlockFee)}`,
+  `Dakikası ${formatCurrency(STANDARD_TARIFF.perMinuteRate)}`,
+  `${RESERVATION_DURATION_MS / 60_000} dk rezervasyon`,
+];
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
+  const styles = useStyles();
   const router = useRouter();
   const apiBaseUrl = useApiBaseUrl();
   const { signIn, notice, clearNotice } = useAuth();
@@ -32,7 +43,7 @@ export default function SignInScreen() {
   const submit = async () => {
     const errors = {
       email: validateEmail(email),
-      password: password ? null : 'Parola zorunludur.',
+      password: password ? null : 'Parolanı gir.',
     };
     setFieldErrors(errors);
     if (errors.email || errors.password) return;
@@ -50,39 +61,46 @@ export default function SignInScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Panelin koyu navbar'ı: solda marka. */}
-      <View style={[styles.brandBar, { paddingTop: insets.top + spacing[2] }]}>
-        <Text style={styles.brand} accessibilityRole="header">
-          Scootly
-        </Text>
-        <Text style={styles.tagline}>Şehir içi elektrikli scooter paylaşımı</Text>
-      </View>
-
+      {/* Üstteki sarı levha her iki temada da aynı; üstündeki durum çubuğu koyu yazılı. */}
+      <StatusBar style="dark" />
       <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing[3] }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + space.xxl }]}
           keyboardShouldPersistTaps="handled">
-          <AppText variant="h1">Giriş Yap</AppText>
+          <View style={[styles.hero, { paddingTop: insets.top + space.xxxl }]}>
+            <Wordmark size={72} />
+            <Text style={styles.tagline}>Şehir içi elektrikli scooter paylaşımı</Text>
+            <View style={styles.plates}>
+              {tariffPlates.map((label) => (
+                <View key={label} style={styles.plate}>
+                  <Text style={styles.plateText}>{label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
 
-          {notice ? (
-            <AlertBox tone={notice.tone} onDismiss={clearNotice}>
-              {notice.message}
-            </AlertBox>
-          ) : null}
-          {error ? <AlertBox tone="danger">{error}</AlertBox> : null}
-          {appConfig.serverEditable && isLoopbackUrl(apiBaseUrl) ? (
-            <AlertBox tone="info" action={{ label: 'Sunucu adresini değiştir', onPress: () => router.push('/server') }}>
-              Sunucu adresi bu cihazın kendisini gösteriyor (localhost). Telefonda deniyorsan API&apos;nin çalıştığı
-              bilgisayarın IP adresini gir.
-            </AlertBox>
-          ) : null}
+          <View style={styles.form}>
+            <AppText variant="title">Giriş yap</AppText>
 
-          <View>
+            {notice ? (
+              <Notice tone={notice.tone} onDismiss={clearNotice}>
+                {notice.message}
+              </Notice>
+            ) : null}
+            {error ? <Notice tone="danger">{error}</Notice> : null}
+            {appConfig.serverEditable && isLoopbackUrl(apiBaseUrl) ? (
+              <Notice tone="info" action={{ label: 'Sunucu adresini değiştir', onPress: () => router.push('/server') }}>
+                Sunucu adresi bu cihazın kendisini gösteriyor (localhost). Telefonda deniyorsan API&apos;nin çalıştığı
+                bilgisayarın adresini gir.
+              </Notice>
+            ) : null}
+
             <TextField
               label="E-posta"
               value={email}
               onChangeText={setEmail}
               error={fieldErrors.email}
+              placeholder="ornek@eposta.com"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -106,74 +124,105 @@ export default function SignInScreen() {
               onSubmitEditing={() => void submit()}
               editable={!submitting}
             />
-            <Button title="Giriş Yap" onPress={() => void submit()} loading={submitting} />
+            <Button title="Giriş yap" variant="strong" size="lg" onPress={() => void submit()} loading={submitting} />
+
+            <View style={styles.signUpRow}>
+              <AppText muted>Hesabın yok mu?</AppText>
+              <Link href="/sign-up" style={styles.link}>
+                Kayıt ol
+              </Link>
+            </View>
           </View>
 
-          <AppText>
-            Hesabın yok mu?{' '}
-            <Link href="/sign-up" style={styles.link}>
-              Kayıt ol
-            </Link>
-          </AppText>
-
-          <PanelFooter>
-            {appConfig.serverEditable ? (
-              <View style={styles.server}>
-                <AppText variant="small" muted style={styles.serverText}>
-                  Sunucu: <Code>{apiBaseUrl}</Code>
+          {appConfig.serverEditable ? (
+            <View style={styles.server}>
+              <View style={styles.serverText}>
+                <AppText variant="caption" muted>
+                  Sunucu
                 </AppText>
-                <Link href="/server" style={styles.serverLink} accessibilityLabel="Sunucu ayarları">
-                  Değiştir
-                </Link>
+                <AppText variant="caption" numberOfLines={1}>
+                  {apiBaseUrl}
+                </AppText>
               </View>
-            ) : null}
-          </PanelFooter>
+              <Link href="/server" style={styles.link} accessibilityLabel="Sunucu ayarları">
+                Değiştir
+              </Link>
+            </View>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   root: {
     flex: 1,
-    backgroundColor: colors.bodyBg,
+    backgroundColor: t.bg,
   },
-  brandBar: {
-    backgroundColor: colors.navbar,
-    paddingHorizontal: spacing[3],
-    paddingBottom: spacing[3],
-    gap: 2,
+  scroll: {
+    flexGrow: 1,
   },
-  brand: {
-    ...typography.brand,
-    color: colors.navbarText,
+  hero: {
+    backgroundColor: t.brand,
+    paddingHorizontal: screenPadding,
+    paddingBottom: space.xxl + 4,
+    borderBottomLeftRadius: radius.sheet,
+    borderBottomRightRadius: radius.sheet,
+    gap: space.sm,
   },
   tagline: {
-    ...typography.small,
-    color: colors.navbarSubtle,
+    ...textVariants.bodyStrong,
+    fontSize: 17,
+    color: INK,
+    marginTop: -space.xs,
   },
-  content: {
-    flexGrow: 1,
-    padding: spacing[3],
-    gap: spacing[3],
+  plates: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    marginTop: space.md,
+  },
+  plate: {
+    borderWidth: 1.5,
+    borderColor: INK,
+    borderRadius: radius.plate,
+    paddingHorizontal: space.sm + 2,
+    paddingVertical: 3,
+  },
+  plateText: {
+    ...textVariants.captionStrong,
+    fontSize: 14,
+    color: INK,
+  },
+  form: {
+    paddingHorizontal: screenPadding,
+    paddingTop: space.xxl + 4,
+    gap: space.lg,
+  },
+  signUpRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: space.xs + 2,
+    paddingVertical: space.xs,
   },
   link: {
-    color: colors.link,
+    ...textVariants.bodyStrong,
+    color: t.text,
     textDecorationLine: 'underline',
+    paddingVertical: space.sm,
   },
   server: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[2],
+    gap: space.md,
+    marginTop: 'auto',
+    marginHorizontal: screenPadding,
+    paddingTop: space.xxl,
   },
   serverText: {
-    flexShrink: 1,
+    flex: 1,
+    gap: 1,
   },
-  serverLink: {
-    ...typography.small,
-    color: colors.link,
-    textDecorationLine: 'underline',
-    paddingVertical: spacing[2],
-  },
-});
+}));

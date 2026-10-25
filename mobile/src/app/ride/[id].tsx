@@ -1,70 +1,97 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { queryKeys, usePaymentStatus, useRide } from '@/api/queries';
 import type { PaymentStatus, Ride } from '@/api/types';
-import { AlertBox } from '@/components/AlertBox';
-import { AppText, Code } from '@/components/AppText';
-import { PaymentStatusBadge, RideStatusBadge } from '@/components/Badge';
+import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
-import { KeyValueRow, ListGroup } from '@/components/ListGroup';
+import { Notice } from '@/components/Notice';
+import { Plate } from '@/components/Plate';
+import { InfoRow, RowGroup } from '@/components/Rows';
 import { Screen } from '@/components/Screen';
 import { LoadingView } from '@/components/StateViews';
-import { formatCurrency, formatDateTime, formatDuration, parseServerDate, shortId } from '@/lib/format';
-import { colors, spacing, subtle } from '@/theme';
+import { PaymentStatusPill, RideStatusPill } from '@/components/StatusPill';
+import { Surface } from '@/components/Surface';
+import { formatCurrency, formatDayMonth, formatMinutes, formatTime, parseServerDate } from '@/lib/format';
+import { makeStyles, space, textVariants, useTheme } from '@/theme';
 
 function PaymentNotice({ status }: { status: PaymentStatus }) {
+  const theme = useTheme();
   switch (status) {
     case 'Pending':
       return (
-        <AlertBox tone="info">
-          <View style={styles.pending}>
-            <ActivityIndicator color={subtle.info.text} />
-            <AppText color={subtle.info.text} style={styles.flex}>
+        <Notice tone="info">
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            <ActivityIndicator color={theme.info.fg} />
+            <AppText color={theme.info.fg} style={{ flex: 1 }}>
               Ödemen işleniyor. Bu ekranı kapatabilirsin; sonucu Sürüşlerim&apos;de görürsün.
             </AppText>
           </View>
-        </AlertBox>
+        </Notice>
       );
     case 'Paid':
-      return <AlertBox tone="success">Ödeme alındı. İyi yolculuklar!</AlertBox>;
+      return <Notice tone="success">Ödeme alındı. İyi yolculuklar!</Notice>;
     case 'Failed':
       return (
-        <AlertBox tone="danger" title="Ödeme alınamadı">
+        <Notice tone="danger" title="Ödeme alınamadı">
           Tahsilat operasyon ekibine devredildi; seninle iletişime geçilecek.
-        </AlertBox>
+        </Notice>
       );
     default:
-      return <AlertBox tone="info">Sürüş devam ediyor; ücret sürüş bitince hesaplanır.</AlertBox>;
+      return <Notice tone="info">Sürüş devam ediyor; ücret sürüş bitince hesaplanır.</Notice>;
   }
 }
 
-function RideDetails({ ride }: { ride: Ride }) {
+/** Başlangıçtan bitişe iki duraklı zaman çizelgesi. */
+function Timeline({ ride }: { ride: Ride }) {
+  const styles = useStyles();
   const startedAt = parseServerDate(ride.startedAt);
   const endedAt = ride.endedAt ? parseServerDate(ride.endedAt) : null;
 
   return (
-    <Card header="Ayrıntılar" bodyStyle={styles.detailsBody}>
-      <ListGroup flush>
-        <KeyValueRow label="Başlangıç" value={formatDateTime(startedAt)} />
-        <KeyValueRow label="Bitiş" value={endedAt ? formatDateTime(endedAt) : '—'} />
-        <KeyValueRow
-          label="Süre"
-          value={endedAt ? formatDuration(endedAt.getTime() - startedAt.getTime()) : '—'}
-        />
-        <KeyValueRow label="Araç" value={<Code>{shortId(ride.vehicleId)}</Code>} />
-        <KeyValueRow label="Sürüş" value={<Code>{shortId(ride.id)}</Code>} />
-      </ListGroup>
-    </Card>
+    <Surface style={styles.timeline}>
+      <View style={styles.stop}>
+        <View style={styles.rail}>
+          <View style={[styles.dot, styles.dotStart]} />
+          <View style={styles.line} />
+        </View>
+        <View style={styles.stopText}>
+          <Text style={styles.time}>{formatTime(startedAt)}</Text>
+          <AppText muted variant="caption">{`Başlangıç, ${formatDayMonth(startedAt)}`}</AppText>
+        </View>
+      </View>
+      <View style={styles.stop}>
+        <View style={styles.rail}>
+          <View style={styles.line} />
+        </View>
+        <View style={[styles.stopText, styles.durationRow]}>
+          <AppText variant="label" muted>
+            {endedAt ? formatMinutes(endedAt.getTime() - startedAt.getTime()) : 'Sürüyor'}
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.stop}>
+        <View style={styles.rail}>
+          <View style={[styles.line, styles.lineEnd]} />
+          <View style={[styles.dot, styles.dotEnd]} />
+        </View>
+        <View style={styles.stopText}>
+          <Text style={styles.time}>{endedAt ? formatTime(endedAt) : '—'}</Text>
+          <AppText muted variant="caption">
+            {endedAt ? `Bitiş, ${formatDayMonth(endedAt)}` : 'Bitiş'}
+          </AppText>
+        </View>
+      </View>
+    </Surface>
   );
 }
 
 export default function RideSummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const styles = useStyles();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -82,70 +109,120 @@ export default function RideSummaryScreen() {
     }
   }, [paymentStatus, queryClient]);
 
-  if (rideQuery.isPending) return <LoadingView message="Sürüş yükleniyor..." />;
+  if (rideQuery.isPending) return <LoadingView message="Sürüş yükleniyor…" />;
 
   if (rideQuery.isError || !ride) {
     return (
       <Screen edges={['bottom']}>
-        <AlertBox tone="danger" action={{ label: 'Tekrar dene', onPress: () => void rideQuery.refetch() }}>
+        <Notice tone="danger" action={{ label: 'Tekrar dene', onPress: () => void rideQuery.refetch() }}>
           {errorMessage(rideQuery.error, 'Sürüş bulunamadı.')}
-        </AlertBox>
+        </Notice>
       </Screen>
     );
   }
 
+  const active = ride.status === 'Active';
+
   return (
     <Screen edges={['bottom']}>
-      <View style={styles.summary}>
-        <AppText variant="small" muted>
-          {ride.status === 'Active' ? 'Tahmini ücret sürüş bitince hesaplanır' : 'Toplam ücret'}
+      <View
+        style={styles.summary}
+        accessible
+        accessibilityLabel={fare !== null ? `Toplam ücret ${formatCurrency(fare)}` : undefined}>
+        <AppText variant="label" muted>
+          {active ? 'Ücret sürüş bitince hesaplanır' : 'Toplam ücret'}
         </AppText>
-        <AppText variant="h1" style={styles.fare}>
-          {fare !== null ? formatCurrency(fare) : '—'}
-        </AppText>
-        <View style={styles.badges}>
-          <RideStatusBadge status={ride.status} />
-          {paymentStatus && ride.status !== 'Active' ? <PaymentStatusBadge status={paymentStatus} /> : null}
+        <Text style={styles.fare}>{fare !== null ? formatCurrency(fare) : '—'}</Text>
+        <View style={styles.pills}>
+          <RideStatusPill status={ride.status} />
+          {paymentStatus && !active ? <PaymentStatusPill status={paymentStatus} /> : null}
         </View>
       </View>
 
-      {paymentStatus ? <PaymentNotice status={ride.status === 'Active' ? 'NotYetCharged' : paymentStatus} /> : null}
+      {paymentStatus ? <PaymentNotice status={active ? 'NotYetCharged' : paymentStatus} /> : null}
 
       {ride.status === 'Abandoned' ? (
         <AppText muted>Uzun süre açık kalan sürüşler sistem tarafından sonlandırılır.</AppText>
       ) : null}
 
-      <RideDetails ride={ride} />
+      <Timeline ride={ride} />
 
-      <Button title="Haritaya Dön" onPress={() => router.navigate('/')} />
+      <RowGroup>
+        <InfoRow label="Scooter" value={<Plate id={ride.vehicleId} kind="Araç" />} />
+        <InfoRow label="Sürüş kodu" value={<Plate id={ride.id} kind="Sürüş" />} />
+      </RowGroup>
+
+      <Button title="Haritaya dön" size="lg" icon="map" onPress={() => router.navigate('/')} />
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((t) => ({
   summary: {
     alignItems: 'center',
-    gap: spacing[1],
-    paddingVertical: spacing[3],
+    gap: space.xs,
+    paddingTop: space.lg,
+    paddingBottom: space.sm,
   },
   fare: {
-    fontSize: 40,
-    lineHeight: 48,
-    color: colors.body,
+    ...textVariants.display,
+    fontSize: 64,
+    lineHeight: 68,
+    color: t.text,
   },
-  badges: {
+  pills: {
     flexDirection: 'row',
-    gap: spacing[2],
+    gap: space.sm,
+    marginTop: space.xs,
   },
-  pending: {
+  timeline: {
+    gap: 0,
+    paddingVertical: space.lg,
+  },
+  stop: {
     flexDirection: 'row',
+    gap: space.md + 2,
+  },
+  rail: {
+    width: 16,
     alignItems: 'center',
-    gap: spacing[2],
   },
-  flex: {
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 3,
+  },
+  dotStart: {
+    borderColor: t.text,
+    backgroundColor: t.surface,
+    marginTop: 7,
+  },
+  dotEnd: {
+    borderColor: t.text,
+    backgroundColor: t.brand,
+  },
+  line: {
     flex: 1,
+    width: 2,
+    backgroundColor: t.lineStrong,
   },
-  detailsBody: {
-    paddingVertical: spacing[1],
+  lineEnd: {
+    flex: 0,
+    height: 7,
   },
-});
+  stopText: {
+    flex: 1,
+    gap: 0,
+    paddingBottom: space.xs,
+  },
+  durationRow: {
+    paddingVertical: space.sm,
+  },
+  time: {
+    ...textVariants.numeral,
+    fontSize: 26,
+    lineHeight: 30,
+    color: t.text,
+  },
+}));

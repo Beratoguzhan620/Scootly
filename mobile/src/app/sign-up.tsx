@@ -3,13 +3,14 @@ import { TextInput, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
-import { AlertBox } from '@/components/AlertBox';
 import { AppText } from '@/components/AppText';
 import { Button } from '@/components/Button';
+import { Notice } from '@/components/Notice';
 import { PasswordRules } from '@/components/PasswordRules';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { validateEmail, validatePassword } from '@/domain/validation';
+import { space } from '@/theme';
 
 type FieldErrors = { email?: string | null; password?: string | null; confirmation?: string | null };
 
@@ -46,25 +47,26 @@ export default function SignUpScreen() {
 
   return (
     <Screen keyboard edges={['bottom']}>
-      <AppText variant="lead">Hesabını oluştur, yakındaki scooter&apos;ları hemen kiralamaya başla.</AppText>
+      <AppText muted>Hesabını oluştur, yakındaki scooter&apos;ları hemen kiralamaya başla.</AppText>
 
-      {error ? <AlertBox tone="danger">{error}</AlertBox> : null}
+      {error ? <Notice tone="danger">{error}</Notice> : null}
 
-      <View>
-        <TextField
-          label="E-posta"
-          value={email}
-          onChangeText={setEmail}
-          error={fieldErrors.email}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoComplete="email"
-          textContentType="username"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          editable={!submitting}
-        />
+      <TextField
+        label="E-posta"
+        value={email}
+        onChangeText={setEmail}
+        error={fieldErrors.email}
+        placeholder="ornek@eposta.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="username"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        editable={!submitting}
+      />
+      <View style={{ gap: space.md }}>
         <TextField
           ref={passwordRef}
           label="Parola"
@@ -80,24 +82,24 @@ export default function SignUpScreen() {
           editable={!submitting}
         />
         <PasswordRules password={password} />
-        <TextField
-          ref={confirmationRef}
-          label="Parola (tekrar)"
-          value={confirmation}
-          onChangeText={setConfirmation}
-          error={fieldErrors.confirmation}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="new-password"
-          textContentType="newPassword"
-          returnKeyType="go"
-          onSubmitEditing={() => void submit()}
-          editable={!submitting}
-        />
-        <Button title="Kayıt Ol" onPress={() => void submit()} loading={submitting} />
       </View>
+      <TextField
+        ref={confirmationRef}
+        label="Parola (tekrar)"
+        value={confirmation}
+        onChangeText={setConfirmation}
+        error={fieldErrors.confirmation}
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="go"
+        onSubmitEditing={() => void submit()}
+        editable={!submitting}
+      />
+      <Button title="Kayıt ol" size="lg" onPress={() => void submit()} loading={submitting} />
 
-      <AppText variant="small" muted>
+      <AppText variant="caption" muted>
         Kayıt olan hesaplar sürücü olarak açılır. Filo ve saha ekibi hesapları web panelinden yönetilir.
       </AppText>
     </Screen>
