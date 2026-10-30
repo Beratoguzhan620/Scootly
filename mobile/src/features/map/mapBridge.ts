@@ -1,4 +1,4 @@
-import type { ServiceArea, Vehicle } from '@/api/types';
+import type { ServiceArea, Vehicle, VehicleStatus } from '@/api/types';
 import { batteryLevel, batteryPercent, type BatteryLevel } from '@/domain/battery';
 import { vehicleStatusMeta } from '@/domain/labels';
 import type { LatLng, MapRegion } from '@/lib/geo';
@@ -9,6 +9,20 @@ import type { Scheme } from '@/theme';
  * JSON metni alışverişi yapar; sayfadaki karşılığı `mapHtml.ts` içindeki betiktir.
  */
 
+/**
+ * İşaretin rengi: a müsait (sarı) · r rezerve · i sürüşte · m bakımda · l kayıp. Sürücü haritasında hepsi "a";
+ * durum renkleri yalnızca filo haritasında kullanılır.
+ */
+export type PinStatus = 'a' | 'r' | 'i' | 'm' | 'l';
+
+const PIN_STATUS: Record<VehicleStatus, PinStatus> = {
+  Available: 'a',
+  Reserved: 'r',
+  InRide: 'i',
+  Maintenance: 'm',
+  Lost: 'l',
+};
+
 export type MapVehicle = {
   id: string;
   lat: number;
@@ -16,6 +30,7 @@ export type MapVehicle = {
   /** 0–100 */
   battery: number;
   level: BatteryLevel;
+  status: PinStatus;
   /** Ekran okuyucu metni */
   label: string;
   selected: boolean;
@@ -54,6 +69,8 @@ export type MapStateInput = {
   selectedId: string | null;
   userLocation: LatLng | null;
   bottomInset: number;
+  /** Filo haritası: işaretler aracın durumuna göre renklenir. */
+  statusPins?: boolean;
 };
 
 export function toStateCommand({
@@ -62,6 +79,7 @@ export function toStateCommand({
   selectedId,
   userLocation,
   bottomInset,
+  statusPins = false,
 }: MapStateInput): MapCommand {
   return {
     type: 'state',
@@ -74,6 +92,7 @@ export function toStateCommand({
         lng: vehicle.longitude,
         battery,
         level: batteryLevel(battery),
+        status: statusPins ? (PIN_STATUS[vehicle.status] ?? 'a') : 'a',
         label: `${vehicle.brand}, ${meta.label}, batarya yüzde ${battery}`,
         selected: vehicle.id === selectedId,
       };

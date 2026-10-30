@@ -22,6 +22,8 @@ export type BaseMapColors = {
   halo: string;
 };
 
+export type PinStatusColors = { fill: string; text: string; ring: string; track: string };
+
 export type MapPalette = {
   base: BaseMapColors;
   /** Scooter işareti: sarı levha, lacivert batarya yayı */
@@ -35,6 +37,8 @@ export type MapPalette = {
     offText: string;
     border: string;
     shadow: string;
+    /** Filo haritasında müsait olmayan araçların yüz rengi: r rezerve · i sürüşte · m bakımda · l kayıp */
+    status: Record<'r' | 'i' | 'm' | 'l', PinStatusColors>;
   };
   cluster: { fill: string; text: string; halo: string; border: string };
   user: { dot: string; border: string };
@@ -59,6 +63,12 @@ function palette(theme: Theme, base: BaseMapColors): MapPalette {
       offText: isDark ? '#E3E8F2' : '#55627F',
       border: '#FFFFFF',
       shadow: isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(11, 30, 74, 0.35)',
+      status: {
+        r: { fill: '#FF8F3D', text: INK, ring: INK, track: 'rgba(11, 30, 74, 0.18)' },
+        i: { fill: theme.info.solid, text: '#FFFFFF', ring: '#FFFFFF', track: 'rgba(255, 255, 255, 0.3)' },
+        m: { fill: '#6E7C9C', text: '#FFFFFF', ring: '#FFFFFF', track: 'rgba(255, 255, 255, 0.3)' },
+        l: { fill: theme.critical.solid, text: '#FFFFFF', ring: '#FFFFFF', track: 'rgba(255, 255, 255, 0.3)' },
+      },
     },
     cluster: isDark
       ? { fill: '#EEF2FA', text: INK, halo: 'rgba(238, 242, 250, 0.22)', border: '#0A1428' }
@@ -122,3 +132,12 @@ export const mapPalettes: Record<Scheme, MapPalette> = {
   light: palette(light, lightBase),
   dark: palette(dark, darkBase),
 };
+
+const PIN_STATUS_KEYS = { Reserved: 'r', InRide: 'i', Maintenance: 'm', Lost: 'l' } as const;
+
+/** Filo haritasındaki işaretin rengi; liste ve filtrelerde açıklama (lejant) olarak da kullanılır. */
+export function vehicleStatusColor(status: string, scheme: Scheme): string {
+  const pin = mapPalettes[scheme].pin;
+  const key = PIN_STATUS_KEYS[status as keyof typeof PIN_STATUS_KEYS];
+  return key ? pin.status[key].fill : pin.fill;
+}

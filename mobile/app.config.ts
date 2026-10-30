@@ -10,14 +10,17 @@ const BRAND_VOLT = '#FFD60A';
  */
 const allowHttp = process.env.SCOOTLY_ALLOW_HTTP !== 'false';
 
-/** Her CI derlemesi bir öncekinin üstüne kurulabilsin diye artan derleme numarası. */
-const versionCode = Number(process.env.SCOOTLY_VERSION_CODE) || 1;
+/**
+ * Her derleme bir öncekinin üstüne kurulabilsin diye artan derleme numarası. CI kendi numarasını verir; yerel
+ * derlemede sürümle birlikte elle artırılır (0.2.0 → 2).
+ */
+const versionCode = Number(process.env.SCOOTLY_VERSION_CODE) || 2;
 
 const config: ExpoConfig = {
   name: 'Scootly',
   slug: 'scootly-mobile',
   scheme: 'scootly',
-  version: '0.1.0',
+  version: '0.2.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   // Uygulama telefonun açık/koyu tema ayarını izler.
@@ -52,6 +55,15 @@ const config: ExpoConfig = {
         locationAlwaysAndWhenInUsePermission: false,
         locationAlwaysPermission: false,
         motionUsagePermission: false,
+      },
+    ],
+    [
+      'expo-camera',
+      {
+        cameraPermission: "Scootly, scooter'ın QR kodunu okutup sürüşe başlaman için kamerayı kullanır.",
+        // Yalnızca QR okunuyor; video ve ses kaydı yok.
+        microphonePermission: false,
+        recordAudioAndroid: false,
       },
     ],
     [

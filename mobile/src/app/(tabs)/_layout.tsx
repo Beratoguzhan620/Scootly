@@ -21,6 +21,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="reservations"
+        options={{
+          title: 'Rezervasyonlar',
+          tabBarLabel: 'Rezervasyon',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'timer' : 'timer-outline'} color={color} size={22} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="rides"
         options={{
           title: 'Sürüşlerim',

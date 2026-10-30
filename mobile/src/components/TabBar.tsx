@@ -14,7 +14,9 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const focused = state.index === index;
-        const label = options.title ?? route.name;
+        const title = options.title ?? route.name;
+        // Dar ekranlarda sığsın diye sekmede kısa ad gösterilebilir; ekran okuyucu tam adı okur.
+        const label = typeof options.tabBarLabel === 'string' ? options.tabBarLabel : title;
 
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -29,7 +31,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
             key={route.key}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}
-            accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+            accessibilityLabel={options.tabBarAccessibilityLabel ?? title}
             testID={options.tabBarButtonTestID}
             onPress={onPress}
             onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}

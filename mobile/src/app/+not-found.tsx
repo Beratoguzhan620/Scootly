@@ -12,7 +12,7 @@ export default function NotFoundScreen() {
         icon="compass-outline"
         title="Bu ekran bulunamadı"
         message="Aradığın sayfa yok ya da taşınmış."
-        action={<Button title="Ana ekrana dön" inline onPress={() => router.navigate('/')} />}
+        action={<Button title="Ana ekrana dön" inline onPress={() => router.dismissTo('/')} />}
       />
     </Screen>
   );

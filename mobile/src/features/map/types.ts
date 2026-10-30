@@ -19,6 +19,8 @@ export type VehicleMapProps = {
   bottomInset: number;
   /** Açık ya da koyu harita */
   scheme: Scheme;
+  /** Filo haritası: işaretler aracın durumuna göre renklenir (sürücü haritasında hepsi sarı). */
+  statusPins?: boolean;
   onSelect: (vehicleId: string | null) => void;
   /** Görünen alan değişince (panelin altında kalan kısım hariç). */
   onRegionChange: (region: MapRegion) => void;

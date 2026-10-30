@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { ridesApi, serviceAreasApi, vehiclesApi } from './scootly';
+import { fleetApi, ridesApi, serviceAreasApi, vehiclesApi } from './scootly';
 import { MAX_PAGE_SIZE } from '@/domain/rules';
 import type { Bounds } from '@/lib/geo';
 
@@ -14,6 +14,11 @@ export const queryKeys = {
   ride: (id: string) => ['rides', 'detail', id] as const,
   payment: (id: string) => ['rides', 'payment', id] as const,
   rideHistory: ['rides', 'history'] as const,
+  /** Filo ekibinin sorguları ayrı tutulur: aynı araç sürücüye farklı (yalnızca müsaitse) görünür. */
+  fleet: ['fleet'] as const,
+  fleetInBounds: (bounds: Bounds | null) => ['fleet', 'list', bounds] as const,
+  fleetAll: ['fleet', 'all'] as const,
+  fleetVehicle: (id: string) => ['fleet', 'detail', id] as const,
 };
 
 /** Paneldeki harita da araçları 30 saniyede bir yeniliyor. */
@@ -86,5 +91,33 @@ export function useRideHistory() {
     queryFn: ({ pageParam, signal }) => ridesApi.history(pageParam, 20, signal),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => (lastPage.pageNumber < lastPage.totalPages ? lastPage.pageNumber + 1 : undefined),
+  });
+}
+
+/** Filo haritası: görünen alandaki bütün araçlar, durumlarıyla. */
+export function useFleetInBounds(bounds: Bounds | null) {
+  return useQuery({
+    queryKey: queryKeys.fleetInBounds(bounds),
+    queryFn: ({ signal }) => fleetApi.list({ bounds: bounds ?? undefined, pageSize: MAX_PAGE_SIZE }, signal),
+    enabled: bounds !== null,
+    placeholderData: keepPreviousData,
+    refetchInterval: 20_000,
+  });
+}
+
+/** Araç listesi: bütün filo (en fazla 1.000 araç). */
+export function useFleetAll() {
+  return useQuery({
+    queryKey: queryKeys.fleetAll,
+    queryFn: ({ signal }) => fleetApi.listAll(signal),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useFleetVehicle(id: string) {
+  return useQuery({
+    queryKey: queryKeys.fleetVehicle(id),
+    queryFn: ({ signal }) => fleetApi.get(id, signal),
+    refetchInterval: 20_000,
   });
 }

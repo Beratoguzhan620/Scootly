@@ -14,10 +14,12 @@ type Props = SheetFrameProps & {
   /** Kiralanabilecek en az bir araç var mı (en yakını göster düğmesi için) */
   canShowNearest: boolean;
   onShowNearest: () => void;
+  /** Scooter'ın yanındaki sürücü QR kodunu okutup hemen başlar. */
+  onScan: () => void;
 };
 
-/** Seçim yokken: görünen alandaki scooter sayısı ve en yakınına gitme. */
-export function NearbySheet({ loading, shown, total, canShowNearest, onShowNearest, ...frame }: Props) {
+/** Seçim yokken: görünen alandaki scooter sayısı, QR ile başlama ve en yakınına gitme. */
+export function NearbySheet({ loading, shown, total, canShowNearest, onShowNearest, onScan, ...frame }: Props) {
   const theme = useTheme();
   const styles = useStyles();
 
@@ -55,15 +57,28 @@ export function NearbySheet({ loading, shown, total, canShowNearest, onShowNeare
 
   return (
     <BottomSheet {...frame} header={header} accessibilityLabel="Yakındaki scooter'lar">
-      {showNearest || partial ? (
-        <>
-          {showNearest ? <Button title="En yakın scooter'ı göster" icon="navigate" onPress={onShowNearest} /> : null}
-          {partial ? (
-            <AppText variant="caption" muted align="center">
-              {`Haritada ${total} scooter'dan ${shown} tanesi gösteriliyor. Daha fazlası için yakınlaştır.`}
-            </AppText>
-          ) : null}
-        </>
+      <View style={styles.actions}>
+        <Button
+          title="QR okut"
+          icon="qr-code"
+          style={styles.action}
+          accessibilityHint="Scooter'ın üstündeki QR kodu okutup sürüşe başla."
+          onPress={onScan}
+        />
+        {showNearest ? (
+          <Button
+            title="En yakını göster"
+            variant="secondary"
+            icon="navigate"
+            style={styles.action}
+            onPress={onShowNearest}
+          />
+        ) : null}
+      </View>
+      {partial ? (
+        <AppText variant="caption" muted align="center">
+          {`Haritada ${total} scooter'dan ${shown} tanesi gösteriliyor. Daha fazlası için yakınlaştır.`}
+        </AppText>
       ) : null}
     </BottomSheet>
   );
@@ -83,5 +98,13 @@ const useStyles = makeStyles(() => ({
     ...textVariants.numeral,
     fontSize: 44,
     lineHeight: 46,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: space.sm,
+  },
+  action: {
+    flex: 1,
+    paddingHorizontal: space.md,
   },
 }));

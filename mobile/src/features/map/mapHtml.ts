@@ -172,7 +172,9 @@ const bridge = `
   var PIN = { r: 19, ring: 3.5, pad: 6 };
   var SELECTED = { r: 26, ring: 4.5, pad: 6, stem: 14, below: 6 };
 
-  function drawPin(battery, level, selected, p) {
+  // status: a müsait (sarı levha) · r/i/m/l filo haritasında durum rengi
+  function drawPin(battery, level, status, selected, p) {
+    var st = status && status !== 'a' && p.status ? p.status[status] : null;
     var g = selected ? SELECTED : PIN;
     var stem = selected ? g.stem : 0;
     var width = g.r * 2 + g.pad * 2;
@@ -182,7 +184,7 @@ const bridge = `
     var ctx = s.ctx;
     var cx = width / 2;
     var cy = g.pad + g.r;
-    var off = level === 'unrentable';
+    var off = !st && level === 'unrentable';
 
     if (selected) {
       ctx.fillStyle = p.ring;
@@ -205,19 +207,19 @@ const bridge = `
 
     var face = g.r - (selected ? 3 : 2);
     circle(ctx, cx, cy, face);
-    ctx.fillStyle = off ? p.offFill : p.fill;
+    ctx.fillStyle = off ? p.offFill : st ? st.fill : p.fill;
     ctx.fill();
 
     var ringRadius = face - g.ring / 2 - 2.5;
     circle(ctx, cx, cy, ringRadius);
     ctx.lineWidth = g.ring;
-    ctx.strokeStyle = off ? 'rgba(85,98,127,0.25)' : 'rgba(11,30,74,0.16)';
+    ctx.strokeStyle = off ? 'rgba(85,98,127,0.25)' : st ? st.track : 'rgba(11,30,74,0.16)';
     ctx.stroke();
     if (battery > 0) {
       ctx.beginPath();
       ctx.arc(cx, cy, ringRadius, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * Math.min(100, battery)) / 100);
       ctx.lineCap = 'round';
-      ctx.strokeStyle = level === 'ok' ? p.ring : p.low;
+      ctx.strokeStyle = st ? st.ring : level === 'ok' ? p.ring : p.low;
       ctx.stroke();
     }
 
@@ -225,7 +227,7 @@ const bridge = `
     ctx.font = numberFont(size);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = off ? p.offText : p.text;
+    ctx.fillStyle = off ? p.offText : st ? st.text : p.text;
     ctx.fillText(String(battery), cx, cy + size * 0.05);
     return ctx.getImageData(0, 0, s.canvas.width, s.canvas.height);
   }
@@ -261,14 +263,16 @@ const bridge = `
     return ctx.getImageData(0, 0, s.canvas.width, s.canvas.height);
   }
 
-  // Resim adları: "p|86|ok|light" (işaret), "s|86|ok|light" (seçili), "c|12|light" (küme)
+  // Resim adları: "p|86|ok|a|light" (işaret), "s|86|ok|a|light" (seçili), "c|12|light" (küme)
   function addIcon(id) {
     if (!map || map.hasImage(id)) return;
     var parts = String(id).split('|');
     var p = cfg.palettes[parts[parts.length - 1]];
     if (!p) return;
     var image = null;
-    if (parts[0] === 'p' || parts[0] === 's') image = drawPin(Number(parts[1]) || 0, parts[2], parts[0] === 's', p.pin);
+    if (parts[0] === 'p' || parts[0] === 's') {
+      image = drawPin(Number(parts[1]) || 0, parts[2], parts[3], parts[0] === 's', p.pin);
+    }
     else if (parts[0] === 'c') image = drawCluster(Number(parts[1]) || 0, p);
     if (image) map.addImage(id, image, { pixelRatio: dpr });
   }
@@ -291,7 +295,7 @@ const bridge = `
   }
 
   function iconFor(vehicle, selected) {
-    return (selected ? 's|' : 'p|') + vehicle.battery + '|' + vehicle.level + '|' + scheme;
+    return (selected ? 's|' : 'p|') + vehicle.battery + '|' + vehicle.level + '|' + (vehicle.status || 'a') + '|' + scheme;
   }
 
   function vehiclesData() {

@@ -56,6 +56,26 @@ describe('toStateCommand', () => {
       bottomInset: 213,
     });
     expect(command.type === 'state' && command.vehicles[0].label).toBe('Segway Ninebot, Müsait, batarya yüzde 86');
+    // Sürücü haritasında durum rengi yok: rezerve edilen araç da sarı levha.
+    expect(command.type === 'state' && command.vehicles.map((item) => item.status)).toEqual(['a', 'a', 'a']);
+  });
+
+  it('filo haritasında işaretler aracın durumunu taşır', () => {
+    const command = toStateCommand({
+      vehicles: [
+        vehicle(),
+        vehicle({ id: 'v2', status: 'Reserved' }),
+        vehicle({ id: 'v3', status: 'InRide' }),
+        vehicle({ id: 'v4', status: 'Maintenance' }),
+        vehicle({ id: 'v5', status: 'Lost' }),
+      ],
+      serviceAreas: [],
+      selectedId: null,
+      userLocation: null,
+      bottomInset: 0,
+      statusPins: true,
+    });
+    expect(command.type === 'state' && command.vehicles.map((item) => item.status)).toEqual(['a', 'r', 'i', 'm', 'l']);
   });
 
   it('konum yoksa kullanıcı noktası gönderilmez', () => {

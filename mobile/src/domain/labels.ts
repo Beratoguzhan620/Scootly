@@ -1,4 +1,5 @@
 import type { PaymentStatus, RideStatus, VehicleStatus } from '@/api/types';
+import type { ReservationOutcome } from '@/domain/reservationHistory';
 import type { Tone } from '@/theme';
 
 type StatusMeta = { label: string; tone: Tone };
@@ -25,6 +26,13 @@ const paymentStatus: Record<PaymentStatus, StatusMeta> = {
   Failed: { label: 'Ödeme alınamadı', tone: 'danger' },
 };
 
+const reservationOutcome: Record<ReservationOutcome, StatusMeta> = {
+  ride: { label: 'Sürüşe dönüştü', tone: 'success' },
+  cancelled: { label: 'İptal edildi', tone: 'secondary' },
+  expired: { label: 'Süresi doldu', tone: 'warning' },
+  released: { label: 'Sona erdi', tone: 'secondary' },
+};
+
 const roles: Record<string, string> = {
   Driver: 'Sürücü',
   FleetManager: 'Filo yöneticisi',
@@ -43,3 +51,5 @@ export const paymentStatusMeta = (status: string): StatusMeta =>
   paymentStatus[status as PaymentStatus] ?? fallback(status);
 
 export const roleLabel = (role: string): string => roles[role] ?? role;
+
+export const reservationOutcomeMeta = (outcome: ReservationOutcome): StatusMeta => reservationOutcome[outcome];

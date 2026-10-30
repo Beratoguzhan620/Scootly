@@ -191,16 +191,39 @@ describe('harita sayfası', () => {
     const sources = map().sources;
     expect(sources.vehicles.cluster).toBe(true);
     expect(sources.vehicles.data.features.map((feature) => feature.properties)).toEqual([
-      expect.objectContaining({ id: 'v1', icon: 'p|86|ok|light' }),
-      expect.objectContaining({ id: 'v3', icon: 'p|7|unrentable|light' }),
+      expect.objectContaining({ id: 'v1', icon: 'p|86|ok|a|light' }),
+      expect.objectContaining({ id: 'v3', icon: 'p|7|unrentable|a|light' }),
     ]);
     expect(sources.selected.data.features.map((feature) => feature.properties)).toEqual([
-      { id: 'v2', icon: 's|54|ok|light' },
+      { id: 'v2', icon: 's|54|ok|a|light' },
     ]);
     expect(sources.user.data.features).toHaveLength(1);
     const ring = sources.areas.data.features[0].geometry.coordinates as number[][][];
     expect(ring[0][0]).toEqual([28.99, 40.99]);
     expect(ring[0][ring[0].length - 1]).toEqual(ring[0][0]);
+    dom.window.close();
+  });
+
+  it('filo haritasında işaret adı aracın durumunu taşır', async () => {
+    const { page, map, dom } = loadPage();
+    await tick();
+    page.__scootly.receive(
+      JSON.stringify(
+        toStateCommand({
+          vehicles: [
+            { ...vehicle('v1', 41.004, 29.002, 86), status: 'Reserved' },
+            { ...vehicle('v2', 40.998, 29.006, 54), status: 'Lost' },
+          ],
+          serviceAreas: [],
+          selectedId: 'v2',
+          userLocation: null,
+          bottomInset: 200,
+          statusPins: true,
+        }),
+      ),
+    );
+    expect(map().sources.vehicles.data.features.map((feature) => feature.properties.icon)).toEqual(['p|86|ok|r|light']);
+    expect(map().sources.selected.data.features[0].properties.icon).toBe('s|54|ok|l|light');
     dom.window.close();
   });
 
@@ -252,7 +275,7 @@ describe('harita sayfası', () => {
 
     const styles = map().styles;
     expect(styles[styles.length - 1].layers[0].paint).toEqual({ 'background-color': mapPalettes.dark.background });
-    expect(map().sources.vehicles.data.features[0].properties.icon).toBe('p|86|ok|dark');
+    expect(map().sources.vehicles.data.features[0].properties.icon).toBe('p|86|ok|a|dark');
     expect(JSON.stringify(map().getLayer('clusters')?.layout)).toContain('dark');
     expect(page.document.documentElement.className).toBe('dark');
     dom.window.close();

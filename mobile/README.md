@@ -1,6 +1,7 @@
 # Scootly Mobil
 
-**Scootly sürücü uygulaması: yakındaki scooter'ı bul, rezerve et, sürüşe başla, bitir ve ödemeyi takip et.**
+**Scootly mobil uygulaması: yakındaki scooter'ı bul, rezerve et, QR kodunu okutup ödemeyi onayla, sürüşü bitir ve
+ödemeyi takip et. Filo ekibi aynı uygulamayla bütün araçları yönetir.**
 React Native (Expo SDK 57) + TypeScript ile yazıldı; [Scootly API](https://github.com/Beratoguzhan620/Scootly)'sini
 kullanır. Görünüm "sokak tabelası" fikrine dayanır: voltaj sarısı levhalar, derin lacivert yazı, vektör harita
 (bkz. [Tasarım Dili](#tasarım-dili)).
@@ -40,15 +41,23 @@ APK hata ayıklama anahtarıyla imzalıdır ve HTTP bağlantısına izin verir; 
 
 | Ekran | Ne yapıyor? |
 |---|---|
-| **Giriş / Kayıt** | `POST /api/auth/login`, `POST /api/auth/register`. Parola kuralları (8+ karakter, A-Z, a-z, 0-9) yazarken canlı gösterilir; sunucunun İngilizce Identity mesajlarına düşülmez. Yalnızca `Driver` rolündeki hesaplar girebilir. |
+| **Giriş / Kayıt** | `POST /api/auth/login`, `POST /api/auth/register`. Parola kuralları (8+ karakter, A-Z, a-z, 0-9) yazarken canlı gösterilir; sunucunun İngilizce Identity mesajlarına düşülmez. `Driver` hesabı sürücü modunda, `FleetManager`/`FieldOperator` hesabı (ör. ilk filo yöneticisi) filo modunda açılır; iki yetkisi olan hesap Hesap sekmesinden mod değiştirir. |
 | **Sunucu ayarları** | API adresi uygulama içinden değiştirilir ve cihazda saklanır; `/health/ready` ile bağlantı denenir. IP değişince yeniden derlemek gerekmez. |
-| **Harita** | MapLibre ile vektör harita (OpenFreeMap karoları, uygulamanın renklerine boyanır; açık ve koyu tema). Görünen alandaki müsait araçlar (`GET /api/v2/vehicles`, dikdörtgen filtre, 30 sn'de bir yenilenir) batarya halkalı sarı işaretlerle, uzaklaştıkça kümelenerek; hizmet bölgeleri (`GET /api/v1/service-areas`), sürücünün konumu. **En yakın scooter'ı göster** kiralanabilir en yakın aracı seçer. |
+| **Harita** | MapLibre ile vektör harita (OpenFreeMap karoları, uygulamanın renklerine boyanır; açık ve koyu tema). Görünen alandaki müsait araçlar (`GET /api/v2/vehicles`, dikdörtgen filtre, 30 sn'de bir yenilenir) batarya halkalı sarı işaretlerle, uzaklaştıkça kümelenerek; hizmet bölgeleri (`GET /api/v1/service-areas`), sürücünün konumu. **QR okut** kamerayı açar, **En yakını göster** kiralanabilir en yakın aracı seçer. |
 | **Araç paneli** | Batarya halkası, tahmini menzil, uzaklık ve yürüme süresi. %10'un altındaki araç için rezervasyon kapalı. Panel aşağı çekilince kapanır; seçilen araç panelin altında kalırsa harita ona kayar. |
-| **Rezervasyon** | 10 dakikalık geri sayım (sarı levha) ve ilerleme çubuğu, sürüşü başlat, iptal et. Panel aşağı çekilince yalnızca sayaç kalır. Uygulama kapanıp açılınca rezervasyon geri yüklenir (bkz. [bilinen eksikler](#backend-ile-uyum-ve-bilinen-eksikler)). |
+| **Rezervasyon** | 10 dakikalık geri sayım (sarı levha) ve ilerleme çubuğu, **QR okut ve başlat**, iptal et. Panel aşağı çekilince yalnızca sayaç kalır. |
+| **Rezervasyonlar** | Süren rezervasyon (sayaç, batarya, uzaklık, haritada göster, iptal) ve bu telefondaki son rezervasyonlar (sürüşe dönüştü / iptal edildi / süresi doldu). Uygulama kapanıp açılınca, öne gelince ve dakikada bir `GET /api/reservations/active` ile sunucudan eşitlenir; bu uç olmayan eski sunucuda cihazdaki kayda döner. |
+| **QR okutma** | `expo-camera` ile QR okunur; okunmazsa plakadaki 8 karakterlik kod elle girilir, fener açılabilir. QR içeriği `scootly://vehicle/<araç kimliği>`: telefonun kendi kamerasıyla okutulursa uygulama doğrudan bu araçla açılır. |
+| **Sürüşe başla** | QR'dan sonra, sürüş başlamadan: scooter, tarife (kilit açma, dakika ücreti, örnek ücret) ve ödeme kartı. **Kilidi aç ve başla** ile araç sürücüye ayrılmamışsa önce rezerve edilir, sonra sürüş başlar. Başka bir aracı rezerve etmişse ya da batarya yetmiyorsa ne yapılacağı söylenir. |
+| **Ödeme yöntemi** | Test modu: kart numarası Luhn ve marka denetiminden geçer, ama tam numara ve CVC saklanmaz; telefonda (şifreli) yalnızca marka, son 4 hane, son kullanma ve ad kalır. Backend'de kart yok; ücreti sunucunun ödeme simülatörü tahsil eder. **Test kartını doldur** örnek kart yazar. |
 | **Sürüş** | Lacivert panelde süre ve tahmini ücret (sunucudaki `Tariff.Standard` ile aynı hesap), sürüşü bitir. Bitiş konumu telefondan; alınamazsa aracın son konumundan. |
-| **Sürüş özeti** | Büyük ücret, başlangıç–bitiş zaman çizelgesi; ödeme durumu (`Pending` → `Paid`/`Failed`) otomatik takip edilir. |
+| **Sürüş ve ödeme** | Sürüş bitince açılır: tutar, kullanılan kart, "sürüş bitti → ödeme işleniyor → ödeme alındı" adımları (`Pending` → `Paid`/`Failed` otomatik takip edilir), dakika × ücret dökümü, zamanlar. |
 | **Sürüşlerim** | Aylara göre gruplanmış, sayfalı sürüş geçmişi ("Bugün 14:32"), aşağı çekip yenileme. |
-| **Hesap** | Hesap bilgileri, parola değiştirme (sunucunun verdiği yeni token'a geçer), çıkış, KVKK hesap silme. |
+| **Hesap** | Hesap bilgileri, ödeme yöntemi, parola değiştirme (sunucunun verdiği yeni token'a geçer), mod değiştirme, çıkış, KVKK hesap silme. |
+| **Filo: harita** | Görünen alandaki bütün araçlar durum renkleriyle: müsait sarı, rezerve turuncu, sürüşte mavi, bakımda gri, kayıp kırmızı. Üstteki çipler hem süzgeç hem açıklama. İşarete dokununca aracın paneli: bakıma al, kayıp işaretle, hizmete döndür (backend'in durum kurallarıyla; sürüşteki araca dokunulmaz). |
+| **Filo: araçlar** | Bütün filo, dikkat isteyenler önce (kayıp, bakımda, düşük batarya); duruma göre süzme, plaka kodu ya da markayla arama. |
+| **Filo: araç sayfası** | Durum işlemleri ve scooter'a yapıştırılacak QR kodu (altında plaka kodu); haritada göster. |
+| **Filo: yeni araç** | Yalnızca `FleetManager`. Model seçimi, menzil, batarya, konum (haritanın ortası ya da telefonun konumu); kayıttan sonra aracın QR kodu açılır. |
 
 Oturum token'ı cihazda şifreli saklanır (iOS Keychain / Android Keystore, `expo-secure-store`). Token süresi
 dolunca ya da sunucu oturumu iptal edince (parola/rol değişikliği) kullanıcı bilgilendirilerek giriş ekranına döner.
@@ -67,8 +76,10 @@ npm start                       # QR kodu Expo Go ile okutun; i = iOS simülatö
 API'yi ayağa kaldırmak için backend reposundaki README → *Hızlı Başlangıç (Docker)*. Kayıt ekranından yeni bir
 hesap açmak yeterli; yeni hesaplar otomatik olarak sürücü rolü alır.
 
-API olmadan arayüzü denemek için sahte API: `python3 e2e/mock-api.py --port 5999`
-(giriş: `surucu@scootly.test` / `Scootly2026`; adres emülatörde `http://10.0.2.2:5999`).
+API olmadan arayüzü denemek için sahte API: `python3 e2e/mock-api.py --port 5999` (adres emülatörde
+`http://10.0.2.2:5999`). Parola hepsinde `Scootly2026`: `surucu@scootly.test` (sürücü),
+`yonetici@scootly.test` (filo yöneticisi), `saha@scootly.test` (saha ekibi). `--demo` daha çok araç ve geçmiş,
+`--center 47.37,8.54` başka bir şehir, `--legacy` rezervasyon ucu olmayan eski sunucu gibi davranır.
 
 ## API'ye Bağlanma
 
@@ -222,16 +233,26 @@ src/
 ├── app/                      # Expo Router ekranları (her dosya bir rota)
 │   ├── _layout.tsx           # Sağlayıcılar + korumalı rotalar (oturum açık/kapalı)
 │   ├── sign-in.tsx, sign-up.tsx, server.tsx
-│   ├── (tabs)/               # Harita, Sürüşlerim, Hesap
-│   ├── ride/[id].tsx         # Sürüş özeti ve ödeme takibi
+│   ├── (tabs)/               # Sürücü: Harita, Rezervasyonlar, Sürüşlerim, Hesap
+│   ├── scan.tsx              # QR okutma (kamera + elle kod)
+│   ├── start-ride.tsx        # Sürüş öncesi: scooter, tarife, kart onayı
+│   ├── payment-method.tsx    # Ödeme kartı (test modu)
+│   ├── ride/[id].tsx         # Sürüş ve ödeme
+│   ├── vehicle/[id].tsx      # QR bağlantısı (scootly://vehicle/<id>) buraya açılır
+│   ├── fleet/                # Filo modu: harita, araç listesi, araç sayfası (QR), yeni araç
 │   └── change-password.tsx, delete-account.tsx
 ├── api/                      # HTTP istemcisi, sözleşme tipleri, uçlar, React Query kancaları, sunucu adresi
-├── auth/                     # Oturum: token saklama, süre dolumu, sürücü rolü kontrolü
-├── ride/                     # Rezervasyon durumu (cihazda saklanır, açılışta doğrulanır)
+├── auth/                     # Oturum: token saklama, süre dolumu, roller ve mod (sürücü / filo)
+├── ride/                     # Rezervasyon durumu: sunucuyla eşitlenir, cihazda yedeklenir, geçmiş
+├── payments/                 # Ödeme kartı (yalnızca özet, telefonda)
 ├── features/map/             # MapLibre harita sayfası, köprü, WebView/iframe kabukları, alt paneller
+├── features/reservations/    # Rezervasyon kartı, sayaç, geçmiş satırı
+├── features/start/           # QR'daki ya da elle girilen koddaki aracı bulma
+├── features/fleet/           # Filo paneli, durum süzgeci, araç işlemleri
 ├── features/rides/           # Sürüş geçmişi satırı
 ├── components/               # Ortak bileşenler: buton, form alanı, alt panel, sekme çubuğu, batarya halkası…
-├── domain/                   # Backend kurallarının istemci kopyası (tarife, rezervasyon, parola) + testler
+├── domain/                   # Backend kurallarının istemci kopyası (tarife, rezervasyon, parola, filo geçişleri),
+│                             # kart doğrulama, QR/plaka kodu + testler
 ├── lib/                      # Biçimlendirme, coğrafya, JWT, konum, depolama, adres doğrulama
 └── theme/                    # Tasarım dili: açık/koyu renkler, Barlow yazı tipleri, ölçek, boşluklar
 e2e/                          # Sahte API ve Android duman testi (CI)
@@ -263,10 +284,10 @@ Uygulama backend'i olduğu gibi kullanıyor; aşağıdakiler mobil için backend
 
 1. **Refresh token yok.** JWT 60 dakika geçerli. Süre dolunca uygulama oturumu kapatıp bilgilendiriyor; sürüş
    sunucuda devam ettiği için yeniden girişte kaldığı yerden sürer. Kalıcı çözüm: refresh token ucu.
-2. **"Aktif rezervasyonum" ucu yok.** `GET /api/rides/active` var ama rezervasyon için karşılığı yok. Uygulama
-   rezerve ettiği aracı cihazda saklayıp açılışta araç ayrıntısıyla doğruluyor. Başka cihazdan yapılan
-   rezervasyonu göremez (yeni rezervasyon denemesi sunucudan "zaten aktif rezervasyonunuz var" döner).
-   Öneri: `GET /api/reservations/active` (araç kimliği + bitiş zamanı).
+2. **"Aktif rezervasyonum" ucu `feature/mobil-rezervasyon` dalında.** `GET /api/reservations/active` (araç,
+   rezervasyon ve bitiş zamanı; yoksa 204) entegrasyon testleriyle birlikte backend reposunda ayrı dalda bekliyor.
+   Uç olmayan sunucuda uygulama rezerve ettiği aracı cihazda saklayıp araç ayrıntısıyla doğruluyor; o zaman başka
+   cihazdan yapılan rezervasyonu göremez.
 3. **Rota sürümleri karışık.** `vehicles` ve `service-areas` sürümlü, `auth`, `account`, `rides` sürümsüz
    (`docs/backlog/technical-debt.md`'de de not edilmiş). Mobil mağazaya çıkmadan düzeltmek en ucuzu.
 4. **Araç listesi IP başına dakikada 60 istekle sınırlı** (`Anonymous` politikası, oturum açmış sürücüler için de).
@@ -276,6 +297,11 @@ Uygulama backend'i olduğu gibi kullanıyor; aşağıdakiler mobil için backend
    kesin ücret sunucudan geliyor. Tarife değişebilir olacaksa bir `GET /api/tariff` ucu iyi olur.
 6. **Identity hata mesajları İngilizce.** İstemci kuralları önceden denetlediği için kullanıcı bunları görmüyor;
    yine de Türkçe bir `IdentityErrorDescriber` diğer istemciler için faydalı olur.
+7. **Kart ve ödeme yöntemi backend'de yok.** Ücreti ödeme simülatörü sürüş bitince tahsil ediyor; uygulamadaki kart
+   yalnızca test modu bir arayüz. Gerçek ödeme için sağlayıcının kart saklama (tokenization) akışı ve sürüş
+   öncesi ön provizyon gerekir.
+8. **QR kodu backend'de ayrı bir alan değil.** QR, aracın kimliğini taşıyan bağlantı (`scootly://vehicle/<id>`);
+   plakadaki kod kimliğin ilk 8 karakteri. Filo ekibi kodu uygulamadaki araç sayfasından alır.
 
 ## Sonraki Adımlar
 

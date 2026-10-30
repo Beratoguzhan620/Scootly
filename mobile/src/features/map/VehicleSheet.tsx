@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { Fact, FactStrip } from './Facts';
@@ -29,9 +30,10 @@ type Props = SheetFrameProps & {
 export function VehicleSheet({ vehicle, userLocation, onClose, ...frame }: Props) {
   const theme = useTheme();
   const styles = useStyles();
+  const router = useRouter();
   const { reserve } = useReservation();
   const reservation = useMutation({
-    mutationFn: () => reserve(vehicle.id),
+    mutationFn: () => reserve(vehicle),
     onSuccess: () => haptics.success(),
     onError: () => haptics.error(),
   });
@@ -76,6 +78,7 @@ export function VehicleSheet({ vehicle, userLocation, onClose, ...frame }: Props
       <Button
         title="Rezerve et"
         size="lg"
+        icon="timer-outline"
         disabled={!rentable}
         loading={reservation.isPending}
         onPress={() => reservation.mutate()}
@@ -83,6 +86,15 @@ export function VehicleSheet({ vehicle, userLocation, onClose, ...frame }: Props
       <AppText variant="caption" muted align="center">
         {`Scooter ${RESERVATION_DURATION_MS / 60_000} dakika boyunca sana ayrılır.`}
       </AppText>
+      {rentable ? (
+        <Button
+          title="Yanındayım, QR okut"
+          variant="ghost"
+          icon="qr-code-outline"
+          disabled={reservation.isPending}
+          onPress={() => router.push('/scan')}
+        />
+      ) : null}
     </BottomSheet>
   );
 }

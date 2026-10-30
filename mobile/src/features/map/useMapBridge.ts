@@ -34,6 +34,7 @@ export function useMapBridge(props: VehicleMapProps, { send, openUrl }: Platform
     userLocation,
     bottomInset,
     scheme,
+    statusPins = false,
     onSelect,
     onRegionChange,
   } = props;
@@ -53,8 +54,8 @@ export function useMapBridge(props: VehicleMapProps, { send, openUrl }: Platform
   );
 
   const stateCommand = useMemo(
-    () => toStateCommand({ vehicles, serviceAreas, selectedId, userLocation, bottomInset }),
-    [vehicles, serviceAreas, selectedId, userLocation, bottomInset],
+    () => toStateCommand({ vehicles, serviceAreas, selectedId, userLocation, bottomInset, statusPins }),
+    [vehicles, serviceAreas, selectedId, userLocation, bottomInset, statusPins],
   );
 
   useEffect(() => {

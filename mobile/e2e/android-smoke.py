@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Android duman testi: APK'yı emülatöre kurar, sahte API'ye (e2e/mock-api.py) bağlar ve sürücünün ana akışını
-ekrandaki metinlere dokunarak gezer. Her adımda ekran görüntüsü alır; hata olursa ekranı, arayüz ağacını ve
-çökme kayıtlarını bırakır.
+Android duman testi: APK'yı emülatöre kurar, sahte API'ye (e2e/mock-api.py) bağlar ve ana akışları ekrandaki
+metinlere dokunarak gezer: sürücü (rezervasyon, QR yerine elle kod, ödeme kartı, sürüş, ödeme, rezervasyon geçmişi)
+ve filo yöneticisi (filo haritası, araç listesi). Her adımda ekran görüntüsü alır; hata olursa ekranı, arayüz ağacını
+ve çökme kayıtlarını bırakır.
 
     python3 e2e/android-smoke.py --apk scootly.apk --out smoke --api http://10.0.2.2:5999
 
@@ -18,7 +19,10 @@ from pathlib import Path
 
 PACKAGE = "com.scootly.mobile"
 EMAIL = "surucu@scootly.test"
+FLEET_EMAIL = "yonetici@scootly.test"
 PASSWORD = "Scootly2026"
+# Emülatörün konumuna en yakın kiralanabilir araç (%86); plakasındaki kod
+NEAREST_CODE = "3F2B8C1A"
 
 
 class SmokeFailure(Exception):
@@ -132,6 +136,7 @@ def run(args):
     adb("install", "-r", "-g", args.apk, timeout=240)
     adb("shell", "pm", "grant", PACKAGE, "android.permission.ACCESS_FINE_LOCATION", check=False)
     adb("shell", "pm", "grant", PACKAGE, "android.permission.ACCESS_COARSE_LOCATION", check=False)
+    adb("shell", "pm", "grant", PACKAGE, "android.permission.CAMERA", check=False)
     # Sahte API'deki araçların yanına (panelin varsayılan merkezi). Sıra: boylam, enlem.
     adb("emu", "geo", "fix", "29.0005", "41.0005", check=False)
     adb("logcat", "-c", check=False)
@@ -160,7 +165,7 @@ def run(args):
     print("Araç seçiliyor...", flush=True)
     # Harita WebGL ile çizildiği için işaretler erişilebilirlik ağacında yok; en yakın scooter düğmesi seçer.
     # Emülatörün konumuna en yakın kiralanabilir araç %86 bataryalı olan.
-    device.tap_text("En yakın scooter'ı göster", exact=True)
+    device.tap_text("En yakını göster", exact=True)
     device.find_text("Rezerve et", exact=True)
     device.find_text("Batarya yüzde 86")
     device.screenshot("arac-karti")
@@ -170,27 +175,59 @@ def run(args):
     device.find_text("Rezervasyonun", timeout=20)
     device.screenshot("rezervasyon")
 
+    print("QR ekranında kod elle giriliyor...", flush=True)
+    device.tap_text("QR okut ve başlat", exact=True)
+    device.find_text("Kod okunmuyor mu?", timeout=20)
+    device.screenshot("qr")
+    device.tap_text("Kodu elle gir", exact=True)
+    device.type_into("Scooter kodu", NEAREST_CODE)
+
+    print("Ödeme kartı ekleniyor...", flush=True)
+    device.find_text("Ödeme yöntemi", timeout=20)
+    device.screenshot("surise-basla")
+    device.tap(device.find(lambda n: norm(n.desc) == norm("Kart ekle") or norm(n.text) == norm("Kart ekle"),
+                           what="Kart ekle"))
+    device.tap_text("Test kartını doldur", exact=True)
+    device.tap_text("Kartı kaydet", exact=True)
+
     print("Sürüş başlatılıyor...", flush=True)
-    device.tap_text("Sürüşü başlat", exact=True)
-    device.find_text("Sürüştesin", timeout=20)
+    device.tap_text("Kilidi aç ve başla", exact=True, timeout=20)
+    device.find_text("Sürüştesin", timeout=20, exact=True)
     device.screenshot("surus")
 
     print("Sürüş bitiriliyor...", flush=True)
     device.tap_text("Sürüşü bitir", exact=True)
     device.tap(device.find(lambda n: n.cls.endswith("Button") and norm(n.text) == norm("Bitir"), what="Bitir onayı"))
-    device.find_text("Toplam ücret", timeout=30)
-    device.find_text("Ödeme alındı", timeout=45)
-    device.screenshot("surus-ozeti")
+    device.find_text("Toplam", timeout=30)
+    device.find_text("İyi yolculuklar!", timeout=45)
+    device.screenshot("odeme")
 
-    print("Sürüş geçmişi ve hesap...", flush=True)
+    print("Rezervasyon geçmişi, sürüşler ve hesap...", flush=True)
     device.tap_text("Haritaya dön", exact=True)
     device.find_text("müsait scooter", timeout=20)
+    device.tap_text("Rezervasyonlar", exact=True)
+    device.find_text("Sürüşe dönüştü", timeout=20)
+    device.screenshot("rezervasyonlar")
     device.tap_text("Sürüşlerim", exact=True)
     device.find_text("₺32,50", timeout=20)
     device.screenshot("suruslerim")
     device.tap_text("Hesap", exact=True)
     device.find_text("Parolayı değiştir", timeout=20)
     device.screenshot("hesap")
+
+    print("Filo yöneticisi...", flush=True)
+    device.tap_text("Çıkış yap", exact=True)
+    device.tap(device.find(lambda n: n.cls.endswith("Button") and norm(n.text) == norm("Çıkış yap"),
+                           what="Çıkış onayı"))
+    device.find_text("Giriş yap", timeout=20)
+    device.type_into("E-posta", FLEET_EMAIL, clear=40)
+    device.type_into("Parola", PASSWORD)
+    device.find_text("araç bu alanda", timeout=45)
+    time.sleep(4)
+    device.screenshot("filo-harita")
+    device.tap_text("Araçlar", exact=True)
+    device.find_text("Kayıp", timeout=20)
+    device.screenshot("filo-araclar")
 
 
 def main():

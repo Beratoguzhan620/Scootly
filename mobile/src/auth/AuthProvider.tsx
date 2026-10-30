@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
-import { accountFromToken, isDriver } from './account';
+import { accountFromToken, availableModes, resolveMode, type AppMode } from './account';
 import { configureApi, isApiStatus } from '@/api/client';
 import { accountApi, authApi } from '@/api/scootly';
 import { serverStore } from '@/api/server';
@@ -13,6 +13,8 @@ import { isJwtExpired } from '@/lib/jwt';
 import { storage } from '@/lib/storage';
 
 const TOKEN_KEY = 'scootly.token';
+/** Hem sürücü hem filo yetkisi olan hesabın son seçtiği mod (kullanıcı başına). */
+const modeKey = (userId: string) => `scootly.mode.${userId}`;
 
 export type Notice = { tone: 'info' | 'success' | 'warning'; message: string };
 
@@ -26,9 +28,9 @@ export const notices = {
     tone: 'warning',
     message: 'Oturumunuz sonlandırıldı (parola ya da yetki değişmiş olabilir). Lütfen tekrar giriş yapın.',
   },
-  notDriver: {
+  noAccess: {
     tone: 'warning',
-    message: 'Bu uygulama sürücü hesapları içindir. Filo ve saha ekibi web panelini kullanmalıdır.',
+    message: 'Bu hesapla giriş yapılamıyor: hesabın sürücü ya da filo ekibi yetkisi yok. Yetki için filo yöneticisine başvur.',
   },
   accountDeleted: { tone: 'success', message: 'Hesabınız silindi.' },
 } satisfies Record<string, Notice>;
@@ -38,7 +40,7 @@ export const INVALID_CREDENTIALS_MESSAGE = `E-posta veya parola hatalı. ${LOCKO
 export type AuthState =
   | { status: 'restoring' }
   | { status: 'signedOut' }
-  | { status: 'signedIn'; token: string; account: Account };
+  | { status: 'signedIn'; token: string; account: Account; mode: AppMode };
 
 type AuthContextValue = {
   state: AuthState;
@@ -50,6 +52,8 @@ type AuthContextValue = {
   signOut: (notice?: Notice) => Promise<void>;
   /** Parola değişince sunucunun verdiği yeni token'a geç. */
   replaceToken: (token: string) => Promise<void>;
+  /** Hem sürücü hem filo yetkisi olan hesap modlar arasında geçer. */
+  setMode: (mode: AppMode) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -83,13 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [signOut]);
 
-  /** Token'ı doğrular, hesabı yükler ve sürücü değilse reddeder. */
-  const establishSession = useCallback(async (token: string): Promise<Account> => {
+  /** Token'ı doğrular, hesabı yükler ve açılacak modu seçer; sürücü ya da filo yetkisi yoksa reddeder. */
+  const establishSession = useCallback(async (token: string): Promise<{ account: Account; mode: AppMode }> => {
     tokenRef.current = token;
     try {
       const account = await accountApi.get();
-      if (!isDriver(account)) throw new Error(notices.notDriver.message);
-      return account;
+      const mode = resolveMode(account, await storage.getItem(modeKey(account.id)));
+      if (!mode) throw new Error(notices.noAccess.message);
+      return { account, mode };
     } catch (error) {
       tokenRef.current = null;
       throw error;
@@ -118,20 +123,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const account = await establishSession(token);
-        if (!cancelled) setState({ status: 'signedIn', token, account });
+        const session = await establishSession(token);
+        if (!cancelled) setState({ status: 'signedIn', token, ...session });
       } catch (error) {
         // 401'de API istemcisi oturumu zaten kapattı (onUnauthorized).
         if (cancelled || isApiStatus(error, 401)) return;
-        if (error instanceof Error && error.message === notices.notDriver.message) {
-          await signOut(notices.notDriver);
+        if (error instanceof Error && error.message === notices.noAccess.message) {
+          await signOut(notices.noAccess);
           return;
         }
         // Çevrimdışı açılış: token geçerli görünüyorsa son bilinen bilgilerle devam et.
         const offlineAccount = accountFromToken(token);
-        if (offlineAccount) {
+        const offlineMode = offlineAccount
+          ? resolveMode(offlineAccount, await storage.getItem(modeKey(offlineAccount.id)))
+          : null;
+        if (cancelled) return;
+        if (offlineAccount && offlineMode) {
           tokenRef.current = token;
-          setState({ status: 'signedIn', token, account: offlineAccount });
+          setState({ status: 'signedIn', token, account: offlineAccount, mode: offlineMode });
         } else {
           await signOut();
         }
@@ -170,10 +179,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isApiStatus(error, 401)) throw new Error(INVALID_CREDENTIALS_MESSAGE);
         throw error;
       }
-      const account = await establishSession(token);
+      const session = await establishSession(token);
       await storage.setItem(TOKEN_KEY, token);
       setNotice(null);
-      setState({ status: 'signedIn', token, account });
+      setState({ status: 'signedIn', token, ...session });
     },
     [establishSession],
   );
@@ -192,11 +201,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState((previous) => (previous.status === 'signedIn' ? { ...previous, token } : previous));
   }, []);
 
+  const setMode = useCallback(
+    async (mode: AppMode) => {
+      if (state.status !== 'signedIn' || !availableModes(state.account).includes(mode)) return;
+      setState({ ...state, mode });
+      await storage.setItem(modeKey(state.account.id), mode);
+    },
+    [state],
+  );
+
   const clearNotice = useCallback(() => setNotice(null), []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ state, notice, clearNotice, signIn, signUp, signOut, replaceToken }),
-    [state, notice, clearNotice, signIn, signUp, signOut, replaceToken],
+    () => ({ state, notice, clearNotice, signIn, signUp, signOut, replaceToken, setMode }),
+    [state, notice, clearNotice, signIn, signUp, signOut, replaceToken, setMode],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
@@ -213,4 +231,11 @@ export function useAccount(): Account {
   const { state } = useAuth();
   if (state.status !== 'signedIn') throw new Error('Bu ekran oturum açıkken kullanılabilir.');
   return state.account;
+}
+
+/** Açık mod ve hesabın geçebileceği modlar. Oturum kapalıyken mod null. */
+export function useAppMode(): { mode: AppMode | null; modes: AppMode[]; setMode: (mode: AppMode) => Promise<void> } {
+  const { state, setMode } = useAuth();
+  if (state.status !== 'signedIn') return { mode: null, modes: [], setMode };
+  return { mode: state.mode, modes: availableModes(state.account), setMode };
 }

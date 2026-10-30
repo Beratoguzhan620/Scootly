@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
-import { Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { View } from 'react-native';
 
 import { Fact, FactStrip } from './Facts';
 import { estimatedRangeKm } from './vehicleInfo';
@@ -14,13 +15,13 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { batteryPercent } from '@/domain/battery';
 import { reservationRemainingMs } from '@/domain/reservation';
 import { RESERVATION_DURATION_MS } from '@/domain/rules';
+import { CountdownPlate } from '@/features/reservations/CountdownPlate';
 import { useNow } from '@/hooks/useNow';
 import { confirm } from '@/lib/confirm';
-import { formatDistance, formatDuration } from '@/lib/format';
+import { formatDistance } from '@/lib/format';
 import { distanceMeters, type LatLng } from '@/lib/geo';
-import { haptics } from '@/lib/haptics';
 import { useReservation, type StoredReservation } from '@/ride/ReservationProvider';
-import { makeStyles, radius, space, textVariants, useTheme } from '@/theme';
+import { makeStyles, space } from '@/theme';
 
 type Props = SheetFrameProps & {
   reservation: StoredReservation;
@@ -29,23 +30,18 @@ type Props = SheetFrameProps & {
   userLocation: LatLng | null;
 };
 
-/** Rezervasyon sürerken: geri sayım, aracın bilgileri, sürüşü başlatma. Aşağı çekince yalnızca sayaç kalır. */
+/**
+ * Rezervasyon sürerken: geri sayım, aracın bilgileri ve sürüşü başlatma. Sürüş scooter'ın QR kodu okutularak
+ * başlar (sürücünün aracın yanında olduğu böyle anlaşılır). Aşağı çekince yalnızca sayaç kalır.
+ */
 export function ReservationSheet({ reservation, vehicle, userLocation, ...frame }: Props) {
-  const theme = useTheme();
   const styles = useStyles();
-  const { cancel, startRide } = useReservation();
+  const router = useRouter();
+  const { cancel } = useReservation();
   const now = useNow(1_000);
   const remaining = reservationRemainingMs(reservation.reservedAt, now);
-  const minutesLeft = Math.ceil(remaining / 60_000);
 
-  const start = useMutation({
-    mutationFn: startRide,
-    onSuccess: () => haptics.impact(),
-    onError: () => haptics.error(),
-  });
   const cancellation = useMutation({ mutationFn: cancel });
-  const busy = start.isPending || cancellation.isPending;
-  const error = start.error ?? cancellation.error;
   const distance = vehicle && userLocation ? distanceMeters(userLocation, vehicle) : null;
 
   const onCancel = async () => {
@@ -63,17 +59,10 @@ export function ReservationSheet({ reservation, vehicle, userLocation, ...frame 
       <View style={styles.titleBlock}>
         <AppText variant="title">Rezervasyonun</AppText>
         <AppText muted numberOfLines={1}>
-          {vehicle ? `${vehicle.brand} seni bekliyor` : 'Scooter seni bekliyor'}
+          {`${vehicle?.brand ?? reservation.brand ?? 'Scooter'} seni bekliyor`}
         </AppText>
       </View>
-      <View
-        style={styles.countdown}
-        accessible
-        accessibilityRole="timer"
-        accessibilityLabel={`Rezervasyonun bitmesine ${minutesLeft} dakika`}>
-        <Text style={[styles.countdownValue, { color: theme.onBrand }]}>{formatDuration(remaining)}</Text>
-        <Text style={[styles.countdownLabel, { color: theme.onBrand }]}>kaldı</Text>
-      </View>
+      <CountdownPlate remaining={remaining} />
     </View>
   );
 
@@ -98,28 +87,27 @@ export function ReservationSheet({ reservation, vehicle, userLocation, ...frame 
         <Plate id={reservation.vehicleId} kind="Araç" />
       </View>
 
-      {error ? <Notice tone="danger">{errorMessage(error)}</Notice> : null}
+      {cancellation.isError ? <Notice tone="danger">{errorMessage(cancellation.error)}</Notice> : null}
 
       <Button
-        title="Sürüşü başlat"
+        title="QR okut ve başlat"
         size="lg"
-        icon="play"
-        loading={start.isPending}
-        disabled={busy}
-        onPress={() => start.mutate()}
+        icon="qr-code"
+        disabled={cancellation.isPending}
+        accessibilityHint="Kamerayı açar; scooter'ın üstündeki QR kodu okutunca ödeme ve başlatma ekranı gelir."
+        onPress={() => router.push('/scan')}
       />
       <Button
         title="Rezervasyonu iptal et"
         variant="dangerGhost"
         loading={cancellation.isPending}
-        disabled={busy}
         onPress={() => void onCancel()}
       />
     </BottomSheet>
   );
 }
 
-const useStyles = makeStyles((t) => ({
+const useStyles = makeStyles(() => ({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -128,24 +116,6 @@ const useStyles = makeStyles((t) => ({
   titleBlock: {
     flex: 1,
     gap: 2,
-  },
-  countdown: {
-    alignItems: 'center',
-    backgroundColor: t.brand,
-    borderRadius: radius.control,
-    paddingHorizontal: space.md + 2,
-    paddingTop: space.xs + 2,
-    paddingBottom: space.xs,
-    minWidth: 92,
-  },
-  countdownValue: {
-    ...textVariants.numeral,
-    fontSize: 30,
-    lineHeight: 32,
-  },
-  countdownLabel: {
-    ...textVariants.captionStrong,
-    marginTop: -2,
   },
   plateRow: {
     flexDirection: 'row',

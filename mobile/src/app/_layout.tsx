@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { BrandSplash } from '@/components/BrandSplash';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { queryClient, subscribeAppFocus } from '@/lib/queryClient';
+import { PaymentProvider } from '@/payments/PaymentProvider';
 import { ReservationProvider } from '@/ride/ReservationProvider';
 import { useTheme } from '@/theme';
 import { fontAssets } from '@/theme/fonts';
@@ -28,9 +29,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ReservationProvider>
-            <RootNavigator ready={fontsLoaded || Boolean(fontError)} />
-          </ReservationProvider>
+          <PaymentProvider>
+            <ReservationProvider>
+              <RootNavigator ready={fontsLoaded || Boolean(fontError)} />
+            </ReservationProvider>
+          </PaymentProvider>
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
@@ -49,6 +52,8 @@ function RootNavigator({ ready }: { ready: boolean }) {
   if (!ready || state.status === 'restoring') return <BrandSplash />;
 
   const signedIn = state.status === 'signedIn';
+  const driver = signedIn && state.mode === 'driver';
+  const fleet = signedIn && state.mode === 'fleet';
 
   return (
     <>
@@ -60,9 +65,20 @@ function RootNavigator({ ready }: { ready: boolean }) {
           <Stack.Screen name="server" options={{ title: 'Sunucu ayarları', presentation: 'modal' }} />
         </Stack.Protected>
 
-        <Stack.Protected guard={signedIn}>
+        <Stack.Protected guard={driver}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="ride/[id]" options={{ title: 'Sürüş özeti' }} />
+          <Stack.Screen name="ride/[id]" options={{ title: 'Sürüş ve ödeme' }} />
+          <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="start-ride" options={{ title: 'Sürüşe başla' }} />
+          <Stack.Screen name="payment-method" options={{ title: 'Ödeme yöntemi', presentation: 'modal' }} />
+        </Stack.Protected>
+
+        <Stack.Protected guard={fleet}>
+          <Stack.Screen name="fleet" options={{ headerShown: false }} />
+        </Stack.Protected>
+
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="vehicle/[id]" options={{ title: 'Scooter' }} />
           <Stack.Screen name="change-password" options={{ title: 'Parolayı değiştir', presentation: 'modal' }} />
           <Stack.Screen name="delete-account" options={{ title: 'Hesabı sil', presentation: 'modal' }} />
         </Stack.Protected>

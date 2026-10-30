@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, View } from 'react-native';
@@ -31,6 +31,8 @@ export default function MapScreen() {
   const router = useRouter();
   const mapRef = useRef<VehicleMapHandle>(null);
   const centeredOnUser = useRef(false);
+  /** Rezervasyonlar sayfasındaki "Haritada göster": haritayı bu araca odakla. */
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
 
   const { permission, location, refresh: refreshLocation } = useUserLocation();
   const [region, setRegion] = useState<MapRegion>(DEFAULT_REGION);
@@ -51,11 +53,20 @@ export default function MapScreen() {
 
   // Konum ilk geldiğinde haritayı bir kez sürücünün üstüne getir.
   useEffect(() => {
-    if (location && !centeredOnUser.current) {
+    if (location && !centeredOnUser.current && !focus) {
       centeredOnUser.current = true;
       mapRef.current?.centerOn(location);
     }
-  }, [location]);
+  }, [location, focus]);
+
+  useEffect(() => {
+    if (!focus) return;
+    const target = reservedVehicle?.id === focus ? reservedVehicle : null;
+    if (!target) return;
+    centeredOnUser.current = true;
+    mapRef.current?.centerOn(target, FOCUS_ZOOM + 1);
+    router.setParams({ focus: undefined });
+  }, [focus, reservedVehicle, router]);
 
   // Seçim, render sırasında türetilen koşullara göre bırakılır (efekt yerine React'in önerdiği kalıp):
   // - rezervasyon ya da sürüş başlayınca seçim paneli yerini onlara bırakır;
@@ -200,6 +211,7 @@ export default function MapScreen() {
         total={vehiclesQuery.data?.totalCount ?? 0}
         canShowNearest={nearest !== null}
         onShowNearest={showNearest}
+        onScan={() => router.push('/scan')}
       />
     );
   }

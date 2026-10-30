@@ -39,6 +39,27 @@ export interface Vehicle {
   rangeKm: number;
 }
 
+/** `ActiveReservationResponse` (`GET /api/reservations/active`) — tarihler UTC. */
+export interface ActiveReservation {
+  vehicleId: Guid;
+  reservedAt: string;
+  expiresAt: string;
+  vehicle: Vehicle;
+}
+
+/** `RegisterVehicleRequest` (`POST /api/v{n}/vehicles`, yalnızca filo yöneticisi) */
+export interface RegisterVehicleRequest {
+  brand: string;
+  rangeKm: number;
+  latitude: number;
+  longitude: number;
+  batteryPercentage: number;
+}
+
+export interface RegisterVehicleResponse {
+  id: Guid;
+}
+
 export interface Ride {
   id: Guid;
   driverId: Guid;

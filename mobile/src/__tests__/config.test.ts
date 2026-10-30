@@ -1,4 +1,4 @@
-import { accountFromToken, isDriver } from '../auth/account';
+import { accountFromToken, availableModes, isDriver, isFleetManager, resolveMode } from '../auth/account';
 import { resolveApiBaseUrl } from '../config';
 
 describe('resolveApiBaseUrl', () => {
@@ -39,5 +39,27 @@ describe('accountFromToken', () => {
 
   it('sub yoksa null', () => {
     expect(accountFromToken(token({ email: 'x@y.z' }))).toBeNull();
+  });
+});
+
+describe('mod seçimi', () => {
+  const account = (...roles: string[]) => ({ id: 'u', email: 'u@scootly.test', roles });
+
+  it('sürücü sürücü modunda, ilk filo yöneticisi (yalnızca FleetManager) filo modunda açılır', () => {
+    expect(resolveMode(account('Driver'), null)).toBe('driver');
+    expect(resolveMode(account('FleetManager'), null)).toBe('fleet');
+    expect(resolveMode(account('FieldOperator'), null)).toBe('fleet');
+    expect(isFleetManager(account('FieldOperator'))).toBe(false);
+  });
+
+  it('iki yetkisi olan hesap son seçtiği modda açılır; yetkisi kalmayan mod seçilmez', () => {
+    expect(availableModes(account('Driver', 'FleetManager'))).toEqual(['driver', 'fleet']);
+    expect(resolveMode(account('Driver', 'FleetManager'), 'fleet')).toBe('fleet');
+    expect(resolveMode(account('Driver'), 'fleet')).toBe('driver');
+  });
+
+  it('ne sürücü ne filo yetkisi olan hesap giremez', () => {
+    expect(resolveMode(account(), null)).toBeNull();
+    expect(resolveMode(account('Device'), 'driver')).toBeNull();
   });
 });

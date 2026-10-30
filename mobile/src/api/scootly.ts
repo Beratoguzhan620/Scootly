@@ -1,21 +1,25 @@
 import { apiRequest, isApiStatus } from './client';
 import type {
   Account,
+  ActiveReservation,
   CompleteRideResponse,
   Guid,
   PagedResult,
   PaymentStatusResponse,
+  RegisterVehicleRequest,
+  RegisterVehicleResponse,
   Ride,
   ServiceArea,
   StartRideResponse,
   TokenResponse,
   Vehicle,
 } from './types';
+import { MAX_PAGE_SIZE } from '@/domain/rules';
 import type { Bounds, LatLng } from '@/lib/geo';
 
 /**
- * Sürücü uygulamasının kullandığı uçlar. Rotalar backend'deki gibi: `vehicles` ve `service-areas`
- * sürümlü (`/api/v{n}`), `auth`, `account` ve `rides` sürümsüz.
+ * Uygulamanın kullandığı uçlar. Rotalar backend'deki gibi: `vehicles` ve `service-areas` sürümlü (`/api/v{n}`),
+ * `auth`, `account`, `rides` ve `reservations` sürümsüz.
  */
 
 export const authApi = {
@@ -61,6 +65,67 @@ export const vehiclesApi = {
   reserve: (id: Guid) => apiRequest<void>(`/api/v2/vehicles/${id}/reserve`, { method: 'POST' }),
 
   cancelReservation: (id: Guid) => apiRequest<void>(`/api/v2/vehicles/${id}/reservation`, { method: 'DELETE' }),
+};
+
+/**
+ * Sunucudaki rezervasyon. `GET /api/reservations/active` backend'e sonradan eklendi; uç olmayan (eski) bir
+ * sunucuda 404 döner ve uygulama cihazda sakladığı kayda döner.
+ */
+export type ServerReservation =
+  | { kind: 'active'; reservation: ActiveReservation }
+  | { kind: 'none' }
+  | { kind: 'unsupported' };
+
+export const reservationsApi = {
+  /** Rezervasyon yoksa API 204 döner. */
+  active: async (signal?: AbortSignal): Promise<ServerReservation> => {
+    try {
+      const reservation = await apiRequest<ActiveReservation | undefined>('/api/reservations/active', { signal });
+      return reservation ? { kind: 'active', reservation } : { kind: 'none' };
+    } catch (error) {
+      if (isApiStatus(error, 404, 405)) return { kind: 'unsupported' };
+      throw error;
+    }
+  },
+};
+
+/**
+ * Filo ekibinin (FleetManager, FieldOperator) uçları. Filo ekibi müsait olmayan araçları da görür; araç kaydı
+ * yalnızca filo yöneticisine açıktır.
+ */
+export const fleetApi = {
+  list: ({ bounds, pageNumber = 1, pageSize = MAX_PAGE_SIZE }: Omit<VehicleQuery, 'onlyAvailable'>, signal?: AbortSignal) =>
+    apiRequest<PagedResult<Vehicle>>('/api/v2/vehicles', {
+      query: { ...bounds, onlyAvailable: false, pageNumber, pageSize },
+      signal,
+    }),
+
+  /** Bütün filo, sayfa sayfa; en fazla `limit` araç. */
+  listAll: async (signal?: AbortSignal, limit = 1_000): Promise<{ items: Vehicle[]; totalCount: number }> => {
+    const items: Vehicle[] = [];
+    let totalCount = 0;
+    for (let pageNumber = 1; ; pageNumber += 1) {
+      const page = await fleetApi.list({ pageNumber }, signal);
+      items.push(...page.items);
+      totalCount = page.totalCount;
+      if (pageNumber >= page.totalPages || page.items.length === 0 || items.length >= limit) break;
+    }
+    return { items, totalCount };
+  },
+
+  get: (id: Guid, signal?: AbortSignal) => apiRequest<Vehicle>(`/api/v2/vehicles/${id}`, { signal }),
+
+  /** Sürüşteki ve zaten bakımdaki araç için 409. Rezervasyon varsa düşer. */
+  sendToMaintenance: (id: Guid) => apiRequest<void>(`/api/v2/vehicles/${id}/maintenance`, { method: 'POST' }),
+
+  /** Sürüşteki ve zaten kayıp araç için 409. */
+  markLost: (id: Guid) => apiRequest<void>(`/api/v2/vehicles/${id}/lost`, { method: 'POST' }),
+
+  /** Yalnızca bakımdaki ya da kayıp araç hizmete döner. */
+  returnToService: (id: Guid) => apiRequest<void>(`/api/v2/vehicles/${id}/return-to-service`, { method: 'POST' }),
+
+  register: (request: RegisterVehicleRequest) =>
+    apiRequest<RegisterVehicleResponse>('/api/v2/vehicles', { method: 'POST', body: request }),
 };
 
 export const serviceAreasApi = {
