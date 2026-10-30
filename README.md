@@ -275,6 +275,7 @@ Hatalar RFC 7807 ProblemDetails biçiminde döner; Development ortamında tüm �
 | `POST /api/v1/vehicles` | Araç kaydı | FleetManager |
 | `POST /api/v1/vehicles/{id}/reserve` | Rezervasyon (10 dk) | Driver |
 | `DELETE /api/v1/vehicles/{id}/reservation` | Kendi rezervasyonunu iptal | Driver |
+| `GET /api/reservations/active` | Süren rezervasyonum (araç ve bitiş zamanı; yoksa 204) | Driver |
 | `POST /api/v1/vehicles/{id}/maintenance` · `/lost` · `/return-to-service` | Bakıma al · kayıp işaretle · hizmete döndür | FleetManager / FieldOperator |
 | `POST /api/rides/start` | Sürüş başlat (201 + rideId) | Driver (rezervasyon sahibi) |
 | `POST /api/rides/{id}/complete` | Sürüş bitir (202; ödeme asenkron) | Sürüş sahibi |

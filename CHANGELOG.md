@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Account endpoints: `GET /api/account`, `POST /api/account/change-password` (returns a fresh token) and
   `DELETE /api/account` (password-confirmed; ride locations are anonymized immediately).
 - Driver ride history: `GET /api/rides` (paged, newest first).
+- Driver's active reservation: `GET /api/reservations/active` (vehicle, reservation and expiry time; 204 when there
+  is none) so the mobile app can restore a reservation after a restart or on another device.
 - Vehicles can be marked lost (`POST /api/v1/vehicles/{id}/lost`) and returned to service; Mvc vehicle list gained
   "send to maintenance", "mark lost" and "return to service" actions for fleet staff.
 - v2 vehicle list accepts the same bounding-box and availability filters as v1.

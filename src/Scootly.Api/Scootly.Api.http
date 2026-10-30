@@ -65,6 +65,10 @@ Content-Type: application/json
 POST {{Api}}/api/v1/vehicles/{{VehicleId}}/reserve
 Authorization: Bearer {{Token}}
 
+### Süren rezervasyonum (yoksa 204)
+GET {{Api}}/api/reservations/active
+Authorization: Bearer {{Token}}
+
 ### Rezervasyonu iptal
 DELETE {{Api}}/api/v1/vehicles/{{VehicleId}}/reservation
 Authorization: Bearer {{Token}}

@@ -29,6 +29,13 @@ public sealed record VehicleResponseV2(
 
 public sealed record RegisterVehicleResponse(Guid Id);
 
+/// <summary>Sürücünün süren rezervasyonu; ExpiresAt geçince araç yeniden müsait olur.</summary>
+public sealed record ActiveReservationResponse(
+    Guid VehicleId,
+    DateTime ReservedAt,
+    DateTime ExpiresAt,
+    VehicleResponseV2 Vehicle);
+
 public sealed record RideResponse(
     Guid Id,
     Guid DriverId,
