@@ -1,4 +1,5 @@
 import type { ExpoConfig } from 'expo/config';
+import { withXcodeProject, type ConfigPlugin } from 'expo/config-plugins';
 
 /** Marka sarısı (voltaj sarısı); simge, açılış ekranı ve uygulama içi açılış görünümü aynı zemini kullanır. */
 const BRAND_VOLT = '#FFD60A';
@@ -81,9 +82,30 @@ const config: ExpoConfig = {
         android: {
           usesCleartextTraffic: allowHttp,
         },
+        ios: {
+          // iOS 27 SDK'sıyla derlenen uygulama UIScene yaşam döngüsünü benimsemezse açılışta kapanıyor.
+          // SDK 58'in şablonunda hazır geliyor; SDK 57'de bu ayarla açılıyor (expo 57.0.23 ve sonrası).
+          enableSceneSupport: true,
+        },
       },
     ],
   ],
 };
 
-export default config;
+/**
+ * Xcode'un betik kum havuzu (User Script Sandboxing), React Native'in "Bundle React Native code and images"
+ * adımının proje dosyalarını okumasını engelliyor; iOS derlemesi bu adımda düşüyor. `ios/` üretilen bir
+ * çıktı olduğundan ayar elle değil, her prebuild'de burada kapatılır.
+ */
+const withoutUserScriptSandboxing: ConfigPlugin = (expoConfig) =>
+  withXcodeProject(expoConfig, (mod) => {
+    const section = mod.modResults.pbxXCBuildConfigurationSection() as Record<string, unknown>;
+    for (const entry of Object.values(section)) {
+      if (typeof entry === 'object' && entry !== null && 'buildSettings' in entry) {
+        (entry as { buildSettings: Record<string, unknown> }).buildSettings.ENABLE_USER_SCRIPT_SANDBOXING = 'NO';
+      }
+    }
+    return mod;
+  });
+
+export default withoutUserScriptSandboxing(config);
