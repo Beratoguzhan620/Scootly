@@ -2,8 +2,8 @@
 
 **Scootly mobil uygulaması: yakındaki scooter'ı bul, rezerve et, QR kodunu okutup ödemeyi onayla, sürüşü bitir ve
 ödemeyi takip et. Filo ekibi aynı uygulamayla bütün araçları yönetir.**
-React Native (Expo SDK 57) + TypeScript ile yazıldı; [Scootly API](https://github.com/Beratoguzhan620/Scootly)'sini
-kullanır. Görünüm "sokak tabelası" fikrine dayanır: voltaj sarısı levhalar, derin lacivert yazı, vektör harita
+React Native (Expo SDK 57) + TypeScript ile yazıldı; aynı depodaki [Scootly API](../README.md)'sini kullanır.
+Görünüm "sokak tabelası" fikrine dayanır: voltaj sarısı levhalar, derin lacivert yazı, vektör harita
 (bkz. [Tasarım Dili](#tasarım-dili)).
 
 ---
@@ -17,6 +17,7 @@ kullanır. Görünüm "sokak tabelası" fikrine dayanır: voltaj sarısı levhal
 - [Harita](#harita)
 - [Komutlar](#komutlar)
 - [CI ve APK Derleme](#ci-ve-apk-derleme)
+- [Güvenlik ve Gizlilik](#güvenlik-ve-gizlilik)
 - [Proje Yapısı](#proje-yapısı)
 - [Tasarım Dili](#tasarım-dili)
 - [Backend ile Uyum ve Bilinen Eksikler](#backend-ile-uyum-ve-bilinen-eksikler)
@@ -26,16 +27,16 @@ kullanır. Görünüm "sokak tabelası" fikrine dayanır: voltaj sarısı levhal
 
 ## Android APK (test sürümü)
 
-`main`'e her push'ta GitHub Actions APK derler, Android emülatöründe ana akışı dener ve sonucu
-**Releases → "Android test sürümü (son derleme)"** (`android-latest`) altına koyar.
+Depo herkese açık olduğu için APK GitHub'da (Releases, Actions) yayınlanmaz; ekip içinde elden paylaşılır.
 
-1. Releases sayfasını telefonda açıp `scootly.apk` dosyasını indirin ve açın. İlk kurulumda tarayıcıya
-   "bilinmeyen uygulamaları yükleme" izni vermeniz istenir. Yeni derlemeler eskisinin üzerine kurulur.
+1. APK'yı derleyin (bkz. [CI ve APK Derleme](#ci-ve-apk-derleme)) ya da ekipten alın, telefonda açıp kurun. İlk
+   kurulumda "bilinmeyen uygulamaları yükleme" izni istenir. Yeni derlemeler eskisinin üzerine kurulur.
 2. API'yi telefonun erişebileceği şekilde çalıştırın (bkz. [API'ye Bağlanma](#apiye-bağlanma)).
-3. Uygulamada giriş ekranının altındaki **Sunucu: … Değiştir** bağlantısından bilgisayarın adresini girin
+3. Uygulamada giriş ekranının altındaki **Sunucu: … Değiştir** bağlantısından API adresini girin
    (ör. `http://192.168.1.20:5017`), **Bağlantıyı test et** ile doğrulayıp kaydedin.
 
-APK hata ayıklama anahtarıyla imzalıdır ve HTTP bağlantısına izin verir; mağaza sürümü değildir.
+APK hata ayıklama anahtarıyla imzalıdır ve HTTP bağlantısına izin verir; mağaza sürümü değildir. `.env.local`'deki
+sunucu adresiyle derlenen APK o adresi içinde taşır (bkz. [Güvenlik ve Gizlilik](#güvenlik-ve-gizlilik)).
 
 ## Özellikler
 
@@ -68,13 +69,15 @@ dolunca ya da sunucu oturumu iptal edince (parola/rol değişikliği) kullanıc�
 iOS simülatörü / Android emülatörü.
 
 ```bash
+cd mobile
 npm install
-cp .env.example .env.local     # gerekirse varsayılan API adresini yazın
+cp .env.example .env.local     # gerekirse varsayılan API adresini yazın (.env.local git'e girmez)
 npm start                       # QR kodu Expo Go ile okutun; i = iOS simülatörü, a = Android emülatörü
 ```
 
-API'yi ayağa kaldırmak için backend reposundaki README → *Hızlı Başlangıç (Docker)*. Kayıt ekranından yeni bir
-hesap açmak yeterli; yeni hesaplar otomatik olarak sürücü rolü alır.
+Komutlar `mobile/` klasöründe çalışır; VS Code görevleri (`.vscode/tasks.json`) için VS Code'da bu klasörü açın.
+API'yi ayağa kaldırmak için deponun kökündeki [README](../README.md) → *Hızlı Başlangıç (Docker)*. Kayıt ekranından
+yeni bir hesap açmak yeterli; yeni hesaplar otomatik olarak sürücü rolü alır.
 
 API olmadan arayüzü denemek için sahte API: `python3 e2e/mock-api.py --port 5999` (adres emülatörde
 `http://10.0.2.2:5999`). Parola hepsinde `Scootly2026`: `surucu@scootly.test` (sürücü),
@@ -97,8 +100,8 @@ Varsayılan adres şu sırayla belirlenir; uygulama içindeki sunucu ayarları h
 | Telefon (aynı Wi-Fi) | `http://<bilgisayarın IP'si>:5017` | Aşağıdaki ek ayar gerekir. |
 
 **Fiziksel telefon için:** Backend'in Docker Compose dosyası API'yi yalnızca `127.0.0.1:5016`'ya bağlıyor; telefon
-bu adrese ulaşamaz. Backend reposunda, **yalnızca kendi bilgisayarınızda** `deploy/docker-compose.override.yml`
-oluşturun (Compose bu dosyayı otomatik okur, repoya eklemeyin):
+bu adrese ulaşamaz. Deponun kökünde, **yalnızca kendi bilgisayarınızda** `deploy/docker-compose.override.yml`
+oluşturun (Compose bu dosyayı otomatik okur, depoya eklemeyin):
 
 ```yaml
 services:
@@ -185,17 +188,15 @@ ve araç paneli aynı bilgiyi erişilebilir biçimde verir.
 
 ## CI ve APK Derleme
 
-`.github/workflows/android.yml` her push ve PR'da çalışır:
+Deponun kökündeki `.github/workflows/mobile.yml`, `mobile/` altında değişiklik olan her push ve PR'da
+`npm run check` çalıştırır (tip, lint, testler). APK CI'da derlenmez: açık depoda Actions çıktılarını ve Releases'i
+herkes indirebilir, derleme ortamına verilen `EXPO_PUBLIC_*` değerleri de APK'nın içine düz metin olarak girer.
 
-| İş | Ne yapar? |
-|---|---|
-| **Tip, lint ve testler** | `npm run check` |
-| **APK derle** | `expo prebuild` ile Android projesini üretir, React Native'in beklediği NDK'yı kurar, `assembleRelease` (armeabi-v7a, arm64-v8a, x86_64). Hata olursa Gradle'ın özeti iş notlarına düşer. |
-| **Emülatörde duman testi** | Android 14 emülatöründe sahte API'ye (`e2e/mock-api.py`) karşı giriş → harita → araç seçimi → rezervasyon → sürüş → ödeme → geçmiş → hesap akışını ekrandaki metinlere dokunarak gezer (`e2e/android-smoke.py`), her adımın ekran görüntüsünü alır, çökme kaydı varsa başarısız olur. |
-| **Releases'a yayınla** | Yalnızca `main`: APK'yı ve emülatör ekran görüntülerini `android-latest` ön sürümüne koyar. |
-
-İsteğe bağlı: depo ayarlarında *Settings → Secrets and variables → Actions → Variables* altında
-`EXPO_PUBLIC_API_URL` tanımlanırsa APK bu adresle başlar.
+**Emülatörde duman testi** (`e2e/android-smoke.py`) yerelde çalışır: giriş → harita → araç seçimi → rezervasyon →
+sürüş → ödeme → geçmiş → filo akışını ekrandaki metinlere dokunarak gezer, her adımın ekran görüntüsünü alır, çökme
+kaydı varsa başarısız olur. Sahte API'yi açın (`python3 e2e/mock-api.py --port 5999`), Android emülatörünü başlatın
+ve `bash e2e/run-android-smoke.sh scootly.apk smoke` çalıştırın. APK emülatörün mimarisini içermeli (Apple
+Silicon'da `arm64-v8a`, Intel'de `x86_64`).
 
 ### macOS'ta yerel derleme
 
@@ -226,6 +227,25 @@ cd android && ./gradlew assembleRelease      # Windows: gradlew.bat assembleRele
 Windows'ta C++ derleme yolları uzun olduğu için projeyi kısa bir yolda tutun (ör. `C:\dev\scootly-mobile`).
 Mağaza sürümü için kendi imza anahtarınız gerekir (EAS Build ya da Gradle `signingConfig`).
 
+## Güvenlik ve Gizlilik
+
+Depo herkese açık. Aşağıdakiler commit'e, issue ve PR'a, Actions değişkenine ya da herkese açık bir APK'ya girmez:
+
+- **Gerçek sunucu adresi** (alan adı, ev ya da ofis IP'si, port). Yalnızca kendi `.env.local` dosyanızda ya da
+  uygulamanın sunucu ayarında durur. `.env.local` git'e girmez; `.env.example`'da yalnızca örnek adresler var.
+- **Sırlar** (API anahtarı, token, parola). `EXPO_PUBLIC_` ile başlayan her değer uygulama paketine düz metin olarak
+  gömülür ve APK'yı açan herkes okuyabilir; bu değişkenlere sır konmaz. Sırlar yalnızca sunucuda durur.
+- **Adres gömülü APK'lar.** `.env.local`'deki adresle derlenen APK ekip içinde elden paylaşılır; Releases'e, Actions
+  çıktısına ya da herkese açık bir gruba konmaz. Açık bir yere konacak APK `EXPO_PUBLIC_API_URL` boşken derlenir,
+  adres uygulamanın sunucu ayarından girilir.
+- **Derleme çıktıları ve imza dosyaları** (`*.apk`, `*.aab`, `*.ipa`, `*.keystore`, `*.jks`, `*.p8`, `*.p12`,
+  `*.mobileprovision`) ve iOS çökme kayıtları (`*.ips`, cihaz adını ve kimliğini içerir). Hepsi `.gitignore`'da.
+- **Ekran görüntüleri.** Sunucu ayarı ekranını ya da adresi gösteren görüntüleri paylaşmadan önce adresi kapatın.
+
+Push'tan önce deponun kökünde `gitleaks git --config .gitleaks.toml` ile tarayabilirsiniz; CI her push'ta çalışma
+ağacını aynı kurallarla tarar. Commit e-postası da herkese görünür: GitHub'ın *Settings → Emails → Keep my email
+addresses private* ayarı açıkken verdiği `…@users.noreply.github.com` adresini kullanabilirsiniz.
+
 ## Proje Yapısı
 
 ```
@@ -255,9 +275,8 @@ src/
 │                             # kart doğrulama, QR/plaka kodu + testler
 ├── lib/                      # Biçimlendirme, coğrafya, JWT, konum, depolama, adres doğrulama
 └── theme/                    # Tasarım dili: açık/koyu renkler, Barlow yazı tipleri, ölçek, boşluklar
-e2e/                          # Sahte API ve Android duman testi (CI)
+e2e/                          # Sahte API ve Android emülatöründe duman testi
 scripts/                      # MapLibre'yi gömen betik, harita yazı tipi, macOS'ta APK ve backend betikleri
-.github/workflows/            # Android APK hattı
 ```
 
 ## Tasarım Dili

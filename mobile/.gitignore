@@ -30,8 +30,13 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# VS Code görevleri (APK derleme, backend) depoya dahil; kökteki .gitignore .vscode/'u dışarıda bırakıyor.
+!/.vscode/
+
+# Ortam dosyaları: gerçek sunucu adresi ve benzeri yerel değerler yalnızca .env.local'de durur.
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -40,7 +45,7 @@ yarn-error.*
 /ios
 /android
 
-# CI duman testi çıktıları
+# Emülatör duman testi çıktıları (e2e/android-smoke.py)
 /smoke
 /emulator-ekranlari.zip
 /gradle.log
@@ -50,3 +55,13 @@ __pycache__/
 /.local-build
 /scootly.apk
 /scootly.apk.zip
+
+# Derleme çıktıları, imza dosyaları ve çökme kayıtları (açık depoya girmemeli)
+*.apk
+*.aab
+*.ipa
+*.keystore
+*.ips
+credentials.json
+google-services.json
+GoogleService-Info.plist

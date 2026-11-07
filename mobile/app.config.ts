@@ -12,8 +12,8 @@ const BRAND_VOLT = '#FFD60A';
 const allowHttp = process.env.SCOOTLY_ALLOW_HTTP !== 'false';
 
 /**
- * Her derleme bir öncekinin üstüne kurulabilsin diye artan derleme numarası. CI kendi numarasını verir; yerel
- * derlemede sürümle birlikte elle artırılır (0.2.0 → 2).
+ * Her derleme bir öncekinin üstüne kurulabilsin diye artan derleme numarası. Derleme ortamı
+ * `SCOOTLY_VERSION_CODE` ile verebilir; verilmezse sürümle birlikte elle artırılır (0.2.0 → 2).
  */
 const versionCode = Number(process.env.SCOOTLY_VERSION_CODE) || 2;
 

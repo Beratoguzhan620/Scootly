@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI'da emülatör açıldıktan sonra çalışır (reactivecircus/android-emulator-runner `script`).
+# Emülatör açıkken ve sahte API (python3 e2e/mock-api.py --port 5999) çalışırken çalıştırılır.
 # Kullanım: bash e2e/run-android-smoke.sh <apk> <çıktı klasörü>
 set -euo pipefail
 
