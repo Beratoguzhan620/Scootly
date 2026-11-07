@@ -1,0 +1,67 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# VS Code görevleri (APK derleme, backend) depoya dahil; kökteki .gitignore .vscode/'u dışarıda bırakıyor.
+!/.vscode/
+
+# Ortam dosyaları: gerçek sunucu adresi ve benzeri yerel değerler yalnızca .env.local'de durur.
+.env
+.env.*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Emülatör duman testi çıktıları (e2e/android-smoke.py)
+/smoke
+/emulator-ekranlari.zip
+/gradle.log
+__pycache__/
+
+# Yerel derleme (scripts/mac/build-apk.sh)
+/.local-build
+/scootly.apk
+/scootly.apk.zip
+
+# Derleme çıktıları, imza dosyaları ve çökme kayıtları (açık depoya girmemeli)
+*.apk
+*.aab
+*.ipa
+*.keystore
+*.ips
+credentials.json
+google-services.json
+GoogleService-Info.plist

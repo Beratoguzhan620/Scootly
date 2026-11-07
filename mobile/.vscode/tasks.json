@@ -1,0 +1,57 @@
+{
+  // Terminal → Run Build Task… (⇧⌘B) APK'yı derler; diğerleri Terminal → Run Task… ile çalışır.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "APK derle (macOS)",
+      "detail": "Eksik araçları (Node.js, JDK 17, Android SDK) kurar ve scootly.apk üretir",
+      "type": "shell",
+      "command": "bash scripts/mac/build-apk.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "Backend'i başlat (Docker)",
+      "detail": "Scootly backend'ini Docker'da çalıştırır ve API'yi telefon için yerel ağa açar",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "Backend durumu",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh status",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Tüneli yenile (yeni adres)",
+      "detail": "İnternet tünelini yeniden açar; telefona yeni HTTPS adresini yazmak gerekir",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh tunnel",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Backend'i durdur",
+      "type": "shell",
+      "command": "bash scripts/mac/backend.sh stop",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Denetim (tip, lint, test)",
+      "type": "npm",
+      "script": "check",
+      "problemMatcher": ["$tsc"],
+      "group": "test"
+    }
+  ]
+}
