@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Mobile app (`mobile/`, React Native with Expo SDK 57): driver mode (map, reservation, QR start, ride, payment
+  tracking, history) and fleet mode (fleet map, vehicle list, status actions, vehicle QR codes). CI runs its type check,
+  lint and unit tests (`mobile.yml`); APKs are not built or published from this public repository.
 - Optional field-task photo upload in Mvc (JPEG/PNG up to 5 MB, content-sniffed, S3-compatible storage via SeaweedFS)
   with short-lived pre-signed download links (ADR 0043).
 - Account endpoints: `GET /api/account`, `POST /api/account/change-password` (returns a fresh token) and

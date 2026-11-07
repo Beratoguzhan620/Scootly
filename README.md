@@ -5,7 +5,8 @@
 
 Sürücü yakınındaki müsait scooter'ı bulur, rezerve eder, sürüşe başlar ve bitirir; ücret tarifeyle hesaplanıp ödeme
 sağlayıcısından asenkron tahsil edilir. Cihazlar konum ve batarya gönderir; bataryası düşen araç için saha ekibine
-otomatik görev açılır. Filo ekibi araçları, canlı haritayı ve saha görevlerini web panelinden yönetir.
+otomatik görev açılır. Filo ekibi araçları, canlı haritayı ve saha görevlerini web panelinden yönetir. Sürücü ve filo
+ekibi için mobil uygulama (React Native, Expo) `mobile/` klasöründe: [mobile/README.md](mobile/README.md).
 
 > Son sürüm `v0.1.0-rc.1` (6 Ekim 2026). Sonrasındaki değişiklikler `CHANGELOG.md` → `[Unreleased]` bölümündedir.
 
@@ -319,6 +320,8 @@ sayfasındaki **Hizmete döndür** ile yeniden kiralanabilir hale gelir.
   konumları 90 gün sonra veya hesap silinince anonimleşir (ADR 0004).
 - **Kötüye kullanım:** istemci başına rate limiting, hesap kilitleme, webhook HMAC + zaman damgası, korelasyon kimliği
   doğrulaması, panelde CSP ve antiforgery.
+- **Mobil uygulama:** sunucu adresi ve `EXPO_PUBLIC_*` değerleri yalnızca geliştiricinin `mobile/.env.local`
+  dosyasında durur; APK GitHub'da yayınlanmaz (`mobile/README.md` → Güvenlik ve Gizlilik).
 - Olay müdahalesi ve sır rotasyonu: `docs/runbook/incident-response.md`.
 
 ---
@@ -363,6 +366,8 @@ Fotoğraf senaryoları `SCOOTLY_LIVE_STORAGE_ENDPOINT`, `SCOOTLY_LIVE_STORAGE_AC
 4. **Docker imajları** (5 imaj) ve **imaj taraması** (Trivy; düzeltmesi olan yüksek/kritik açık varsa kırmızı)
 5. **E2E** (Playwright, ayrı iş)
 
+`.github/workflows/mobile.yml` yalnızca `mobile/` değişince mobil uygulamanın tip, lint ve birim testlerini çalıştırır.
+
 Action'lar commit SHA'sına sabitlenmiştir; Dependabot NuGet, Actions ve Docker güncellemelerini haftalık önerir.
 `v*` etiketi `release.yml`'i tetikler: CI'dan geçmiş commit'in imajları GHCR'a itilir ve CHANGELOG'dan GitHub Release
 oluşturulur (`docs/runbook/deployment.md`).
@@ -383,6 +388,7 @@ Scootly/
 │   ├── Scootly.PaymentSimulator/  Ödeme sağlayıcısı simülatörü
 │   └── Scootly.DeviceSimulator/   Cihaz ağ geçidi simülatörü
 ├── tests/                         Birim, entegrasyon, eşzamanlılık, mimari, Worker, Mvc, E2E ve yük testleri
+├── mobile/                        Mobil uygulama (React Native, Expo): sürücü ve filo modu
 ├── deploy/
 │   ├── docker-compose.yml         Geliştirme yığını ve profiller
 │   ├── docker-compose.prod.yml    Üretim override'ı (Nginx, kapalı portlar, kaynak sınırları)

@@ -14,3 +14,4 @@ tests/
 deploy/.env
 deploy/.env.prod
 **/*.local.md
+mobile/
