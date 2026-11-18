@@ -1,4 +1,5 @@
 ﻿@model Scootly.Mvc.ViewModels.LoginViewModel
+@inject IConfiguration Configuration
 
 @{
     ViewData["Title"] = "Giriş Yap";
@@ -31,6 +32,27 @@
 
             <button type="submit" class="btn btn-primary">Giriş Yap</button>
         </form>
+
+        @* Herkese açık demo, filo yöneticisi girişini bilerek yayımlar; başka ortamlarda bu bölüm görünmez. *@
+        @if (Configuration["Demo:FleetManagerEmail"] is { Length: > 0 } demoEmail && Configuration["Demo:FleetManagerPassword"] is { Length: > 0 } demoPassword)
+        {
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h2 class="h6">Bu herkese açık bir demo</h2>
+                    <p class="small text-muted mb-2">
+                        Samsun'da 16 scooter ve kendi kendine sürüş yapan üç sürücü var; ödemeler simülatörden alınır.
+                        Filo yöneticisi olarak girip araçları, haritayı, sürüşleri ve saha görevlerini görebilirsiniz.
+                    </p>
+                    <p class="small mb-3"><code>@demoEmail</code> / <code>@demoPassword</code></p>
+                    <form asp-action="Login" method="post">
+                        <input type="hidden" name="Email" value="@demoEmail" />
+                        <input type="hidden" name="Password" value="@demoPassword" />
+                        <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+                        <button type="submit" class="btn btn-outline-primary w-100">Filo yöneticisi olarak gir</button>
+                    </form>
+                </div>
+            </div>
+        }
     </div>
 </div>
 

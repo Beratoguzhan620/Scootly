@@ -1,0 +1,69 @@
+# Herkese açık demo, Render'ın ücretsiz planında iki web servisi: Api (Api, Worker, ödeme ve cihaz simülatörleri)
+# ve panel (Mvc). İkisi de Neon'daki aynı veritabanını kullanır. Render, blueprint ilk uygulandığında veritabanı
+# bağlantı dizesini bir kez sorar (ortak grup). Buradaki filo yöneticisi girişi bilerek yayımlanır: demo içindir.
+envVarGroups:
+  - name: scootly-demo
+    envVars:
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__HubKey
+        generateValue: true
+      - key: Messaging__Enabled
+        value: "false"
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+
+services:
+  - type: web
+    name: scootly-demo-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./deploy/demo/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - fromGroup: scootly-demo
+      - key: Jwt__Key
+        generateValue: true
+      - key: DeviceAuth__ClientSecret
+        generateValue: true
+      - key: PaymentWebhook__Secret
+        generateValue: true
+      - key: Database__MigrateOnStartup
+        value: "true"
+      - key: Bootstrap__FleetManagerEmail
+        value: yonetici@scootly.demo
+      - key: Bootstrap__FleetManagerPassword
+        value: Yonetici-Demo-2026
+      - key: Demo__Enabled
+        value: "true"
+      - key: Worker__UnchargedRideGracePeriod
+        value: "00:01:00"
+      - key: Worker__PaymentRetryBackoff
+        value: "00:02:00"
+      - key: Cors__AllowedOrigins__0
+        value: https://scootly-demo-panel.onrender.com
+      - key: PORT
+        value: "8080"
+
+  - type: web
+    name: scootly-demo-panel
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./src/Scootly.Mvc/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - fromGroup: scootly-demo
+      - key: ApiBaseUrl
+        value: https://scootly-demo-api.onrender.com
+      - key: Demo__FleetManagerEmail
+        value: yonetici@scootly.demo
+      - key: Demo__FleetManagerPassword
+        value: Yonetici-Demo-2026
+      - key: PORT
+        value: "8080"
