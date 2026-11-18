@@ -26,7 +26,7 @@ RUN dotnet ef migrations bundle \
         --self-contained -r linux-x64 \
         --output /app/efbundle
 
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0 AS migrator
+FROM mcr.microsoft.com/dotnet/runtime-deps:11.0 AS migrator
 WORKDIR /app
 COPY --from=migrations-bundle /app/efbundle ./efbundle
 USER $APP_UID
