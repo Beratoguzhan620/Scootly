@@ -11,7 +11,7 @@ RUN dotnet restore src/Scootly.PaymentSimulator/Scootly.PaymentSimulator.csproj
 COPY src/Scootly.PaymentSimulator/ src/Scootly.PaymentSimulator/
 RUN dotnet publish src/Scootly.PaymentSimulator/Scootly.PaymentSimulator.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 USER $APP_UID
