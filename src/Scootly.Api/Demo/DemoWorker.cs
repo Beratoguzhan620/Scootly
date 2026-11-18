@@ -168,7 +168,18 @@ internal sealed partial class DemoWorker(
                 continue;
             }
 
+            // Gerçek bir sürücü gibi önce rezerve eder; araç bu arada başkasına geçtiyse bu tur bekler.
             var vehicle = candidates[_random.Next(candidates.Count)];
+            using (var reserve = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/vehicles/{vehicle.Id}/reserve"))
+            {
+                reserve.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var reserved = await http.SendAsync(reserve, ct);
+                if (!reserved.IsSuccessStatusCode)
+                {
+                    continue;
+                }
+            }
+
             await SendAsync<JsonElement?>(http, HttpMethod.Post, "/api/rides/start", token, new { vehicleId = vehicle.Id }, ct);
             LogRideStarted(logger, rider, vehicle.Id);
         }
