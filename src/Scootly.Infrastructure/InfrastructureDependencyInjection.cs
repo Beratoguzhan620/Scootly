@@ -35,7 +35,7 @@ public static class InfrastructureDependencyInjection
     {
         services.AddDbContext<ScootlyDbContext>((serviceProvider, options) =>
         {
-            var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName);
+            var connectionString = ConnectionStrings.FromUrl(serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName));
 
             // Bağlantı dizesi yoksa (örn. EF migration paketi derlenirken) sağlayıcı bağlantısız yapılandırılır;
             // çalışma zamanındaki eksiklik aşağıdaki açılış doğrulamasıyla hemen yakalanır.
@@ -49,7 +49,7 @@ public static class InfrastructureDependencyInjection
         });
 
         services.AddOptions<DatabaseOptions>()
-            .Configure<IConfiguration>((options, config) => options.ConnectionString = config.GetConnectionString(ConnectionStringName))
+            .Configure<IConfiguration>((options, config) => options.ConnectionString = ConnectionStrings.FromUrl(config.GetConnectionString(ConnectionStringName)))
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.ConnectionString),
                 $"'ConnectionStrings:{ConnectionStringName}' yapılandırılmamış. Geliştirmede user-secrets, " +

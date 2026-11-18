@@ -1,6 +1,8 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
+using Scootly.Api.Demo;
 using Scootly.Api.ErrorHandling;
 using Scootly.Api.Extensions;
 using Scootly.Api.Hubs;
@@ -105,6 +107,15 @@ if (InfrastructureDependencyInjection.IsMessagingEnabled(builder.Configuration))
 
 builder.Services.AddHealthChecks().AddScootlyHealthChecks(builder.Configuration);
 
+// Herkese açık demo: bölge, araçlar ve kendi kendine sürüş yapan sürücüler. Demo:Enabled olmadıkça kapalıdır.
+builder.Services.AddOptions<DemoOptions>().BindConfiguration(DemoOptions.SectionName);
+var demo = builder.Configuration.GetSection(DemoOptions.SectionName).Get<DemoOptions>() ?? new DemoOptions();
+if (demo.Enabled)
+{
+    builder.Services.AddHttpClient(DemoWorker.HttpClientName, client => client.BaseAddress = new Uri(demo.BaseUrl));
+    builder.Services.AddHostedService<DemoWorker>();
+}
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();
@@ -151,6 +162,14 @@ app.MapHub<FleetHub>($"{SecurityExtensions.HubsPathPrefix}/fleet");
 // Canlılık: süreç ayakta mı? Hazırlık: bağımlılıklar (veritabanı, önbellek, mesaj kuyruğu) erişilebilir mi?
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
+
+// Tek kapsayıcılı demo gibi ayrı bir migration adımı olmayan kurulumlar için; varsayılan kapalıdır ve şema
+// değişikliği normalde migrator ile yapılır.
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    await scope.ServiceProvider.GetRequiredService<Scootly.Infrastructure.Persistence.ScootlyDbContext>().Database.MigrateAsync();
+}
 
 app.Run();
 
