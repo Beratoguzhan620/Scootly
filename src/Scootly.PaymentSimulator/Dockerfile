@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Derleme bağlamı depo köküdür: docker build -f src/Scootly.PaymentSimulator/Dockerfile .
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 
 COPY Directory.Build.props Directory.Packages.props ./
